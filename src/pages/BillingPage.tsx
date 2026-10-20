@@ -56,7 +56,7 @@ export default function BillingPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { loading, plans, plan, subscription, activeSub, usage, limitOf, percentUsed, reload } = useSubscription();
-  const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly");
+  const [cycle, setCycle] = useState<"monthly" | "yearly">("yearly");
   const [checkoutPlan, setCheckoutPlan] = useState<Plan | null>(null);
   const [method, setMethod] = useState("bkash");
   const [txn, setTxn] = useState("");
