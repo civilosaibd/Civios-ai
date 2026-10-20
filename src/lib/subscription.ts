@@ -9,6 +9,7 @@ export interface Plan {
   code: string;
   name: string;
   tagline: string | null;
+  /** @deprecated legacy column — do not display or charge. Use planPrice(). */
   price_monthly: number;
   price_yearly: number;
   currency: string;
@@ -17,6 +18,13 @@ export interface Plan {
   features: string[];
   limits: PlanLimits;
 }
+
+/**
+ * Plans are billed YEARLY only. `price_yearly` is the single source of truth
+ * (a data migration set it equal to the former monthly amount — no ×12).
+ * `price_monthly` stays in the table for history but must not be shown or charged.
+ */
+export const planPrice = (plan: Pick<Plan, "price_yearly">) => Number(plan.price_yearly);
 
 export interface Subscription {
   id: string;
@@ -133,4 +141,23 @@ export function useSubscription() {
     loading, plans, plan, subscription, activeSub, usage,
     limitOf, hasFeature, usageOf, percentUsed, isOverLimit, reload: load,
   };
+}
+
+/** Public (signed-out friendly) read of active plans, e.g. for the landing page. */
+export function usePublicPlans() {
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data, error } = await supabase.from("plans").select("*").eq("is_active", true).order("sort_order");
+      if (!alive) return;
+      if (error || !data) setFailed(true);
+      else setPlans((data as unknown as Plan[]).map((p) => ({ ...p, features: Array.isArray(p.features) ? p.features : [], limits: p.limits || {} })));
+      setLoading(false);
+    })();
+    return () => { alive = false; };
+  }, []);
+  return { plans, loading, failed };
 }

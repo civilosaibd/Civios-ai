@@ -54,6 +54,8 @@ const BillingPage = lazy(() => import("./pages/BillingPage.tsx"));
 const AdminBillingPage = lazy(() => import("./pages/AdminBillingPage.tsx"));
 const FinancePage = lazy(() => import("./pages/FinancePage.tsx"));
 const DefectDetectionPage = lazy(() => import("./pages/DefectDetectionPage.tsx"));
+const VisualizationsPage = lazy(() => import("./pages/VisualizationsPage.tsx"));
+const VisualizationWorkspacePage = lazy(() => import("./pages/VisualizationWorkspacePage.tsx"));
 
 
 
@@ -96,6 +98,8 @@ const App = () => (
               <Route path="/site-diary" element={<SiteDiaryPage />} />
               <Route path="/plan-generator" element={<PlanGeneratorPage />} />
               <Route path="/bim-studio" element={<BimStudioPage />} />
+              <Route path="/visualizations" element={<VisualizationsPage />} />
+              <Route path="/visualizations/:id" element={<VisualizationWorkspacePage />} />
               <Route path="/site-geo" element={<SiteGeoPage />} />
               <Route path="/scheduler" element={<SchedulerPage />} />
               <Route path="/inventory" element={<InventoryPage />} />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -14,15 +14,43 @@ export default function NotificationsPage() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
-    const { data } = await supabase.from("notifications").select("*").order("created_at", { ascending: false }).limit(200);
-    setItems(data || []); setLoading(false);
-  };
-  useEffect(() => { if (user) load(); }, [user]);
+  const load = useCallback(async () => {
+    if (!user) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) {
+      console.error("Failed to load notifications", error.message);
+      setItems([]);
+    } else {
+      setItems(data || []);
+    }
+    setLoading(false);
+  }, [user]);
+
+  useEffect(() => {
+    setLoading(true);
+    void load();
+  }, [load]);
 
   const markAll = async () => {
-    await supabase.from("notifications").update({ read: true }).eq("user_id", user!.id).eq("read", false);
-    load();
+    if (!user) return;
+    const { error } = await supabase.from("notifications")
+      .update({ read: true })
+      .eq("user_id", user.id)
+      .eq("read", false);
+    if (error) {
+      console.error("Failed to mark notifications read", error.message);
+      return;
+    }
+    await load();
   };
 
   return (
@@ -34,7 +62,7 @@ export default function NotificationsPage() {
             <h1 className="font-heading text-2xl md:text-3xl font-bold">Notifications</h1>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" asChild><Link to="/settings/notifications">Settings</Link></Button>
-              <Button size="sm" onClick={markAll}><Check className="h-4 w-4"/>Mark all read</Button>
+              <Button size="sm" onClick={markAll} disabled={!user || items.every((n) => n.read)}><Check className="h-4 w-4"/>Mark all read</Button>
             </div>
           </div>
           {loading ? <Loader2 className="h-6 w-6 animate-spin mx-auto"/> :

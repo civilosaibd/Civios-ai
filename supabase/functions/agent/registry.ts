@@ -49,7 +49,7 @@ export function resolveFeature(q: string) {
 async function planFor(ctx: Ctx) {
   const { data: sub } = await ctx.db.from("subscriptions").select("status, plan_id, billing_cycle, renewal_date").eq("user_id", ctx.userId).maybeSingle();
   const active = sub && ["active", "trialing"].includes(sub.status);
-  const { data: plans } = await ctx.db.from("plans").select("id, code, name, price_monthly, limits, sort_order").eq("is_active", true).order("sort_order");
+  const { data: plans } = await ctx.db.from("plans").select("id, code, name, price_yearly, limits, sort_order").eq("is_active", true).order("sort_order");
   const plan = (active ? plans?.find((p) => p.id === sub!.plan_id) : null) || plans?.find((p) => p.code === "free") || null;
   return { sub: active ? sub : null, plan, plans: plans || [] };
 }
@@ -65,7 +65,7 @@ async function featureStatus(ctx: Ctx, f: (typeof FEATURES)[number]) {
   const { plan, plans } = await planFor(ctx);
   if (!allowed(plan, f.plan)) {
     const upgrade = plans.find((p) => allowed(p, f.plan));
-    return { status: "locked" as const, reason: "plan", current_plan: plan?.name, upgrade_plan: upgrade ? { name: upgrade.name, price_monthly_bdt: upgrade.price_monthly, path: "/billing" } : null };
+    return { status: "locked" as const, reason: "plan", current_plan: plan?.name, upgrade_plan: upgrade ? { name: upgrade.name, price_yearly_bdt: upgrade.price_yearly, billing_period: "yearly", path: "/billing" } : null };
   }
   const { data } = await ctx.db.from("user_feature_settings").select("enabled").eq("user_id", ctx.userId).eq("feature_key", f.key).maybeSingle();
   return { status: (data && !data.enabled ? "disabled" : "enabled") as "enabled" | "disabled" };
@@ -108,7 +108,7 @@ export const TOOLS: AgentTool[] = [
       return { app_role: ctx.isAdmin ? "admin" : "user", project_memberships: m || [], can: ["manage own projects", "manage own feature settings", "manage own notifications"] };
     } },
   { name: "get_user_subscription", description: "Return the current user's plan and renewal date (no payment details).", agentTypes: ["user"], input: z.object({}), risk: "LOW", requiresApproval: false,
-    handler: async (ctx) => { const { sub, plan, plans } = await planFor(ctx); return { plan: plan?.name, status: sub?.status || "free", billing_cycle: sub?.billing_cycle, renewal_date: sub?.renewal_date, other_plans: plans.map((p) => ({ name: p.name, price_monthly_bdt: p.price_monthly })), upgrade_path: "/billing" }; } },
+    handler: async (ctx) => { const { sub, plan, plans } = await planFor(ctx); return { plan: plan?.name, status: sub?.status || "free", billing_cycle: sub?.billing_cycle, renewal_date: sub?.renewal_date, other_plans: plans.map((p) => ({ name: p.name, price_yearly_bdt: p.price_yearly, billing_period: "yearly" })), upgrade_path: "/billing" }; } },
   { name: "get_user_projects", description: "List projects owned by or shared with the current user.", agentTypes: ["user"], input: z.object({}), risk: "LOW", requiresApproval: false,
     handler: async (ctx) => {
       const { data: own } = await ctx.db.from("projects").select("id, name, status, location, updated_at").eq("user_id", ctx.userId).order("updated_at", { ascending: false }).limit(30);
@@ -193,7 +193,7 @@ export const TOOLS: AgentTool[] = [
       return { previous: before.display_name, display_name: i.display_name.trim() };
     },
     verify: async (ctx, i) => { const { data } = await ctx.db.from("profiles").select("display_name").eq("id", i.user_id).maybeSingle(); return data?.display_name === i.display_name.trim(); } },
-  { name: "change_user_subscription", description: "Set a user's plan (by plan name, e.g. 'Starter', 'Professional', or 'Free' to cancel). Does not charge money. Requires admin approval.", agentTypes: ["admin"], input: z.object({ user_id: z.string(), plan_name: z.string(), billing_cycle: z.enum(["monthly", "yearly"]).optional() }), risk: "CRITICAL", requiresApproval: true, target: (i) => i.user_id,
+  { name: "change_user_subscription", description: "Set a user's plan (by plan name, e.g. 'Starter', 'Professional', or 'Free' to cancel). Does not charge money. Requires admin approval.", agentTypes: ["admin"], input: z.object({ user_id: z.string(), plan_name: z.string(), billing_cycle: z.enum(["yearly"]).optional() }), risk: "CRITICAL", requiresApproval: true, target: (i) => i.user_id,
     handler: async (ctx, i) => {
       const { data: active } = await ctx.db.from("subscriptions").select("id, plan_id").eq("user_id", i.user_id).eq("status", "active");
       if (/^free$/i.test(i.plan_name.trim())) {
@@ -203,8 +203,8 @@ export const TOOLS: AgentTool[] = [
       const { data: plan } = await ctx.db.from("plans").select("id, name").ilike("name", i.plan_name.trim()).maybeSingle();
       if (!plan) throw new Error(`Plan '${i.plan_name}' not found`);
       if (active?.length) await ctx.db.from("subscriptions").update({ status: "cancelled", cancelled_at: new Date().toISOString() }).eq("user_id", i.user_id).eq("status", "active");
-      const cycle = i.billing_cycle || "monthly";
-      const renew = new Date(); renew.setMonth(renew.getMonth() + (cycle === "yearly" ? 12 : 1));
+      const cycle = "yearly"; // monthly billing was removed
+      const renew = new Date(); renew.setFullYear(renew.getFullYear() + 1);
       const { data, error } = await ctx.db.from("subscriptions").insert({ user_id: i.user_id, plan_id: plan.id, status: "active", billing_cycle: cycle, payment_provider: "admin", renewal_date: renew.toISOString() }).select("id").single();
       if (error) throw new Error(error.message);
       return { plan: plan.name, plan_id: plan.id, subscription_id: data.id };

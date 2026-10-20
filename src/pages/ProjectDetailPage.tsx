@@ -200,6 +200,7 @@ export default function ProjectDetailPage() {
                     <Button asChild variant="outline"><Link to={`/boq-hub?project=${id}`}>BOQ Hub</Link></Button>
                     <Button asChild variant="outline"><Link to={`/boq?project=${id}`}>BOQ Generator</Link></Button>
                     <Button asChild variant="outline"><Link to={`/rate-analysis?project=${id}`}>Rate Analysis</Link></Button>
+                    <Button asChild variant="outline"><Link to={`/visualizations?project=${id}`}>3D Visualization</Link></Button>
                     <Button asChild variant="outline"><Link to={`/estimate/demo`}>Estimator</Link></Button>
                   </div>
                 </CardContent></Card>

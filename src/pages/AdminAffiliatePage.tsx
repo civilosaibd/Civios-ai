@@ -30,14 +30,16 @@ export default function AdminAffiliatePage() {
     setTotalPaid((data||[]).filter((w:any)=>w.status==="paid").reduce((s:number,w:any)=>s+Number(w.amount),0));
   };
 
-  const markPaid = async (id: string) => {
-    await (supabase as any).from("withdrawals").update({ status:"paid", paid_at: new Date().toISOString() }).eq("id", id);
-    toast.success("Marked as paid"); load();
+  // Status changes are validated by a DB trigger (pending→approved|rejected, approved→paid|rejected);
+  // timestamps are set server-side. Surface any error instead of failing silently.
+  const setStatus = async (id: string, status: "approved" | "rejected" | "paid", okMsg: string) => {
+    const { error } = await (supabase as any).from("withdrawals").update({ status }).eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success(okMsg); load();
   };
-  const approve = async (id: string) => {
-    await (supabase as any).from("withdrawals").update({ status:"approved" }).eq("id", id);
-    load();
-  };
+  const approve = (id: string) => setStatus(id, "approved", "Withdrawal approved");
+  const reject = (id: string) => setStatus(id, "rejected", "Withdrawal rejected");
+  const markPaid = (id: string) => setStatus(id, "paid", "Marked as paid");
 
   if (!isAdmin) return null;
 
@@ -63,7 +65,8 @@ export default function AdminAffiliatePage() {
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{w.status}</Badge>
                         {w.status==="pending" && <Button size="sm" variant="outline" onClick={()=>approve(w.id)}>Approve</Button>}
-                        {w.status!=="paid" && <Button size="sm" onClick={()=>markPaid(w.id)}>Mark Paid</Button>}
+                        {(w.status==="pending" || w.status==="approved") && <Button size="sm" variant="outline" onClick={()=>reject(w.id)}>Reject</Button>}
+                        {w.status==="approved" && <Button size="sm" onClick={()=>markPaid(w.id)}>Mark Paid</Button>}
                       </div>
                     </div>
                   ))}

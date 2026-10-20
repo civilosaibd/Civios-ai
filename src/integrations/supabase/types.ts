@@ -1171,6 +1171,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_payment: { Args: { _payment_id: string }; Returns: string }
+      cancel_my_subscription: { Args: Record<PropertyKey, never>; Returns: undefined }
+      reject_payment: { Args: { _payment_id: string; _note?: string }; Returns: undefined }
+      request_withdrawal: {
+        Args: { _amount: number; _method: string; _account_number: string }
+        Returns: string
+      }
       accept_project_invitation: { Args: { _token: string }; Returns: string }
       decline_project_invitation: { Args: { _token: string }; Returns: boolean }
       get_project_role: {
