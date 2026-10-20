@@ -56,8 +56,9 @@ export default function AffiliatePage() {
     const amt = Number(wForm.amount);
     if (amt < 500) return toast.error("Minimum ৳500");
     if (amt > pending) return toast.error("Amount exceeds available balance");
-    const { error } = await (supabase as any).from("withdrawals").insert({
-      user_id: user!.id, amount: amt, method: wForm.method, account_number: wForm.account_number,
+    // Server-side: enforces ৳500 minimum, real balance, allowed methods (no direct INSERT any more).
+    const { error } = await supabase.rpc("request_withdrawal", {
+      _amount: amt, _method: wForm.method, _account_number: wForm.account_number,
     });
     if (error) return toast.error(error.message);
     toast.success("Withdrawal requested");

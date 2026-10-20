@@ -1,28 +1,30 @@
 import { Check, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
+import { useI18n } from "@/lib/i18n";
+import { formatBDT, planPrice, usePublicPlans } from "@/lib/subscription";
 
 const tiers = [
   {
-    name: "Free", price: "৳0", period: "/month", cta: "Get Started Free", to: "/billing",
+    name: "Free", code: "free", cta: "Get Started Free", to: "/billing",
     highlight: false,
     features: ["3 projects", "Basic BOQ Generator", "50 AI credits / month", "Community support"],
     disabled: ["AI Drawing & AI Writer", "Analytics & finance modules"],
   },
   {
-    name: "Starter", price: "৳499", period: "/month", cta: "Start Starter", to: "/billing",
+    name: "Starter", code: "starter", cta: "Start Starter", to: "/billing",
     highlight: false,
     features: ["15 projects", "BOQ + Rate Analysis", "1,000 AI credits / month", "PDF & Excel export", "Email support"],
     disabled: [],
   },
   {
-    name: "Professional", price: "৳1,999", period: "/month", cta: "Go Professional", to: "/billing",
+    name: "Professional", code: "professional", cta: "Go Professional", to: "/billing",
     highlight: true,
     features: ["Unlimited projects", "All AI modules incl. AI Drawing", "10,000 AI credits / month", "Tender, analytics & finance", "BNBC 2022 compliance", "Team collaboration"],
     disabled: [],
   },
   {
-    name: "Business", price: "৳4,999", period: "/month", cta: "Contact Sales", to: "/contact",
+    name: "Business", code: "business", cta: "Contact Sales", to: "/contact",
     highlight: false,
     features: ["Everything in Professional", "Unlimited team seats", "Company management & roles", "Advanced analytics", "Priority AI processing", "Dedicated manager"],
     disabled: [],
@@ -30,6 +32,15 @@ const tiers = [
 ];
 
 export default function PricingSection() {
+  // Yearly is the ONLY billing period. Prices are read from the plans table (price_yearly);
+  // nothing is hardcoded here and nothing is multiplied.
+  const { t: tr } = useI18n();
+  const { plans, loading, failed } = usePublicPlans();
+  const priceOf = (code: string) => {
+    const p = plans.find((x) => x.code === code);
+    return p ? (planPrice(p) > 0 ? formatBDT(planPrice(p)) : "৳0") : null;
+  };
+
   return (
     <section id="pricing" className="py-16 md:py-24 border-t">
       <div className="container">
@@ -41,6 +52,7 @@ export default function PricingSection() {
           <p className="text-sm md:text-base text-muted-foreground">
             Start free. Upgrade any time as your team grows.
           </p>
+          <p className="text-xs text-muted-foreground">{tr("billing.yearlyPlan")} — {tr("billing.yearlyNote")}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -57,8 +69,10 @@ export default function PricingSection() {
               <div className="space-y-1">
                 <p className="font-heading text-lg font-bold">{t.name}</p>
                 <p className="flex items-baseline gap-1">
-                  <span className="font-heading text-3xl font-bold">{t.price}</span>
-                  <span className="text-xs text-muted-foreground">{t.period}</span>
+                  <span className="font-heading text-3xl font-bold">
+                    {priceOf(t.code) ?? (loading ? "…" : "—")}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{tr("billing.year")}</span>
                 </p>
               </div>
               <ul className="mt-5 space-y-2 flex-1">
@@ -81,7 +95,7 @@ export default function PricingSection() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          Prices in BDT (৳). VAT extra where applicable. Cancel anytime.
+          {failed ? `${tr("billing.pricesUnavailable")}. ` : ""}Prices in BDT (৳), billed yearly. VAT extra where applicable. Cancel anytime.
         </p>
       </div>
     </section>
