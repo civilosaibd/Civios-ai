@@ -146,6 +146,8 @@ test("withdrawals: minimum, balance, method and account validation", async () =>
   await alice(() => rejects(() => db.query("SELECT public.request_withdrawal(499,'bKash','01700000000')"), /Minimum withdrawal/));
   await alice(() => rejects(() => db.query("SELECT public.request_withdrawal(500,'bKash','01700000000')"), /exceeds available balance/));
   await db.query("INSERT INTO public.referrals (referrer_id, referred_user_id, status, commission_amount) VALUES ($1,$2,'converted',1000)", [ALICE, BOB]);
+  // Phase 3: the withdrawable balance is the approved commission LEDGER (written only server-side)
+  await db.query("INSERT INTO public.referral_commissions (referral_id,referrer_id,referred_user_id,base_amount,rate,commission_amount,status) SELECT id,referrer_id,referred_user_id,10000,0.10,1000,'approved' FROM public.referrals WHERE referrer_id=$1", [ALICE]);
   await alice(() => rejects(() => db.query("SELECT public.request_withdrawal(500,'paypal','01700000000')"), /Unsupported payment method/));
   await alice(() => rejects(() => db.query("SELECT public.request_withdrawal(500,'bKash','1')"), /Invalid account number/));
 });

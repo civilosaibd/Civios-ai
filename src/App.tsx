@@ -8,6 +8,7 @@ import { I18nProvider } from "@/lib/i18n";
 import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import ScrollToTop from "./components/ScrollToTop";
+import ReferralCapture, { RegisterRedirect } from "./components/ReferralCapture";
 import AppLoading from "./components/AppLoading";
 import InstallCivilOS from "./components/InstallCivilOS";
 import UpdateAvailable from "./components/UpdateAvailable";
@@ -72,6 +73,7 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <ScrollToTop />
+            <ReferralCapture />
             <InstallCivilOS />
             <UpdateAvailable />
             <Suspense fallback={<AppLoading compact />}>
@@ -83,6 +85,7 @@ const App = () => (
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/auth" element={<AuthPage />} />
+              <Route path="/register" element={<RegisterRedirect />} />
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/projects/:id" element={<ProjectDetailPage />} />
               <Route path="/modules" element={<ModulesPage />} />
