@@ -1,0 +1,182 @@
+// Affiliate commission tests (Phase 3). Runs ALL real migrations in PGlite.
+//   npm i --no-save @electric-sql/pglite && node --test supabase/tests/affiliate.test.mjs
+// Policy / function level only — NOT a substitute for a staging run on real Supabase.
+import { test, before } from "node:test";
+import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { PGlite } from "@electric-sql/pglite";
+import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const STUBS = readFileSync(join(here, "security.test.mjs"), "utf8").match(/const STUBS = `([\s\S]*?)`;/)[1];
+const migDir = join(here, "..", "migrations");
+
+const ADMIN = "00000000-0000-4000-8000-0000000000a1";
+const CAROL = "00000000-0000-4000-8000-0000000000d1"; // referrer
+const DAVE = "00000000-0000-4000-8000-0000000000d2";  // referred by Carol, honest
+const ERIN = "00000000-0000-4000-8000-0000000000d3";  // referred by Carol, same sender number as Carol
+const FRANK = "00000000-0000-4000-8000-0000000000d4"; // not referred
+let db, carolCode;
+
+async function as(role, uid, email, fn) {
+  await db.exec(`RESET ROLE; SELECT set_config('request.jwt.claim.sub','${uid ?? ""}',false);
+    SELECT set_config('request.jwt.claims','${JSON.stringify(uid ? { sub: uid, email } : {})}',false); SET ROLE ${role};`);
+  try { return await fn(); } finally { await db.exec("RESET ROLE"); }
+}
+const u = (id, email) => (fn) => as("authenticated", id, email, fn);
+const carol = u(CAROL, "carol@x.com"), dave = u(DAVE, "dave@x.com"), erin = u(ERIN, "erin@x.com"), frank = u(FRANK, "frank@x.com"), admin = u(ADMIN, "zobaerio24@gmail.com");
+const rejects = (p, re) => assert.rejects(Promise.resolve().then(p), re);
+const q = async (sql, p) => (await db.query(sql, p)).rows;
+const plan = async (code) => { const r = (await q("SELECT id, price_yearly::numeric p FROM public.plans WHERE code=$1", [code]))[0]; return { id: r.id, p: Number(r.p) }; };
+const pct = (price) => Math.round(Number(price) * 10) / 100; // 10% in currency units
+const near = (a, b) => assert.ok(Math.abs(Number(a) - Number(b)) < 0.005, `expected ${b}, got ${a}`);
+
+// a user files a payment through the real client path (trigger sets amount/status)
+async function pay(who, code, tx, sender) {
+  const p = await plan(code);
+  await who(() => db.query("INSERT INTO public.payments (user_id,plan_id,billing_cycle,transaction_id,sender_number) VALUES (current_setting('request.jwt.claim.sub')::uuid,$1,'yearly',$2,$3)", [p.id, tx, sender ?? null]));
+  return (await q("SELECT id FROM public.payments WHERE transaction_id=$1 ORDER BY created_at DESC LIMIT 1", [tx]))[0].id;
+}
+const approve = (id) => admin(() => db.query("SELECT public.approve_payment($1)", [id]));
+
+before(async () => {
+  db = new PGlite({ extensions: { pgcrypto } });
+  await db.exec(STUBS);
+  for (const f of readdirSync(migDir).filter((f) => f.endsWith(".sql")).sort()) {
+    try { await db.exec(readFileSync(join(migDir, f), "utf8")); } catch (e) { throw new Error(`migration ${f}: ${e.message}`); }
+  }
+  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'zobaerio24@gmail.com')", [ADMIN]);
+  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'carol@x.com'),($2,'frank@x.com')", [CAROL, FRANK]);
+  carolCode = (await q("SELECT referral_code c FROM public.profiles WHERE id=$1", [CAROL]))[0].c;
+  // sign-ups through the real trigger, carrying ?ref=<carol's code> in the auth metadata
+  for (const [id, email] of [[DAVE, "dave@x.com"], [ERIN, "erin@x.com"]])
+    await db.query("INSERT INTO auth.users (id,email,raw_user_meta_data) VALUES ($1,$2,$3::jsonb)", [id, email, JSON.stringify({ ref: carolCode })]);
+});
+
+test("signup with a referral code creates a pending referral worth 0 (nothing is earned at signup)", async () => {
+  const r = await q("SELECT status, commission_amount::numeric c FROM public.referrals WHERE referrer_id=$1 ORDER BY referred_user_id", [CAROL]);
+  assert.equal(r.length, 2);
+  assert.ok(r.every((x) => x.status === "pending" && Number(x.c) === 0));
+});
+
+test("a verified payment pays EXACTLY 10% of the actual amount, calculated by the database", async () => {
+  const id = await pay(dave, "professional", "TX-DAVE-1", "01811111111");
+  assert.equal((await q("SELECT count(*)::int n FROM public.referral_commissions"))[0].n, 0); // pending payment earns nothing
+  await approve(id);
+  const [c] = await q("SELECT base_amount::numeric b, rate::numeric r, commission_amount::numeric c, status FROM public.referral_commissions WHERE payment_id=$1", [id]);
+  const pro = await plan("professional");
+  assert.equal(Number(c.b), pro.p);
+  near(c.c, pct(pro.p)); // 10%
+  assert.equal(c.status, "approved");
+  const [ref] = await q("SELECT status, plan, commission_amount::numeric c FROM public.referrals WHERE referred_user_id=$1", [DAVE]);
+  assert.deepEqual({ status: ref.status, plan: ref.plan, c: Number(ref.c) }, { status: "converted", plan: "professional", c: Number(c.c) });
+});
+
+test("replay / double processing cannot pay the same payment twice", async () => {
+  const [{ id }] = await q("SELECT id FROM public.payments WHERE transaction_id='TX-DAVE-1'");
+  await admin(() => rejects(() => db.query("SELECT public.approve_payment($1)", [id]), /already verified/));
+  await db.query("SELECT public.record_referral_commission($1)", [id]); // even a direct re-run (as the owner role) is a no-op
+  assert.equal((await q("SELECT count(*)::int n FROM public.referral_commissions WHERE payment_id=$1", [id]))[0].n, 1);
+  // the internal function is not callable by clients at all
+  await carol(() => rejects(() => db.query("SELECT public.record_referral_commission($1)", [id]), /permission denied/));
+  await anonCall(id);
+});
+async function anonCall(id) {
+  await as("anon", null, null, () => rejects(() => db.query("SELECT public.record_referral_commission($1)", [id]), /permission denied/));
+}
+
+test("every later verified payment (e.g. an upgrade / renewal) earns another 10%", async () => {
+  const id = await pay(dave, "business", "TX-DAVE-2", "01811111111");
+  await approve(id);
+  const biz = await plan("business"), pro = await plan("professional");
+  const tot = (await q("SELECT sum(commission_amount)::numeric t, count(*)::int n FROM public.referral_commissions WHERE referred_user_id=$1", [DAVE]))[0];
+  assert.equal(tot.n, 2);
+  near(tot.t, pct(pro.p) + pct(biz.p));
+  assert.equal(Number((await q("SELECT commission_amount::numeric c FROM public.referrals WHERE referred_user_id=$1", [DAVE]))[0].c), Number(tot.t));
+});
+
+test("a user who was not referred, or who refers themselves, never earns", async () => {
+  const id = await pay(frank, "starter", "TX-FRANK-1", "01922222222");
+  await approve(id);
+  assert.equal((await q("SELECT count(*)::int n FROM public.referral_commissions WHERE payment_id=$1", [id]))[0].n, 0);
+  await rejects(() => db.query("INSERT INTO public.referrals (referrer_id, referred_user_id) VALUES ($1,$1)", [FRANK]), /referrals_no_self_referral/);
+  // even if a self-referral row existed from before the constraint, the function refuses to pay it
+  await db.query("ALTER TABLE public.referrals DROP CONSTRAINT referrals_no_self_referral");
+  await db.query("INSERT INTO public.referrals (referrer_id, referred_user_id) VALUES ($1,$1)", [FRANK]);
+  const id2 = await pay(frank, "professional", "TX-FRANK-2", "01922222222");
+  await approve(id2);
+  assert.equal((await q("SELECT count(*)::int n FROM public.referral_commissions WHERE referred_user_id=$1", [FRANK]))[0].n, 0);
+  await db.query("DELETE FROM public.referrals WHERE referred_user_id=$1", [FRANK]);
+  await db.query("ALTER TABLE public.referrals ADD CONSTRAINT referrals_no_self_referral CHECK (referrer_id <> referred_user_id) NOT VALID");
+});
+
+test("fraud signal: referred user pays from the referrer's own sender number -> held as 'flagged', not withdrawable", async () => {
+  await pay(carol, "starter", "TX-CAROL-1", "01733333333"); // Carol's own payment (pending is enough)
+  const id = await pay(erin, "starter", "TX-ERIN-1", "01733-333333");
+  await approve(id);
+  const [c] = await q("SELECT status, flag_reason, commission_amount::numeric c FROM public.referral_commissions WHERE payment_id=$1", [id]);
+  assert.equal(c.status, "flagged");
+  assert.match(c.flag_reason, /sender number/);
+  assert.equal((await q("SELECT status FROM public.referrals WHERE referred_user_id=$1", [ERIN]))[0].status, "flagged");
+});
+
+test("duplicate transaction id on another payment is also held for review", async () => {
+  const dup = await pay(dave, "starter", "TX-ERIN-1", "01844444444"); // reuses Erin's transaction id
+  await approve(dup);
+  const [c] = await q("SELECT status, flag_reason FROM public.referral_commissions WHERE payment_id=$1", [dup]);
+  assert.equal(c.status, "flagged"); assert.match(c.flag_reason, /Transaction ID/);
+});
+
+test("balance counts only approved commission; stats and the withdrawal check agree", async () => {
+  const s = await carol(async () => (await db.query("SELECT public.my_affiliate_stats() s")).rows[0].s);
+  const pro = await plan("professional"), biz = await plan("business"), st = await plan("starter");
+  const approved = pct(pro.p) + pct(biz.p);
+  near(s.earned, approved);
+  near(s.in_review, pct(st.p) * 2);
+  near(s.available, approved);
+  assert.equal(s.referred, 2);
+  await carol(() => rejects(() => db.query("SELECT public.request_withdrawal($1,'bKash','01700000000')", [approved + 1]), /exceeds available balance/));
+  await carol(() => db.query("SELECT public.request_withdrawal(500,'bKash','01700000000')"));
+  const s2 = await carol(async () => (await db.query("SELECT public.my_affiliate_stats() s")).rows[0].s);
+  near(s2.available, approved - 500);
+  assert.equal(Number(s2.requested), 500);
+});
+
+test("only an admin can review a flagged commission; approving makes it withdrawable, once", async () => {
+  const [f] = await q("SELECT id FROM public.referral_commissions WHERE status='flagged' ORDER BY created_at LIMIT 1");
+  await carol(() => rejects(() => db.query("SELECT public.review_commission($1,true)", [f.id]), /Admin only/));
+  await admin(() => db.query("SELECT public.review_commission($1,true,'checked manually')", [f.id]));
+  const [row] = await q("SELECT status, reviewed_by, reviewed_at FROM public.referral_commissions WHERE id=$1", [f.id]);
+  assert.equal(row.status, "approved"); assert.equal(row.reviewed_by, ADMIN); assert.ok(row.reviewed_at);
+  await admin(() => rejects(() => db.query("SELECT public.review_commission($1,false)", [f.id]), /Only flagged/));
+  const s = await carol(async () => (await db.query("SELECT public.my_affiliate_stats() s")).rows[0].s);
+  assert.ok(Number(s.earned) > 0 && Number(s.in_review) > 0);
+  // rejecting the other flagged one removes it from review and never adds it to the balance
+  const [g] = await q("SELECT id FROM public.referral_commissions WHERE status='flagged' LIMIT 1");
+  const before = Number((await carol(async () => (await db.query("SELECT public.my_affiliate_stats() s")).rows[0].s)).earned);
+  await admin(() => db.query("SELECT public.review_commission($1,false,'duplicate')", [g.id]));
+  const after = (await carol(async () => (await db.query("SELECT public.my_affiliate_stats() s")).rows[0].s));
+  assert.equal(Number(after.earned), before); assert.equal(Number(after.in_review), 0);
+});
+
+test("clients cannot write or forge the commission ledger, and only see their own rows", async () => {
+  await carol(() => rejects(() => db.query("INSERT INTO public.referral_commissions (referral_id,referrer_id,referred_user_id,base_amount,rate,commission_amount) SELECT id,referrer_id,referred_user_id,1,1,99999 FROM public.referrals LIMIT 1"), /permission denied/));
+  await carol(() => rejects(() => db.query("UPDATE public.referral_commissions SET commission_amount=99999, status='approved'"), /permission denied/));
+  await carol(() => rejects(() => db.query("DELETE FROM public.referral_commissions"), /permission denied/));
+  assert.ok((await carol(async () => (await db.query("SELECT count(*)::int n FROM public.referral_commissions")).rows[0].n)) > 0);
+  assert.equal(await frank(async () => (await db.query("SELECT count(*)::int n FROM public.referral_commissions")).rows[0].n), 0);
+  assert.equal(await dave(async () => (await db.query("SELECT count(*)::int n FROM public.referral_commissions")).rows[0].n), 0);
+  assert.ok((await admin(async () => (await db.query("SELECT count(*)::int n FROM public.referral_commissions")).rows[0].n)) >= 4);
+  await as("anon", null, null, () => rejects(() => db.query("SELECT * FROM public.referral_commissions"), /permission denied/));
+});
+
+test("the commission rate is configuration (affiliate.commission_rate), clamped to 0..1", async () => {
+  await db.query("UPDATE public.app_settings SET value='0.2'::jsonb WHERE key='affiliate.commission_rate'");
+  const id = await pay(erin, "professional", "TX-ERIN-9", "01955555555");
+  await approve(id);
+  const [c] = await q("SELECT rate::numeric r, base_amount::numeric b, commission_amount::numeric c FROM public.referral_commissions WHERE payment_id=$1", [id]);
+  near(c.r, 0.2); near(c.c, Number(c.b) * 0.2);
+  await db.query("UPDATE public.app_settings SET value='0.10'::jsonb WHERE key='affiliate.commission_rate'");
+});
