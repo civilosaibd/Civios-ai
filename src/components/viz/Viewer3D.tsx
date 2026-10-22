@@ -161,7 +161,21 @@ export default function Viewer3D({ model, name }: { model: BuildingModel; name?:
   const L = useL();
   const mobile = useIsMobile();
   const [opts, setOpts] = useState<Opts>(initialOpts);
-  const [materialSettings, setMaterialSettings] = useState<MaterialSettings>(DEFAULT_MATERIAL_SETTINGS);
+  const [materialSettings, setMaterialSettings] = useState<MaterialSettings>(() => {
+    try {
+      const saved = localStorage.getItem("civilos.material-studio.v1");
+      if (!saved) return DEFAULT_MATERIAL_SETTINGS;
+      const value = JSON.parse(saved) as Partial<MaterialSettings>;
+      const finishes: MaterialSettings["exteriorFinish"][] = ["paint", "brick", "stone", "wood", "tile", "concrete"];
+      return {
+        exteriorFinish: finishes.includes(value.exteriorFinish as MaterialSettings["exteriorFinish"]) ? value.exteriorFinish as MaterialSettings["exteriorFinish"] : DEFAULT_MATERIAL_SETTINGS.exteriorFinish,
+        exteriorColor: typeof value.exteriorColor === "string" && /^#[0-9a-f]{6}$/i.test(value.exteriorColor) ? value.exteriorColor : DEFAULT_MATERIAL_SETTINGS.exteriorColor,
+        roughness: Number.isFinite(value.roughness) ? Math.min(1, Math.max(0.15, value.roughness!)) : DEFAULT_MATERIAL_SETTINGS.roughness,
+        textureScale: Number.isFinite(value.textureScale) ? Math.min(4, Math.max(0.5, value.textureScale!)) : DEFAULT_MATERIAL_SETTINGS.textureScale,
+        glassOpacity: Number.isFinite(value.glassOpacity) ? Math.min(0.9, Math.max(0.15, value.glassOpacity!)) : DEFAULT_MATERIAL_SETTINGS.glassOpacity,
+      };
+    } catch { return DEFAULT_MATERIAL_SETTINGS; }
+  });
   const [preset, setPreset] = useState<{ p: Preset; n: number }>({ p: "iso", n: 0 });
   const [measures, setMeasures] = useState<Measurement[]>([]);
   const pending = useRef<THREE.Vector3 | null>(null);
@@ -173,6 +187,7 @@ export default function Viewer3D({ model, name }: { model: BuildingModel; name?:
   const [err, setErr] = useState<string | null>(null);
 
   const built = useMemo(() => buildScene(model, materialSettings), [model, materialSettings]);
+  useEffect(() => { try { localStorage.setItem("civilos.material-studio.v1", JSON.stringify(materialSettings)); } catch { /* storage can be disabled; editing remains available for this session */ } }, [materialSettings]);
   const [sim, setSimState] = useState<Sim>(initialSim);
   const setSim = useCallback((f: (s: Sim) => Sim) => setSimState(f), []);
   const [envPreset, setEnvPreset] = useState<EnvPreset>("residential");
