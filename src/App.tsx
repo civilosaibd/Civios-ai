@@ -10,6 +10,7 @@ import { ThemeProvider } from "@/lib/theme";
 import ScrollToTop from "./components/ScrollToTop";
 import ReferralCapture, { RegisterRedirect } from "./components/ReferralCapture";
 import AppLoading from "./components/AppLoading";
+import AnimatedLogoIntro from "./components/AnimatedLogoIntro";
 import InstallCivilOS from "./components/InstallCivilOS";
 import UpdateAvailable from "./components/UpdateAvailable";
 import { PwaProvider } from "@/lib/pwa";
@@ -100,6 +101,7 @@ const App = () => (
                 <Sonner />
 
                 <BrowserRouter>
+                  <AnimatedLogoIntro />
                   <ScrollToTop />
                   <ReferralCapture />
                   <InstallCivilOS />
