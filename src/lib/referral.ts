@@ -39,3 +39,35 @@ export function referralForSignup(search: string, store: Store | null = safeStor
 }
 
 export const referralLink = (origin: string, code: string) => `${origin}/register?ref=${encodeURIComponent(code)}`;
+
+export type ClaimResult = "claimed" | "already_referred" | "too_late" | "invalid_code" | "self";
+type Rpc = (code: string) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+
+/**
+ * After sign-in (covers Google sign-up, which carries no metadata): hand the stored code to the database.
+ * The database decides (new account only, no self-referral, cannot switch referrer). Every answer is final,
+ * so the stored code is cleared; only a failed call (network/server error) keeps it for the next visit.
+ */
+export async function claimStoredReferral(rpc: Rpc, store: Store | null = safeStore()): Promise<ClaimResult | null> {
+  const code = getStoredReferral(store);
+  if (!code) return null;
+  try {
+    const { data, error } = await rpc(code);
+    if (error || typeof data !== "string") return null;
+    clearStoredReferral(store);
+    return data as ClaimResult;
+  } catch {
+    return null;
+  }
+}
+
+/** True at most once per calendar day (UTC) per key; records the day when it returns true. */
+export function shouldRunDaily(key: string, store: Store | null = safeStore(), now: Date = new Date()): boolean {
+  if (!store) return false;
+  const day = now.toISOString().slice(0, 10);
+  try {
+    if (store.getItem(key) === day) return false;
+    store.setItem(key, day);
+    return true;
+  } catch { return false; }
+}

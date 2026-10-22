@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { formatDistanceToNow } from "date-fns";
+import { shouldRunDaily } from "@/lib/referral";
 
 interface Notif {
   id: string; type: string; title: string; message: string | null;
@@ -35,6 +36,16 @@ export default function NotificationBell() {
   }, [user]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Deadline alerts (7/3/1 days): once per day per browser, create this user's own alerts, then refresh.
+  // The database de-duplicates, so a second device or a missed day never produces duplicates.
+  useEffect(() => {
+    if (!user || !shouldRunDaily(`civilos_deadline_check:${user.id}`)) return;
+    void supabase.rpc("generate_my_deadline_notifications").then(({ error }) => {
+      if (error) console.error("Deadline check failed", error.message);
+      else void load();
+    });
+  }, [user, load]);
 
   useEffect(() => {
     if (!user) return;

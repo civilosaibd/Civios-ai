@@ -50,3 +50,44 @@ describe("referral capture", () => {
     expect(referralLink("https://civilosai.vercel.app", "CIVIL-ZB112")).toBe("https://civilosai.vercel.app/register?ref=CIVIL-ZB112");
   });
 });
+
+import { claimStoredReferral, shouldRunDaily } from "./referral";
+
+const objStore = (init: Record<string, string> = {}) => {
+  const m = { ...init };
+  return { m, getItem: (k: string) => m[k] ?? null, setItem: (k: string, v: string) => { m[k] = v; }, removeItem: (k: string) => { delete m[k]; } };
+};
+
+describe("claimStoredReferral", () => {
+  it("does nothing without a stored code", async () => {
+    let called = false;
+    const r = await claimStoredReferral(async () => { called = true; return { data: "claimed", error: null }; }, objStore());
+    expect(r).toBeNull(); expect(called).toBe(false);
+  });
+  it("sends the code and clears it on any final answer", async () => {
+    for (const answer of ["claimed", "too_late", "self", "invalid_code", "already_referred"]) {
+      const s = objStore({ civilos_referral_code: "civil-abc123" });
+      let sent = "";
+      const r = await claimStoredReferral(async (c) => { sent = c; return { data: answer, error: null }; }, s);
+      expect(sent).toBe("CIVIL-ABC123"); expect(r).toBe(answer); expect(s.m.civilos_referral_code).toBeUndefined();
+    }
+  });
+  it("keeps the code when the call fails", async () => {
+    const s = objStore({ civilos_referral_code: "CIVIL-ABC123" });
+    expect(await claimStoredReferral(async () => ({ data: null, error: { message: "x" } }), s)).toBeNull();
+    expect(await claimStoredReferral(async () => { throw new Error("net"); }, s)).toBeNull();
+    expect(s.m.civilos_referral_code).toBe("CIVIL-ABC123");
+  });
+});
+
+describe("shouldRunDaily", () => {
+  it("runs once per day per key", () => {
+    const s = objStore();
+    const d1 = new Date("2026-10-21T01:00:00Z"), d2 = new Date("2026-10-21T23:00:00Z"), d3 = new Date("2026-10-22T00:10:00Z");
+    expect(shouldRunDaily("k", s, d1)).toBe(true);
+    expect(shouldRunDaily("k", s, d2)).toBe(false);
+    expect(shouldRunDaily("other", s, d2)).toBe(true);
+    expect(shouldRunDaily("k", s, d3)).toBe(true);
+  });
+  it("does not run without storage", () => { expect(shouldRunDaily("k", null)).toBe(false); });
+});

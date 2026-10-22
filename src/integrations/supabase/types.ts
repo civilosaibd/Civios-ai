@@ -1193,6 +1193,8 @@ export type Database = {
     Functions: {
       approve_payment: { Args: { _payment_id: string }; Returns: string }
       cancel_my_subscription: { Args: Record<PropertyKey, never>; Returns: undefined }
+      claim_referral: { Args: { _code: string }; Returns: string }
+      generate_my_deadline_notifications: { Args: Record<PropertyKey, never>; Returns: number }
       my_affiliate_stats: { Args: Record<PropertyKey, never>; Returns: Json }
       review_commission: {
         Args: { _commission_id: string; _approve: boolean; _note?: string }
