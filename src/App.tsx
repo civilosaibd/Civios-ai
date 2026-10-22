@@ -54,6 +54,8 @@ const BillingPage = lazy(() => import("./pages/BillingPage.tsx"));
 const AdminBillingPage = lazy(() => import("./pages/AdminBillingPage.tsx"));
 const FinancePage = lazy(() => import("./pages/FinancePage.tsx"));
 const DefectDetectionPage = lazy(() => import("./pages/DefectDetectionPage.tsx"));
+const KnowledgeLibraryPage = lazy(() => import("./pages/KnowledgeLibraryPage.tsx"));
+const TrainingCornerPage = lazy(() => import("./pages/TrainingCornerPage.tsx"));
 
 
 
@@ -104,6 +106,8 @@ const App = () => (
               <Route path="/vendors" element={<InventoryPage />} />
               <Route path="/equipment" element={<EquipmentPage />} />
               <Route path="/defect-detection" element={<DefectDetectionPage />} />
+              <Route path="/knowledge-library" element={<KnowledgeLibraryPage />} />
+              <Route path="/training-corner" element={<TrainingCornerPage />} />
               <Route path="/invoices" element={<FinancePage />} />
               <Route path="/contractor-bills" element={<FinancePage />} />
               <Route path="/payments" element={<FinancePage />} />
