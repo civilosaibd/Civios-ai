@@ -40,7 +40,9 @@ export default function ComingSoonPage() {
   if (location.pathname === "/progress-reports") return <Navigate to="/reports" replace />;
   if (location.pathname === "/ai-drawing") return <Navigate to="/file-assistant" replace />;
 
-  const info = LABELS[location.pathname] || { title: "Module", desc: "This module is coming soon." };\n\n  return (
+  const info = LABELS[location.pathname] || { title: "Module", desc: "This module is coming soon." };
+
+  return (
     <>
       <SEO title={info.title} description={info.desc} />
       <SidebarProvider>
