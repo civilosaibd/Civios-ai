@@ -44,6 +44,7 @@ const ComingSoonPage = lazy(() => import("./pages/ComingSoonPage.tsx"));
 const AIEngineerPage = lazy(() => import("./pages/AIEngineerPage.tsx"));
 const BOQHubPage = lazy(() => import("./pages/BOQHubPage.tsx"));
 const RateAnalysisPage = lazy(() => import("./pages/RateAnalysisPage.tsx"));
+const BBSGeneratorPage = lazy(() => import("./pages/BBSGeneratorPage.tsx"));
 const ProjectDetailPage = lazy(() => import("./pages/ProjectDetailPage.tsx"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage.tsx"));
 const NotificationSettingsPage = lazy(() => import("./pages/NotificationSettingsPage.tsx"));
@@ -98,6 +99,7 @@ const App = () => (
               <Route path="/ai-engineer" element={<AIEngineerPage />} />
               <Route path="/boq-hub" element={<BOQHubPage />} />
               <Route path="/rate-analysis" element={<RateAnalysisPage />} />
+              <Route path="/bbs" element={<BBSGeneratorPage />} />
               <Route path="/file-assistant" element={<FileAssistantPage />} />
               <Route path="/boq" element={<BOQGeneratorPage />} />
               <Route path="/tender" element={<TenderAnalysisPage />} />
@@ -136,7 +138,7 @@ const App = () => (
               <Route path="/share/:token" element={<SharedEstimatePage />} />
               {/* Coming Soon stubs */}
               {[
-                "ai-writer","ai-drawing","bbs",
+                "ai-writer","ai-drawing",
                 "progress-reports","inspections","site-photos","tender-docs","bid-prep",
                 
                 "analytics","ai-insights","reports","company-settings",
