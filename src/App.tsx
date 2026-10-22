@@ -63,6 +63,7 @@ const MaterialCalculatorPage = lazy(() => import("./pages/MaterialCalculatorPage
 const VisualizationsPage = lazy(() => import("./pages/VisualizationsPage.tsx"));
 const VisualizationWorkspacePage = lazy(() => import("./pages/VisualizationWorkspacePage.tsx"));
 const BackupPage = lazy(() => import("./pages/BackupPage.tsx"));
+const ReportsPage = lazy(() => import("./pages/ReportsPage.tsx"));
 import FloatingAssistant from "@/components/FloatingAssistant";
 import { UnitsProvider } from "@/lib/UnitsContext";
 
@@ -138,6 +139,7 @@ const App = () => (
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/settings/notifications" element={<NotificationSettingsPage />} />
               <Route path="/settings/backup" element={<BackupPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
               <Route path="/affiliate" element={<AffiliatePage />} />
               <Route path="/admin/affiliate" element={<AdminAffiliatePage />} />
               <Route path="/invite" element={<InviteAcceptPage />} />
@@ -149,7 +151,7 @@ const App = () => (
                 "ai-writer","ai-drawing",
                 "progress-reports","site-photos","tender-docs","bid-prep",
                 
-                "analytics","ai-insights","reports","company-settings",
+                "analytics","ai-insights","company-settings",
               ].map((p) => (
                 <Route key={p} path={`/${p}`} element={<ComingSoonPage />} />
               ))}

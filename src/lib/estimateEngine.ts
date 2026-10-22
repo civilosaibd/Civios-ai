@@ -51,7 +51,12 @@ export function generateEstimate(params: {
   fileName: string;
   rates?: RateOverrides;
 }): EstimateData {
-  const { plotLength, plotWidth, floors, floorHeight, wallThickness, quality, fileName, rates } = params;
+  const { floors, wallThickness, quality, fileName, rates } = params;
+  // The whole estimator (areas in sft, rates per sft/cft) works in FEET. If the form was filled in metres, convert first —
+  // otherwise 12 m would be priced as 12 ft (about 10x too small an area).
+  const toFt = params.unit === "meters" ? 1 / 0.3048 : 1;
+  const r1 = (v: number) => Math.round(v * 10) / 10;
+  const plotLength = r1(params.plotLength * toFt), plotWidth = r1(params.plotWidth * toFt), floorHeight = r1(params.floorHeight * toFt);
   const mult = qualityMultiplier[quality] || 1;
   const plotArea = plotLength * plotWidth;
   const builtUpArea = plotArea * 0.7; // 70% coverage

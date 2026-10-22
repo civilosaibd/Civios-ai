@@ -22,3 +22,17 @@ describe("units", () => {
   });
   it("validates a stored value", () => { expect(isUnitSystem("metric")).toBe(true); for (const v of ["", "feet", null, undefined, 1, "METRIC"]) expect(isUnitSystem(v)).toBe(false); });
 });
+
+import { generateEstimate } from "./estimateEngine";
+describe("estimator and units", () => {
+  const base = { floors: 2, wallThickness: 5, quality: "standard", projectType: "single", fileName: "t" };
+  it("a plot typed in metres is priced as the same plot in feet (not 10x smaller)", () => {
+    const ft = generateEstimate({ ...base, plotLength: 40, plotWidth: 30, floorHeight: 10, unit: "feet" });
+    const m = generateEstimate({ ...base, plotLength: 12.192, plotWidth: 9.144, floorHeight: 3.048, unit: "meters" });
+    expect(m.totalFloorArea).toBe(ft.totalFloorArea);
+    expect(m.totalCost).toBe(ft.totalCost);
+    expect(m.plotSize).toBe("40 × 30 ft");
+    const wrong = generateEstimate({ ...base, plotLength: 12.192, plotWidth: 9.144, floorHeight: 3.048, unit: "feet" });
+    expect(wrong.totalCost).toBeLessThan(ft.totalCost / 4); // what used to happen with metres
+  });
+});
