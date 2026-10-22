@@ -36,7 +36,11 @@ const LABELS: Record<string, { title: string; desc: string }> = {
 
 export default function ComingSoonPage() {
   const location = useLocation();
-  // Progress Reports already has a production report builder; route users there instead of showing a stub.\n  if (location.pathname === "/progress-reports") return <Navigate to="/reports" replace />;\n\n  const info = LABELS[location.pathname] || { title: "Module", desc: "This module is coming soon." };\n\n  return (
+  // Reuse existing working modules instead of showing a Coming Soon screen.
+  if (location.pathname === "/progress-reports") return <Navigate to="/reports" replace />;
+  if (location.pathname === "/ai-drawing") return <Navigate to="/file-assistant" replace />;
+
+  const info = LABELS[location.pathname] || { title: "Module", desc: "This module is coming soon." };\n\n  return (
     <>
       <SEO title={info.title} description={info.desc} />
       <SidebarProvider>
