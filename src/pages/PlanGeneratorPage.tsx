@@ -14,6 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { LayoutGrid, Wand2, CheckCircle2, AlertTriangle, Download } from "lucide-react";
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
+import UnitsSwitch from "@/components/UnitsSwitch";
+import LengthInput from "@/components/LengthInput";
+import { useUnits } from "@/lib/UnitsContext";
+import { displayToFt, fmtAreaSft, ftToDisplay, lengthUnit, roundTo } from "@/lib/units";
 import { useI18n } from "@/lib/i18n";
 import { DEFAULT_INPUT, generatePlan, parsePrompt, type PlanInput, type RoadSide } from "@/lib/planGenerator";
 import { toast } from "sonner";
@@ -24,6 +28,9 @@ export default function PlanGeneratorPage() {
   const { lang, currency } = useI18n();
   const bn = lang === "bn";
   const L = (en: string, b: string) => (bn ? b : en);
+  const { system } = useUnits();
+  const lu = lengthUnit(system, bn);
+  const dim = (ft: number) => roundTo(ftToDisplay(ft, system), system === "metric" ? 2 : 1); // value in the chosen unit
   const [inp, setInp] = useCloudState<PlanInput>("civilos.plan", DEFAULT_INPUT, { merge: true });
   const [prompt, setPrompt] = useState("");
   const plan = useMemo(() => generatePlan(inp), [inp]);
@@ -70,22 +77,27 @@ export default function PlanGeneratorPage() {
             <div className="flex items-center gap-2"><SidebarTrigger />
               <h1 className="font-heading font-semibold flex items-center gap-2"><LayoutGrid className="h-4 w-4 text-accent" /> {L("Create Your Own Plan", "নিজের প্ল্যান তৈরি করুন")}</h1>
             </div>
-            <ThemeToggle />
+            <div className="flex items-center gap-2"><UnitsSwitch /><ThemeToggle /></div>
           </header>
           <main className="p-4 md:p-6 grid lg:grid-cols-[340px_1fr] gap-5">
             <div className="space-y-4">
               <Card className="p-4 space-y-2">
                 <Label className="text-xs">{L("Describe in plain words", "সহজ ভাষায় লিখুন")}</Label>
                 <Textarea rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)}
-                  placeholder={L("e.g. 40x60 plot, south road, 3 bed 3 bath, 5 floors", "যেমন: ৪০x৬০ প্লট, দক্ষিণে রাস্তা, ৩ বেড ৩ বাথ, ৫ তলা")} />
-                <Button size="sm" className="w-full" onClick={() => { setInp(parsePrompt(prompt, inp)); toast.success(L("Plan updated", "প্ল্যান আপডেট হয়েছে")); }}>
+                  placeholder={system === "metric" ? L("e.g. 12x18 plot (metres), south road, 3 bed 3 bath, 5 floors", "যেমন: ১২x১৮ প্লট (মিটার), দক্ষিণে রাস্তা, ৩ বেড ৩ বাথ, ৫ তলা") : L("e.g. 40x60 plot, south road, 3 bed 3 bath, 5 floors", "যেমন: ৪০x৬০ প্লট, দক্ষিণে রাস্তা, ৩ বেড ৩ বাথ, ৫ তলা")} />
+                <Button size="sm" className="w-full" onClick={() => {
+                  const parsed = parsePrompt(prompt, inp);
+                  // "40x60" in the text means the unit the user has selected; the plan engine works in feet
+                  const hasDims = parsePrompt(prompt, { ...inp, plotWidth: -1, plotDepth: -1 }).plotWidth !== -1;
+                  if (hasDims && system === "metric") { parsed.plotWidth = roundTo(displayToFt(parsed.plotWidth, system), 4); parsed.plotDepth = roundTo(displayToFt(parsed.plotDepth, system), 4); }
+                  setInp(parsed); toast.success(L("Plan updated", "প্ল্যান আপডেট হয়েছে")); }}>
                   <Wand2 className="h-4 w-4 mr-1" /> {L("Generate from text", "লেখা থেকে তৈরি করুন")}
                 </Button>
               </Card>
               <Card className="p-4 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
-                  {num("plotWidth", L("Plot width (ft)", "প্লট প্রস্থ (ফুট)"), 15)}
-                  {num("plotDepth", L("Plot depth (ft)", "প্লট গভীরতা (ফুট)"), 15)}
+                  <LengthInput label={L("Plot width", "প্লট প্রস্থ")} unitLabel={lu} valueFt={inp.plotWidth} minFt={15} maxFt={200} onChangeFt={(v) => set("plotWidth", v)} />
+                  <LengthInput label={L("Plot depth", "প্লট গভীরতা")} unitLabel={lu} valueFt={inp.plotDepth} minFt={15} maxFt={200} onChangeFt={(v) => set("plotDepth", v)} />
                   {num("floors", L("Floors", "তলা"), 1, 20)}
                   <div className="space-y-1">
                     <Label className="text-xs">{L("Road side", "রাস্তার দিক")}</Label>
@@ -111,9 +123,9 @@ export default function PlanGeneratorPage() {
             <div className="space-y-4 min-w-0">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                  [L("Plot area", "প্লট এলাকা"), `${Math.round(plan.plotArea)} sft`],
-                  [L("Footprint", "ফুটপ্রিন্ট"), `${Math.round(plan.footprint)} sft`],
-                  [L("Total built", "মোট নির্মাণ"), `${Math.round(plan.totalBuilt)} sft`],
+                  [L("Plot area", "প্লট এলাকা"), fmtAreaSft(plan.plotArea, system, bn)],
+                  [L("Footprint", "ফুটপ্রিন্ট"), fmtAreaSft(plan.footprint, system, bn)],
+                  [L("Total built", "মোট নির্মাণ"), fmtAreaSft(plan.totalBuilt, system, bn)],
                   [L("Est. cost", "আনুমানিক খরচ"), currency(plan.estCost)],
                 ].map(([k, v]) => (
                   <Card key={k} className="p-3"><p className="text-xs text-muted-foreground">{k}</p><p className="font-heading font-semibold">{v}</p></Card>
@@ -135,7 +147,7 @@ export default function PlanGeneratorPage() {
                           <g key={r.name}>
                             <rect x={x} y={y} width={w} height={h} fill={zoneFill[r.zone]} stroke="hsl(var(--foreground))" strokeWidth={2} />
                             <text x={x + w / 2} y={y + h / 2 - 4} textAnchor="middle" fontSize={Math.min(13, w / 6)} fill="hsl(var(--foreground))" fontWeight={600}>{bn ? r.nameBn : r.name}</text>
-                            <text x={x + w / 2} y={y + h / 2 + 12} textAnchor="middle" fontSize={Math.min(11, w / 7)} fill="hsl(var(--muted-foreground))">{r.w.toFixed(1)}'×{r.h.toFixed(1)}'</text>
+                            <text x={x + w / 2} y={y + h / 2 + 12} textAnchor="middle" fontSize={Math.min(11, w / 7)} fill="hsl(var(--muted-foreground))">{dim(r.w)}{system === "metric" ? "" : "'"}×{dim(r.h)}{system === "metric" ? " m" : "'"}</text>
                           </g>
                         );
                       })}
@@ -145,7 +157,7 @@ export default function PlanGeneratorPage() {
                   </svg>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  {L("Setbacks", "সেটব্যাক")}: {L("front", "সামনে")} {plan.setbacks.front}' · {L("rear", "পেছনে")} {plan.setbacks.rear}' · {L("sides", "পাশে")} {plan.setbacks.side}'
+                  {L("Setbacks", "সেটব্যাক")}: {L("front", "সামনে")} {dim(plan.setbacks.front)} {lu} · {L("rear", "পেছনে")} {dim(plan.setbacks.rear)} {lu} · {L("sides", "পাশে")} {dim(plan.setbacks.side)} {lu}
                 </p>
               </Card>
 

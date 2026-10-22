@@ -64,6 +64,7 @@ const VisualizationsPage = lazy(() => import("./pages/VisualizationsPage.tsx"));
 const VisualizationWorkspacePage = lazy(() => import("./pages/VisualizationWorkspacePage.tsx"));
 const BackupPage = lazy(() => import("./pages/BackupPage.tsx"));
 import FloatingAssistant from "@/components/FloatingAssistant";
+import { UnitsProvider } from "@/lib/UnitsContext";
 
 
 
@@ -72,6 +73,7 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <I18nProvider>
+      <UnitsProvider>
       <ThemeProvider>
         <PwaProvider>
         <AuthProvider>
@@ -159,6 +161,7 @@ const App = () => (
         </AuthProvider>
         </PwaProvider>
       </ThemeProvider>
+      </UnitsProvider>
     </I18nProvider>
   </QueryClientProvider>
 );
