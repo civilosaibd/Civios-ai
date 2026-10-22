@@ -31,6 +31,7 @@ const SharedEstimatePage = lazy(() => import("./pages/SharedEstimatePage.tsx"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage.tsx"));
 const AIAssistantPage = lazy(() => import("./pages/AIAssistantPage.tsx"));
 const AIWriterPage = lazy(() => import("./pages/AIWriterPage.tsx"));
+const SitePhotosPage = lazy(() => import("./pages/SitePhotosPage.tsx"));
 const FileAssistantPage = lazy(() => import("./pages/FileAssistantPage.tsx"));
 const BOQGeneratorPage = lazy(() => import("./pages/BOQGeneratorPage.tsx"));
 const TenderAnalysisPage = lazy(() => import("./pages/TenderAnalysisPage.tsx"));
@@ -144,6 +145,7 @@ const App = () => (
                       <Route path="/boq" element={<BOQGeneratorPage />} />
                       <Route path="/tender" element={<TenderAnalysisPage />} />
                       <Route path="/site-diary" element={<SiteDiaryPage />} />
+                      <Route path="/site-photos" element={<SitePhotosPage />} />
                       <Route
                         path="/plan-generator"
                         element={<PlanGeneratorPage />}
@@ -245,7 +247,6 @@ const App = () => (
                       {[
                         "ai-drawing",
                         "progress-reports",
-                        "site-photos",
                         "tender-docs",
                         "bid-prep",
                         "analytics",
