@@ -196,7 +196,7 @@ export default function Viewer3D({ model, name }: { model: BuildingModel; name?:
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sim.on, sim.playing, sim.speed]);
-  useEffect(() => () => { built.root.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.geometry.dispose(); } }); }, [built]);
+  useEffect(() => () => { const disposed = new Set<THREE.Material>(); built.root.traverse((o) => { const m = o as THREE.Mesh; if (!m.isMesh) return; m.geometry.dispose(); const materials = Array.isArray(m.material) ? m.material : [m.material]; for (const material of materials) { if (disposed.has(material)) continue; disposed.add(material); const standard = material as THREE.MeshStandardMaterial; standard.map?.dispose(); standard.normalMap?.dispose(); standard.roughnessMap?.dispose(); standard.metalnessMap?.dispose(); material.dispose(); } }); }, [built]);
   useEffect(() => { const f = () => setFs(!!document.fullscreenElement); document.addEventListener("fullscreenchange", f); return () => document.removeEventListener("fullscreenchange", f); }, []);
   useEffect(() => { setMeasures([]); pending.current = null; setHasFirst(false); }, [model]);
 
