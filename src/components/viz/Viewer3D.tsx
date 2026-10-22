@@ -6,7 +6,7 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { OBJExporter } from "three/examples/jsm/exporters/OBJExporter.js";
 import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
-import { Camera, Download, Maximize2, Minimize2, Ruler, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Camera, Download, FileText, Film, Maximize2, Minimize2, Ruler, SlidersHorizontal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -14,7 +14,15 @@ import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { buildScene, type Kind } from "@/lib/viz/geometry";
+import { buildScene, countByKind, type Kind } from "@/lib/viz/geometry";
+import { posToStage, stageVisible, advance, initialSim, type Sim } from "@/lib/viz/stages";
+import { buildEnvironment, DEFAULT_CUSTOM, type CustomEnv, type Env, type EnvPreset } from "@/lib/viz/environment";
+import { bounds } from "@/lib/viz/model";
+import { visibleClone } from "@/lib/viz/exportScene";
+import { buildReportData, renderReportPdf } from "@/lib/viz/report";
+import StagePlayer from "./StagePlayer";
+import Surroundings from "./Surroundings";
+import EnvironmentPanel from "./EnvironmentPanel";
 import { formatLength } from "@/lib/viz/units";
 import type { BuildingModel } from "@/lib/viz/types";
 import { Disclaimer, useL } from "./bits";
@@ -43,8 +51,8 @@ interface Measurement { a: THREE.Vector3; b: THREE.Vector3; d: number; derived: 
 
 type MatState = { opacity: number; transparent: boolean; depthWrite: boolean };
 
-function Controller({ built, model, opts, preset, measures, onPoint, glRef }: {
-  built: ReturnType<typeof buildScene>; model: BuildingModel; opts: Opts; preset: { p: Preset; n: number };
+function Controller({ built, model, opts, preset, measures, onPoint, glRef, sim, env }: {
+  built: ReturnType<typeof buildScene>; model: BuildingModel; opts: Opts; preset: { p: Preset; n: number }; sim: Sim; env: Env;
   measures: Measurement[]; onPoint: (e: ThreeEvent<MouseEvent>) => void; glRef: React.MutableRefObject<THREE.WebGLRenderer | null>;
 }) {
   const { gl, camera, scene } = useThree();
@@ -52,6 +60,8 @@ function Controller({ built, model, opts, preset, measures, onPoint, glRef }: {
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), []);
   const H = model.floorHeight.value;
   const box = useMemo(() => new THREE.Box3().setFromObject(built.root), [built]);
+  const simKey = Math.round(sim.pos * 100);
+  const simPos = useMemo(() => posToStage(simKey / 100), [simKey]);
 
   useEffect(() => { glRef.current = gl; gl.localClippingEnabled = true; }, [gl, glRef]);
 
@@ -59,7 +69,10 @@ function Controller({ built, model, opts, preset, measures, onPoint, glRef }: {
   useEffect(() => {
     built.root.traverse((o) => {
       const k = (o as THREE.Mesh).isMesh ? (o.userData.kind as Layer | undefined) : undefined;
-      if (k) o.visible = opts.structural ? STRUCTURAL.has(k) : opts.layers[k] !== false;
+      if (k) {
+        const layerOn = opts.structural ? STRUCTURAL.has(k) : opts.layers[k] !== false;
+        o.visible = layerOn && (!sim.on || stageVisible(k as Kind, (o.userData.floor as number) ?? 0, model.floors, simPos));
+      }
     });
     built.floorGroups.forEach((g, i) => {
       g.visible = opts.floorIso === null || i === opts.floorIso;
@@ -67,7 +80,7 @@ function Controller({ built, model, opts, preset, measures, onPoint, glRef }: {
     });
     built.foundation.visible = opts.floorIso === null || opts.floorIso === 0;
     built.foundation.position.y = opts.exploded ? 0 : 0;
-  }, [built, opts.layers, opts.structural, opts.floorIso, opts.exploded, H]);
+  }, [built, opts.layers, opts.structural, opts.floorIso, opts.exploded, H, sim.on, simPos, model.floors]);
 
   // wireframe / transparency
   useEffect(() => {
@@ -118,9 +131,10 @@ function Controller({ built, model, opts, preset, measures, onPoint, glRef }: {
       {opts.layers.ground && !opts.structural && (
         <mesh rotation-x={-Math.PI / 2} position={[built.center.x, -model.slabThickness - 0.01, built.center.z]} receiveShadow>
           <planeGeometry args={[Math.max(built.size.w, built.size.d) * 6, Math.max(built.size.w, built.size.d) * 6]} />
-          <meshStandardMaterial color={opts.night ? "#111827" : "#cfd8c4"} roughness={1} />
+          <meshStandardMaterial color={opts.night ? "#111827" : env.ground} roughness={1} />
         </mesh>
       )}
+      {!opts.structural && <Surroundings env={env} night={opts.night} />}
       <gridHelper args={[Math.max(built.size.w, built.size.d) * 6, 60, "#94a3b8", "#cbd5e1"]} position={[built.center.x, -model.slabThickness - 0.02, built.center.z]} />
       {opts.layers.labels && !opts.structural && opts.floorIso !== 1 && built.labels.map((l, i) => (
         <Html key={i} position={l.position} center distanceFactor={14} zIndexRange={[5, 0]}>
@@ -138,7 +152,7 @@ function Controller({ built, model, opts, preset, measures, onPoint, glRef }: {
           </Html>
         </group>
       ))}
-      <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={0.12} maxPolarAngle={Math.PI * 0.499} />
+      <OrbitControls ref={controls} makeDefault autoRotate={sim.on && sim.playing && sim.cinematic} autoRotateSpeed={1.6 * sim.speed} enableDamping dampingFactor={0.12} maxPolarAngle={Math.PI * 0.499} />
     </>
   );
 }
@@ -158,6 +172,29 @@ export default function Viewer3D({ model, name }: { model: BuildingModel; name?:
   const [err, setErr] = useState<string | null>(null);
 
   const built = useMemo(() => buildScene(model), [model]);
+  const [sim, setSimState] = useState<Sim>(initialSim);
+  const setSim = useCallback((f: (s: Sim) => Sim) => setSimState(f), []);
+  const [envPreset, setEnvPreset] = useState<EnvPreset>("residential");
+  const [envCustom, setEnvCustom] = useState<CustomEnv>(DEFAULT_CUSTOM);
+  const fpBounds = useMemo(() => (model.footprint.points.length ? bounds(model.footprint.points) : { minX: 0, maxX: 10, minY: 0, maxY: 10, w: 10, d: 10 }), [model]);
+  const env = useMemo(() => buildEnvironment(envPreset, fpBounds, envCustom), [envPreset, fpBounds, envCustom]);
+  const items = useMemo(() => { const a: { kind: Kind; floor: number }[] = []; built.root.traverse((o) => { if ((o as THREE.Mesh).isMesh && o.userData.kind) a.push({ kind: o.userData.kind as Kind, floor: (o.userData.floor as number) ?? 0 }); }); return a; }, [built]);
+  const counts = useMemo(() => { const sp = posToStage(Math.round(sim.pos * 100) / 100); let shown = 0; for (const it of items) if (stageVisible(it.kind, it.floor, model.floors, sp)) shown++; return { shown, total: items.length }; }, [items, sim.pos, model.floors]);
+  // playback clock (requestAnimationFrame); state is only touched when the 1/100-stage step changes
+  useEffect(() => {
+    if (!sim.on || !sim.playing) return;
+    let raf = 0, last = performance.now(), pos = sim.pos, shownStep = Math.round(pos * 100);
+    const tick = (now: number) => {
+      const dt = Math.min(0.1, (now - last) / 1000); last = now;
+      const r = advance(pos, dt, sim.speed); pos = r.pos;
+      const step = Math.round(pos * 100);
+      if (step !== shownStep || r.done) { shownStep = step; setSimState((s) => (s.on && s.playing ? { ...s, pos, playing: !r.done } : s)); }
+      if (!r.done) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sim.on, sim.playing, sim.speed]);
   useEffect(() => () => { built.root.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.geometry.dispose(); } }); }, [built]);
   useEffect(() => { const f = () => setFs(!!document.fullscreenElement); document.addEventListener("fullscreenchange", f); return () => document.removeEventListener("fullscreenchange", f); }, []);
   useEffect(() => { setMeasures([]); pending.current = null; setHasFirst(false); }, [model]);
@@ -188,15 +225,62 @@ export default function Viewer3D({ model, name }: { model: BuildingModel; name?:
     try {
       setErr(null);
       if (fmt === "glb") {
-        const buf = await new Promise<ArrayBuffer>((res, rej) => new GLTFExporter().parse(built.root, (r) => res(r as ArrayBuffer), rej, { binary: true, onlyVisible: true }));
+        const buf = await new Promise<ArrayBuffer>((res, rej) => new GLTFExporter().parse(visibleClone(built.root), (r) => res(r as ArrayBuffer), rej, { binary: true }));
         download(new Blob([buf], { type: "model/gltf-binary" }), `${base}.glb`);
-      } else if (fmt === "obj") download(new Blob([new OBJExporter().parse(built.root)], { type: "text/plain" }), `${base}.obj`);
-      else download(new Blob([new STLExporter().parse(built.root, { binary: false }) as string], { type: "model/stl" }), `${base}.stl`);
+      } else if (fmt === "obj") download(new Blob([new OBJExporter().parse(visibleClone(built.root))], { type: "text/plain" }), `${base}.obj`);
+      else download(new Blob([new STLExporter().parse(visibleClone(built.root), { binary: false }) as string], { type: "model/stl" }), `${base}.stl`);
     } catch (e) { setErr(L("Export failed: ", "এক্সপোর্ট ব্যর্থ: ") + (e instanceof Error ? e.message : "")); }
   };
 
+  const reportPdf = () => {
+    try {
+      setErr(null);
+      const gl = glRef.current;
+      const img = gl ? gl.domElement.toDataURL("image/jpeg", 0.88) : null;
+      const doc = renderReportPdf(buildReportData(model, countByKind(built.root)), img);
+      download(doc.output("blob"), `${base}-report.pdf`);
+    } catch (e) { setErr(L("Report failed: ", "রিপোর্ট ব্যর্থ: ") + (e instanceof Error ? e.message : "")); }
+  };
+
+  // Video: records the canvas while the construction sequence plays once from the start.
+  const [recording, setRecording] = useState(false);
+  const recorder = useRef<{ r: MediaRecorder; keep: boolean } | null>(null);
+  const stopRecording = useCallback((keep: boolean) => {
+    const cur = recorder.current; if (!cur) return;
+    cur.keep = keep; if (cur.r.state !== "inactive") cur.r.stop();
+    recorder.current = null; setRecording(false);
+  }, []);
+  const startVideo = () => {
+    const gl = glRef.current;
+    const canvas = gl?.domElement as (HTMLCanvasElement & { captureStream?: (fps?: number) => MediaStream }) | undefined;
+    if (!canvas || typeof MediaRecorder === "undefined" || !canvas.captureStream) { setErr(L("Video recording is not supported in this browser. Use Chrome, Edge or Firefox on a computer.", "এই ব্রাউজারে ভিডিও রেকর্ডিং সম্ভব নয়। কম্পিউটারে Chrome, Edge বা Firefox ব্যবহার করুন।")); return; }
+    const type = ["video/mp4;codecs=avc1", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((t) => MediaRecorder.isTypeSupported(t));
+    if (!type) { setErr(L("No supported video format in this browser.", "এই ব্রাউজারে কোনো সমর্থিত ভিডিও ফরম্যাট নেই।")); return; }
+    try {
+      setErr(null);
+      const stream = canvas.captureStream(30), chunks: Blob[] = [];
+      const r = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 6_000_000 });
+      const cur = { r, keep: true };
+      r.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      r.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (cur.keep && chunks.length) download(new Blob(chunks, { type: type.split(";")[0] }), `${base}-construction.${type.startsWith("video/mp4") ? "mp4" : "webm"}`);
+      };
+      r.start(250); recorder.current = cur; setRecording(true);
+      setSimState({ on: true, playing: true, pos: 0, speed: 1, cinematic: true });
+    } catch (e) { setErr(L("Could not start recording: ", "রেকর্ডিং শুরু করা যায়নি: ") + (e instanceof Error ? e.message : "")); }
+  };
+  useEffect(() => { // finished the sequence → stop after a short hold on the final frame
+    if (!recording || !sim.on || sim.pos < 8 || sim.playing) return;
+    const t = setTimeout(() => stopRecording(true), 1200);
+    return () => clearTimeout(t);
+  }, [recording, sim.on, sim.pos, sim.playing, stopRecording]);
+  useEffect(() => { if (recording && !sim.on) stopRecording(false); }, [recording, sim.on, stopRecording]);
+  useEffect(() => () => { const c = recorder.current; if (c) { c.keep = false; if (c.r.state !== "inactive") c.r.stop(); } }, []);
+
   const Panel = (
     <div className="space-y-4 text-sm">
+      <EnvironmentPanel preset={envPreset} setPreset={setEnvPreset} custom={envCustom} setCustom={setEnvCustom} />
       <section className="space-y-2">
         <Label className="text-xs uppercase text-muted-foreground">{L("View", "ভিউ")}</Label>
         <div className="grid grid-cols-3 gap-1">
@@ -243,12 +327,12 @@ export default function Viewer3D({ model, name }: { model: BuildingModel; name?:
   );
 
   return (
-    <div ref={wrap} className="flex flex-col lg:flex-row gap-3 bg-background rounded-lg" data-testid="viewer3d">
+    <div ref={wrap} className="flex flex-col lg:flex-row gap-3 bg-background rounded-lg min-w-0 max-w-full" data-testid="viewer3d">
       {!mobile && <aside className="w-64 shrink-0 border rounded-lg p-3 overflow-y-auto max-h-[78vh]">{Panel}</aside>}
       <div className="flex-1 min-w-0 space-y-2">
         <div className="relative rounded-lg border overflow-hidden h-[58vh] md:h-[68vh] min-h-[320px]">
           <Canvas shadows camera={{ fov: 45, position: [20, 15, 20] }} gl={{ preserveDrawingBuffer: true, antialias: true }} dpr={[1, 2]}>
-            <Suspense fallback={null}><Controller built={built} model={model} opts={opts} preset={preset} measures={measures} onPoint={onPoint} glRef={glRef} /></Suspense>
+            <Suspense fallback={null}><Controller built={built} model={model} opts={opts} preset={preset} measures={measures} onPoint={onPoint} glRef={glRef} sim={sim} env={env} /></Suspense>
           </Canvas>
           <div className="absolute top-2 right-2 flex gap-1.5">
             {mobile && (
@@ -263,13 +347,17 @@ export default function Viewer3D({ model, name }: { model: BuildingModel; name?:
             </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button size="icon" variant="secondary" aria-label="Export 3D"><Download className="h-4 w-4" /></Button></DropdownMenuTrigger>
-              <DropdownMenuContent align="end"><DropdownMenuItem onClick={() => void exportAs("glb")}>GLB (glTF)</DropdownMenuItem><DropdownMenuItem onClick={() => void exportAs("obj")}>OBJ</DropdownMenuItem><DropdownMenuItem onClick={() => void exportAs("stl")}>STL</DropdownMenuItem></DropdownMenuContent>
+              <DropdownMenuContent align="end"><DropdownMenuItem onClick={() => void exportAs("glb")}>GLB (glTF)</DropdownMenuItem><DropdownMenuItem onClick={() => void exportAs("obj")}>OBJ</DropdownMenuItem><DropdownMenuItem onClick={() => void exportAs("stl")}>STL</DropdownMenuItem>
+                <DropdownMenuItem onClick={reportPdf}><FileText className="h-3.5 w-3.5 mr-1.5" />{L("PDF report", "PDF রিপোর্ট")}</DropdownMenuItem>
+                <DropdownMenuItem onClick={startVideo} disabled={recording}><Film className="h-3.5 w-3.5 mr-1.5" />{L("Video (construction sequence)", "ভিডিও (নির্মাণক্রম)")}</DropdownMenuItem></DropdownMenuContent>
             </DropdownMenu>
             <Button size="icon" variant="secondary" onClick={fullscreen} aria-label="Fullscreen">{fs ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}</Button>
           </div>
           {model.conceptual && <div className="absolute top-2 left-2 rounded bg-amber-500 text-black text-[11px] font-semibold px-2 py-1">{L("CONCEPTUAL 3D RECONSTRUCTION", "কনসেপ্টুয়াল ৩ডি পুনর্গঠন")}</div>}
+          {recording && <div className="absolute bottom-2 right-2 flex items-center gap-2 rounded bg-red-600 text-white text-xs px-2 py-1" data-testid="recording"><span className="h-2 w-2 rounded-full bg-white animate-pulse" />{L("Recording…", "রেকর্ড হচ্ছে…")}<button className="underline" onClick={() => stopRecording(false)}>{L("Cancel", "বাতিল")}</button></div>}
           {opts.measure && <div className="absolute bottom-2 left-2 rounded bg-background/90 text-xs px-2 py-1 border">{hasFirst ? L("Pick the 2nd point", "২য় বিন্দু বাছুন") : L("Measure: pick the 1st point", "মাপ: ১ম বিন্দু বাছুন")}</div>}
         </div>
+        <StagePlayer sim={sim} setSim={setSim} shown={counts.shown} total={counts.total} />
         {err && <p className="text-xs text-destructive">{err}</p>}
         <Disclaimer conceptual={model.conceptual} />
       </div>

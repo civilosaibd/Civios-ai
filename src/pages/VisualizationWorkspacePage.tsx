@@ -60,7 +60,7 @@ function DemoView() {
   return (
     <Shell title={L("3D demo (sample)", "৩ডি ডেমো (নমুনা)")}>
       <Warn>{L("Built-in sample drawing (10 × 8 m, 3 floors) — works offline, nothing is saved. Create a visualization to use your own drawings.", "বিল্ট-ইন নমুনা ড্রয়িং (১০ × ৮ মি, ৩ তলা) — অফলাইনে চলে, কিছু সেভ হয় না। নিজের ড্রয়িংয়ের জন্য নতুন ভিজ্যুয়ালাইজেশন বানান।")}</Warn>
-      <div className="grid xl:grid-cols-[1fr_320px] gap-4 items-start"><Viewer3D model={model} name="demo" /><ExplainPanel model={model} /></div>
+      <div className="grid grid-cols-[minmax(0,1fr)] xl:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start"><Viewer3D model={model} name="demo" /><ExplainPanel model={model} /></div>
     </Shell>
   );
 }
@@ -289,7 +289,7 @@ function Workspace({ id }: { id: string }) {
 
       {step === "view" && viz.model && isModel(viz.model) && (
         <div className="space-y-4">
-          <div className="grid xl:grid-cols-[1fr_320px] gap-4 items-start">
+          <div className="grid grid-cols-[minmax(0,1fr)] xl:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
             <Viewer3D model={viz.model} name={viz.name} />
             <div className="space-y-4">
               <ExplainPanel model={viz.model} />
@@ -299,7 +299,7 @@ function Workspace({ id }: { id: string }) {
                     <SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{L("— No project —", "— কোনো প্রজেক্ট নয় —")}</SelectItem>{projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>
                   {user?.id !== viz.user_id && <p className="text-[11px] text-muted-foreground mt-1">{L("Only the owner can move it to another project.", "শুধু মালিক অন্য প্রজেক্টে সরাতে পারবেন।")}</p>}</div>
                 {canEdit && <Button variant="outline" className="w-full" onClick={() => { setModel(viz.model); setScaleLabel(undefined); setStep("verify"); }}><Check className="h-4 w-4 mr-1" />{L("Edit & re-verify", "এডিট ও পুনরায় যাচাই")}</Button>}
-                <p className="text-[11px] text-muted-foreground">{L("Construction-stage simulation, PDF report and video export are planned for the next phase.", "কনস্ট্রাকশন-স্টেজ সিমুলেশন, PDF রিপোর্ট ও ভিডিও এক্সপোর্ট পরের ধাপে আসছে।")}</p>
+                <p className="text-[11px] text-muted-foreground">{L("Construction PDF report and video are in the download menu.", "PDF রিপোর্ট ও ভিডিও ডাউনলোড মেনুতে আছে।")}</p>
               </Card>
             </div>
           </div>
