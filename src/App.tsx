@@ -39,6 +39,7 @@ const TenderDocumentCheckerPage = lazy(() => import("./pages/TenderDocumentCheck
 const BidPreparationPage = lazy(() => import("./pages/BidPreparationPage.tsx"));
 const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage.tsx"));
 const AIInsightsPage = lazy(() => import("./pages/AIInsightsPage.tsx"));
+const AIDrawingPage = lazy(() => import("./pages/AIDrawingPage.tsx"));
 const SiteDiaryPage = lazy(() => import("./pages/SiteDiaryPage.tsx"));
 const PlanGeneratorPage = lazy(() => import("./pages/PlanGeneratorPage.tsx"));
 const BimStudioPage = lazy(() => import("./pages/BimStudioPage.tsx"));
@@ -152,6 +153,7 @@ const App = () => (
                       <Route path="/bid-prep" element={<BidPreparationPage />} />
                       <Route path="/analytics" element={<AnalyticsPage />} />
                       <Route path="/ai-insights" element={<AIInsightsPage />} />
+                      <Route path="/ai-drawing" element={<AIDrawingPage />} />
                       <Route path="/site-diary" element={<SiteDiaryPage />} />
                       <Route path="/site-photos" element={<SitePhotosPage />} />
                       <Route
@@ -253,7 +255,6 @@ const App = () => (
 
                       {/* Coming Soon stubs */}
                       {[
-                        "ai-drawing",
                         "progress-reports",
                         "company-settings",
                       ].map((p) => (
