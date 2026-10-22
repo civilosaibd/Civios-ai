@@ -62,6 +62,8 @@ const TrainingCornerPage = lazy(() => import("./pages/TrainingCornerPage.tsx"));
 const MaterialCalculatorPage = lazy(() => import("./pages/MaterialCalculatorPage.tsx"));
 const VisualizationsPage = lazy(() => import("./pages/VisualizationsPage.tsx"));
 const VisualizationWorkspacePage = lazy(() => import("./pages/VisualizationWorkspacePage.tsx"));
+const BackupPage = lazy(() => import("./pages/BackupPage.tsx"));
+import FloatingAssistant from "@/components/FloatingAssistant";
 
 
 
@@ -80,6 +82,7 @@ const App = () => (
             <ScrollToTop />
             <ReferralCapture />
             <InstallCivilOS />
+            <FloatingAssistant />
             <UpdateAvailable />
             <Suspense fallback={<AppLoading compact />}>
               <Routes>
@@ -132,6 +135,7 @@ const App = () => (
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/settings/notifications" element={<NotificationSettingsPage />} />
+              <Route path="/settings/backup" element={<BackupPage />} />
               <Route path="/affiliate" element={<AffiliatePage />} />
               <Route path="/admin/affiliate" element={<AdminAffiliatePage />} />
               <Route path="/invite" element={<InviteAcceptPage />} />
