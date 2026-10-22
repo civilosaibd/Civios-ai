@@ -1,4 +1,4 @@
-import { useParams, Link, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { Button } from "@/components/ui/button";
@@ -36,9 +36,7 @@ const LABELS: Record<string, { title: string; desc: string }> = {
 
 export default function ComingSoonPage() {
   const location = useLocation();
-  const info = LABELS[location.pathname] || { title: "Module", desc: "This module is coming soon." };
-
-  return (
+  // Progress Reports already has a production report builder; route users there instead of showing a stub.\n  if (location.pathname === "/progress-reports") return <Navigate to="/reports" replace />;\n\n  const info = LABELS[location.pathname] || { title: "Module", desc: "This module is coming soon." };\n\n  return (
     <>
       <SEO title={info.title} description={info.desc} />
       <SidebarProvider>
