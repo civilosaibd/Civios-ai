@@ -30,6 +30,7 @@ const AdminPage = lazy(() => import("./pages/AdminPage.tsx"));
 const SharedEstimatePage = lazy(() => import("./pages/SharedEstimatePage.tsx"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage.tsx"));
 const AIAssistantPage = lazy(() => import("./pages/AIAssistantPage.tsx"));
+const AIWriterPage = lazy(() => import("./pages/AIWriterPage.tsx"));
 const FileAssistantPage = lazy(() => import("./pages/FileAssistantPage.tsx"));
 const BOQGeneratorPage = lazy(() => import("./pages/BOQGeneratorPage.tsx"));
 const TenderAnalysisPage = lazy(() => import("./pages/TenderAnalysisPage.tsx"));
@@ -124,6 +125,7 @@ const App = () => (
                         path="/ai-assistant"
                         element={<AIAssistantPage />}
                       />
+                      <Route path="/ai-writer" element={<AIWriterPage />} />
                       <Route path="/ai-engineer" element={<AIEngineerPage />} />
                       <Route path="/boq-hub" element={<BOQHubPage />} />
                       <Route
@@ -241,7 +243,6 @@ const App = () => (
 
                       {/* Coming Soon stubs */}
                       {[
-                        "ai-writer",
                         "ai-drawing",
                         "progress-reports",
                         "site-photos",
