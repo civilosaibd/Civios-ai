@@ -1,0 +1,246 @@
+// Runs the REAL migrations in supabase/migrations against an in-memory Postgres
+// (PGlite) with minimal Supabase stubs (auth.*, storage.*, roles), then checks
+// that the money / referral RLS holes are closed.
+//
+//   npm i --no-save @electric-sql/pglite
+//   node --test supabase/tests/security.test.mjs
+//
+// This is a policy/function test, NOT a replacement for testing on a Supabase
+// staging project (PostgREST, Realtime and Storage are not exercised here).
+import { test, before } from "node:test";
+import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { PGlite } from "@electric-sql/pglite";
+import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const migDir = join(here, "..", "migrations");
+
+const STUBS = `
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+DO $$ BEGIN
+  CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;
+  CREATE ROLE service_role NOLOGIN; CREATE ROLE supabase_auth_admin NOLOGIN;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE TABLE auth.users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text, raw_user_meta_data jsonb DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now());
+CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
+CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$ SELECT current_user::text $$;
+GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role, supabase_auth_admin;
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role, supabase_auth_admin;
+-- Supabase default privileges for objects later created in public:
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
+CREATE SCHEMA IF NOT EXISTS storage;
+CREATE TABLE storage.buckets (id text PRIMARY KEY, name text, public boolean DEFAULT false, file_size_limit bigint);
+CREATE TABLE storage.objects (id uuid DEFAULT gen_random_uuid(), bucket_id text, name text, owner uuid);
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+CREATE FUNCTION storage.foldername(name text) RETURNS text[] LANGUAGE sql AS $$ SELECT string_to_array(name, '/') $$;
+GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role;
+GRANT ALL ON storage.objects, storage.buckets TO authenticated, service_role;
+CREATE PUBLICATION supabase_realtime;
+`;
+
+let db;
+const ADMIN = "00000000-0000-4000-8000-0000000000a1";
+const ALICE = "00000000-0000-4000-8000-0000000000b1";
+const BOB   = "00000000-0000-4000-8000-0000000000b2";
+
+async function as(role, uid, email, fn) {
+  await db.exec(`RESET ROLE; SELECT set_config('request.jwt.claim.sub', '${uid ?? ""}', false);
+    SELECT set_config('request.jwt.claims', '${JSON.stringify(uid ? { sub: uid, email } : {}).replace(/'/g, "''")}', false);
+    SET ROLE ${role};`);
+  try { return await fn(); } finally { await db.exec("RESET ROLE"); }
+}
+const alice = (fn) => as("authenticated", ALICE, "alice@example.com", fn);
+const bob   = (fn) => as("authenticated", BOB, "bob@example.com", fn);
+const admin = (fn) => as("authenticated", ADMIN, "zobaerio24@gmail.com", fn);
+const anon  = (fn) => as("anon", null, null, fn);
+const rejects = (p, re) => assert.rejects(Promise.resolve().then(p), re);
+const q = async (sql, params) => (await db.query(sql, params)).rows;
+
+before(async () => {
+  db = new PGlite({ extensions: { pgcrypto } });
+  await db.exec(STUBS);
+  for (const f of readdirSync(migDir).filter((f) => f.endsWith(".sql")).sort()) {
+    try { await db.exec(readFileSync(join(migDir, f), "utf8")); }
+    catch (e) { throw new Error(`migration ${f} failed: ${e.message}`); }
+  }
+  await db.exec(`INSERT INTO auth.users (id,email) VALUES
+    ('${ADMIN}','zobaerio24@gmail.com'),('${ALICE}','alice@example.com'),('${BOB}','bob@example.com');`);
+});
+
+test("sanity: users, profiles and admin role exist after migrations", async () => {
+  assert.equal((await q("SELECT count(*)::int n FROM public.profiles")).at(0).n, 3);
+  assert.equal((await q("SELECT public.has_role($1,'admin') a", [ADMIN])).at(0).a, true);
+  assert.equal((await q("SELECT public.has_role($1,'admin') a", [ALICE])).at(0).a, false);
+});
+
+test("subscriptions: user cannot self-grant a paid plan (INSERT)", async () => {
+  const [{ id: biz }] = await q("SELECT id FROM public.plans WHERE code='business'");
+  const [{ id: free }] = await q("SELECT id FROM public.plans WHERE code='free'");
+  await alice(() => rejects(() => db.query("INSERT INTO public.subscriptions (user_id,plan_id,status) VALUES ($1,$2,'active')", [ALICE, biz]), /row-level security/));
+  await alice(() => db.query("INSERT INTO public.subscriptions (user_id,plan_id,status) VALUES ($1,$2,'active')", [ALICE, free]));
+});
+
+test("subscriptions: user cannot upgrade own plan (UPDATE)", async () => {
+  const [{ id: biz }] = await q("SELECT id FROM public.plans WHERE code='business'");
+  await alice(() => db.query("UPDATE public.subscriptions SET plan_id=$1, status='active' WHERE user_id=$2", [biz, ALICE]));
+  const [{ code }] = await q("SELECT p.code FROM public.subscriptions s JOIN public.plans p ON p.id=s.plan_id WHERE s.user_id=$1", [ALICE]);
+  assert.equal(code, "free");
+});
+
+test("payments: client-supplied amount/status are overridden server-side", async () => {
+  const [{ id: pro, price_yearly }] = await q("SELECT id, price_yearly FROM public.plans WHERE code='professional'");
+  await alice(() => db.query(
+    "INSERT INTO public.payments (user_id,plan_id,amount,billing_cycle,status,verified_at,transaction_id) VALUES ($1,$2,1,'yearly','pending',now(),'TX-ALICE-1')",
+    [ALICE, pro]));
+  const [row] = await q("SELECT amount::numeric a, status, verified_at FROM public.payments WHERE transaction_id='TX-ALICE-1'");
+  assert.equal(Number(row.a), Number(price_yearly));
+  assert.equal(row.status, "pending");
+  assert.equal(row.verified_at, null);
+});
+
+test("payments: forged 'verified' status is neutralised to 'pending'", async () => {
+  const [{ id: pro }] = await q("SELECT id FROM public.plans WHERE code='professional'");
+  await alice(() => db.query(
+    "INSERT INTO public.payments (user_id,plan_id,amount,billing_cycle,status,verified_at,transaction_id) VALUES ($1,$2,1,'yearly','verified',now(),'TX-FORGED')", [ALICE, pro]));
+  const [r] = await q("SELECT status, verified_at FROM public.payments WHERE transaction_id='TX-FORGED'");
+  assert.equal(r.status, "pending"); assert.equal(r.verified_at, null);
+  await alice(() => rejects(() => db.query(
+    "INSERT INTO public.payments (user_id,plan_id,billing_cycle,transaction_id) VALUES ($1,$2,'yearly','TX-OTHER') RETURNING 1", [BOB, pro]), /row-level security/)); // cannot pay as someone else
+});
+
+test("approve_payment: non-admin and anon are refused", async () => {
+  const [{ id }] = await q("SELECT id FROM public.payments WHERE transaction_id='TX-ALICE-1'");
+  await alice(() => rejects(() => db.query("SELECT public.approve_payment($1)", [id]), /Admin only/));
+  await anon(() => rejects(() => db.query("SELECT public.approve_payment($1)", [id]), /permission denied/));
+});
+
+test("approve_payment: admin activates the paid plan once; replay is refused", async () => {
+  const [{ id }] = await q("SELECT id FROM public.payments WHERE transaction_id='TX-ALICE-1'");
+  await admin(() => db.query("SELECT public.approve_payment($1)", [id]));
+  const [s] = await q("SELECT p.code, s.status, s.billing_cycle FROM public.subscriptions s JOIN public.plans p ON p.id=s.plan_id WHERE s.user_id=$1", [ALICE]);
+  assert.deepEqual({ ...s }, { code: "professional", status: "active", billing_cycle: "yearly" });
+  const [pay] = await q("SELECT status, verified_at FROM public.payments WHERE id=$1", [id]);
+  assert.equal(pay.status, "verified"); assert.ok(pay.verified_at);
+  await admin(() => rejects(() => db.query("SELECT public.approve_payment($1)", [id]), /already verified/));
+});
+
+test("cancel_my_subscription works for the owner only on their own row", async () => {
+  await bob(() => db.query("SELECT public.cancel_my_subscription()"));
+  assert.equal((await q("SELECT status FROM public.subscriptions WHERE user_id=$1", [ALICE])).at(0).status, "active");
+  await alice(() => db.query("SELECT public.cancel_my_subscription()"));
+  assert.equal((await q("SELECT status FROM public.subscriptions WHERE user_id=$1", [ALICE])).at(0).status, "cancelled");
+});
+
+test("withdrawals: direct INSERT (e.g. status='paid') is blocked", async () => {
+  await alice(() => rejects(() => db.query(
+    "INSERT INTO public.withdrawals (user_id,amount,method,account_number,status) VALUES ($1,99999,'bKash','01700000000','paid')", [ALICE]), /permission denied/));
+});
+
+test("withdrawals: minimum, balance, method and account validation", async () => {
+  await alice(() => rejects(() => db.query("SELECT public.request_withdrawal(499,'bKash','01700000000')"), /Minimum withdrawal/));
+  await alice(() => rejects(() => db.query("SELECT public.request_withdrawal(500,'bKash','01700000000')"), /exceeds available balance/));
+  await db.query("INSERT INTO public.referrals (referrer_id, referred_user_id, status, commission_amount) VALUES ($1,$2,'converted',1000)", [ALICE, BOB]);
+  // Phase 3: the withdrawable balance is the approved commission LEDGER (written only server-side)
+  await db.query("INSERT INTO public.referral_commissions (referral_id,referrer_id,referred_user_id,base_amount,rate,commission_amount,status) SELECT id,referrer_id,referred_user_id,10000,0.10,1000,'approved' FROM public.referrals WHERE referrer_id=$1", [ALICE]);
+  await alice(() => rejects(() => db.query("SELECT public.request_withdrawal(500,'paypal','01700000000')"), /Unsupported payment method/));
+  await alice(() => rejects(() => db.query("SELECT public.request_withdrawal(500,'bKash','1')"), /Invalid account number/));
+});
+
+test("withdrawals: valid request works, balance is enforced, no double-spend", async () => {
+  await alice(() => db.query("SELECT public.request_withdrawal(600,'bKash','01700000000')"));
+  const [w] = await q("SELECT status, amount::numeric a FROM public.withdrawals WHERE user_id=$1", [ALICE]);
+  assert.equal(w.status, "pending"); assert.equal(Number(w.a), 600);
+  await alice(() => rejects(() => db.query("SELECT public.request_withdrawal(600,'Nagad','01700000000')"), /exceeds available balance/));
+  await alice(() => rejects(() => db.query("SELECT public.request_withdrawal(400,'Nagad','01700000000')"), /Minimum withdrawal/)); // remaining 400 < 500
+});
+
+test("withdrawals: only admin changes status, strict transitions, server timestamps", async () => {
+  const [{ id }] = await q("SELECT id FROM public.withdrawals WHERE user_id=$1 AND amount=600", [ALICE]);
+  await alice(() => db.query("UPDATE public.withdrawals SET status='paid' WHERE id=$1", [id]));
+  assert.equal((await q("SELECT status FROM public.withdrawals WHERE id=$1", [id])).at(0).status, "pending"); // RLS: 0 rows
+  await admin(() => rejects(() => db.query("UPDATE public.withdrawals SET status='paid' WHERE id=$1", [id]), /Invalid withdrawal status change/));
+  await admin(() => rejects(() => db.query("UPDATE public.withdrawals SET amount=1 WHERE id=$1", [id]), /immutable/));
+  await admin(() => db.query("UPDATE public.withdrawals SET status='approved' WHERE id=$1", [id]));
+  let [w] = await q("SELECT status, approved_at, paid_at FROM public.withdrawals WHERE id=$1", [id]);
+  assert.equal(w.status, "approved"); assert.ok(w.approved_at); assert.equal(w.paid_at, null);
+  await admin(() => db.query("UPDATE public.withdrawals SET status='paid', paid_at='2000-01-01' WHERE id=$1", [id]));
+  [w] = await q("SELECT status, paid_at FROM public.withdrawals WHERE id=$1", [id]);
+  assert.equal(w.status, "paid"); assert.ok(new Date(w.paid_at).getFullYear() >= 2025); // client timestamp ignored
+  await admin(() => rejects(() => db.query("UPDATE public.withdrawals SET status='rejected' WHERE id=$1", [id]), /Invalid withdrawal status change/));
+});
+
+test("profiles: referral_code / referred_by cannot be changed by the user", async () => {
+  const [before] = await q("SELECT referral_code, referred_by FROM public.profiles WHERE id=$1", [ALICE]);
+  await alice(() => db.query("UPDATE public.profiles SET referral_code='CIVIL-HACKED', referred_by=$1, display_name='Alice' WHERE id=$2", [BOB, ALICE]));
+  const [after] = await q("SELECT referral_code, referred_by, display_name FROM public.profiles WHERE id=$1", [ALICE]);
+  assert.equal(after.referral_code, before.referral_code);
+  assert.equal(after.referred_by, before.referred_by);
+  assert.equal(after.display_name, "Alice"); // normal edits still work
+});
+
+test("profiles: client-side INSERT cannot pre-set a referrer", async () => {
+  const CAROL = "00000000-0000-4000-8000-0000000000b3";
+  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'carol@example.com')", [CAROL]);
+  await db.query("DELETE FROM public.profiles WHERE id=$1", [CAROL]);
+  await as("authenticated", CAROL, "carol@example.com", () =>
+    db.query("INSERT INTO public.profiles (id, referral_code, referred_by) VALUES ($1,'CIVIL-FAKE',$2)", [CAROL, BOB]));
+  const [p] = await q("SELECT referral_code, referred_by FROM public.profiles WHERE id=$1", [CAROL]);
+  assert.equal(p.referred_by, null);
+  assert.notEqual(p.referral_code, "CIVIL-FAKE");
+});
+
+test("referrals: users can't edit referral rows (commission is server/admin only)", async () => {
+  await alice(() => db.query("UPDATE public.referrals SET commission_amount=999999, status='converted' WHERE referrer_id=$1", [ALICE]));
+  assert.equal(Number((await q("SELECT commission_amount::numeric c FROM public.referrals WHERE referrer_id=$1", [ALICE])).at(0).c), 1000);
+  await alice(() => rejects(() => db.query("INSERT INTO public.referrals (referrer_id, referred_user_id, status, commission_amount) VALUES ($1,$2,'converted',500)", [ALICE, ADMIN]), /row-level security/));
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2 — yearly-only billing, price preserved exactly
+// ---------------------------------------------------------------------------
+test("PRICE RULE: every plan's yearly amount equals its original monthly amount (no x12)", async () => {
+  const rows = await q("SELECT code, price_monthly::numeric m, price_yearly::numeric y FROM public.plans ORDER BY sort_order");
+  assert.ok(rows.length >= 4);
+  for (const r of rows) assert.equal(Number(r.y), Number(r.m), `${r.code}: yearly ${r.y} must equal monthly ${r.m}`);
+  // the seeded amounts must be unchanged (499 / 1,999 / 4,999) — never 5,988 / 23,988 / 59,988
+  assert.deepEqual(Object.fromEntries(rows.map((r) => [r.code, Number(r.y)])),
+    { free: 0, starter: 499, professional: 1999, business: 4999 });
+});
+
+test("monthly billing is gone: a monthly payment request is stored as yearly at the plan's price", async () => {
+  const [{ id: st, price_yearly }] = await q("SELECT id, price_yearly FROM public.plans WHERE code='starter'");
+  await bob(() => db.query(
+    "INSERT INTO public.payments (user_id,plan_id,amount,billing_cycle,transaction_id) VALUES ($1,$2,1,'monthly','TX-BOB-M')", [BOB, st]));
+  const [r] = await q("SELECT billing_cycle, amount::numeric a FROM public.payments WHERE transaction_id='TX-BOB-M'");
+  assert.equal(r.billing_cycle, "yearly");
+  assert.equal(Number(r.a), Number(price_yearly)); // 499 — not 5,988
+});
+
+test("approve_payment grants a 1-year subscription and refuses legacy monthly payments", async () => {
+  const [{ id }] = await q("SELECT id FROM public.payments WHERE transaction_id='TX-BOB-M'");
+  await admin(() => db.query("SELECT public.approve_payment($1)", [id]));
+  const [s] = await q("SELECT billing_cycle, renewal_date, start_date FROM public.subscriptions WHERE user_id=$1", [BOB]);
+  assert.equal(s.billing_cycle, "yearly");
+  const days = (new Date(s.renewal_date) - new Date(s.start_date)) / 86400000;
+  assert.ok(days >= 364 && days <= 366, `renewal should be ~1 year out, got ${days} days`);
+
+  // legacy pending monthly row (created as a superuser, as it would exist from before)
+  const [{ id: biz }] = await q("SELECT id FROM public.plans WHERE code='business'");
+  const [{ id: legacy }] = await q(
+    "INSERT INTO public.payments (user_id,plan_id,amount,billing_cycle,status,transaction_id) VALUES ($1,$2,4999,'monthly','pending','TX-LEGACY') RETURNING id", [ALICE, biz]);
+  await db.query("UPDATE public.payments SET billing_cycle='monthly' WHERE id=$1", [legacy]); // trigger forces yearly on INSERT; simulate old data
+  await admin(() => rejects(() => db.query("SELECT public.approve_payment($1)", [legacy]), /Legacy monthly payment/));
+});
+
+test("new subscription/payment rows default to yearly", async () => {
+  const rows = await q(`SELECT table_name, column_default FROM information_schema.columns
+    WHERE table_schema='public' AND column_name='billing_cycle' AND table_name IN ('subscriptions','payments')`);
+  assert.equal(rows.length, 2);
+  for (const r of rows) assert.match(r.column_default, /yearly/);
+});

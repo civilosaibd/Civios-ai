@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Plan } from "@/lib/subscription";
+import { planPrice, type Plan } from "@/lib/subscription";
 
 /**
  * Payment abstraction layer.
@@ -10,7 +10,7 @@ import type { Plan } from "@/lib/subscription";
 export interface CheckoutInput {
   userId: string;
   plan: Plan;
-  cycle: "monthly" | "yearly";
+  cycle: "yearly";
   method: string;
   transactionId: string;
   senderNumber: string;
@@ -27,10 +27,10 @@ export const MANUAL_PAYMENT_NUMBER = "+8801832313998";
 
 export const VAT_RATE = 0; // set > 0 when VAT registration is active
 
-export const priceFor = (plan: Plan, cycle: "monthly" | "yearly") =>
-  cycle === "yearly" ? Number(plan.price_yearly) : Number(plan.price_monthly);
+/** Yearly is the only billing period. The amount is the plan's configured price, unchanged. */
+export const priceFor = (plan: Plan, _cycle: "yearly" = "yearly") => planPrice(plan);
 
-export const totalFor = (plan: Plan, cycle: "monthly" | "yearly") => {
+export const totalFor = (plan: Plan, cycle: "yearly" = "yearly") => {
   const base = priceFor(plan, cycle);
   const vat = Math.round(base * VAT_RATE);
   return { base, vat, total: base + vat };
@@ -75,62 +75,25 @@ export const paymentService = {
 };
 
 export const subscriptionService = {
-  /** users may only cancel their own subscription; upgrades require verified payment */
-  async cancel(subscriptionId: string) {
-    const { error } = await supabase
-      .from("subscriptions")
-      .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
-      .eq("id", subscriptionId);
+  /** server-side (RPC): a user can only cancel their own active subscription */
+  async cancel(_subscriptionId?: string) {
+    const { error } = await supabase.rpc("cancel_my_subscription");
     if (error) throw error;
   },
 };
 
-/** admin-only: verify a payment and activate the matching subscription */
+/**
+ * Admin-only. Verification is ONE atomic server-side function (RLS + has_role
+ * checked inside Postgres); the browser never writes subscriptions directly.
+ */
 export const billingService = {
-  async approvePayment(payment: {
-    id: string; user_id: string; plan_id: string | null; billing_cycle: string;
-  }) {
-    const now = new Date();
-    const renewal = new Date(now);
-    if (payment.billing_cycle === "yearly") renewal.setFullYear(renewal.getFullYear() + 1);
-    else renewal.setMonth(renewal.getMonth() + 1);
-
-    const { data: existing } = await supabase
-      .from("subscriptions").select("id").eq("user_id", payment.user_id).maybeSingle();
-
-    if (existing) {
-      const { error } = await supabase.from("subscriptions").update({
-        plan_id: payment.plan_id!,
-        status: "active",
-        billing_cycle: payment.billing_cycle,
-        start_date: now.toISOString(),
-        renewal_date: renewal.toISOString(),
-        cancelled_at: null,
-        payment_provider: "manual",
-      }).eq("id", existing.id);
-      if (error) throw error;
-    } else {
-      const { error } = await supabase.from("subscriptions").insert({
-        user_id: payment.user_id,
-        plan_id: payment.plan_id!,
-        status: "active",
-        billing_cycle: payment.billing_cycle,
-        renewal_date: renewal.toISOString(),
-        payment_provider: "manual",
-      });
-      if (error) throw error;
-    }
-
-    const { error: payErr } = await supabase.from("payments").update({
-      status: "verified", verified_at: now.toISOString(),
-    }).eq("id", payment.id);
-    if (payErr) throw payErr;
+  async approvePayment(payment: { id: string }) {
+    const { error } = await supabase.rpc("approve_payment", { _payment_id: payment.id });
+    if (error) throw error;
   },
 
   async rejectPayment(paymentId: string, note: string) {
-    const { error } = await supabase.from("payments")
-      .update({ status: "failed", admin_note: note })
-      .eq("id", paymentId);
+    const { error } = await supabase.rpc("reject_payment", { _payment_id: paymentId, _note: note });
     if (error) throw error;
   },
 };

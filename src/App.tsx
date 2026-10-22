@@ -8,10 +8,13 @@ import { I18nProvider } from "@/lib/i18n";
 import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import ScrollToTop from "./components/ScrollToTop";
+import ReferralCapture, { RegisterRedirect } from "./components/ReferralCapture";
 import AppLoading from "./components/AppLoading";
 import InstallCivilOS from "./components/InstallCivilOS";
 import UpdateAvailable from "./components/UpdateAvailable";
 import { PwaProvider } from "@/lib/pwa";
+import FloatingAssistant from "@/components/FloatingAssistant";
+import { UnitsProvider } from "@/lib/UnitsContext";
 
 const Index = lazy(() => import("./pages/Index.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
@@ -43,9 +46,13 @@ const ComingSoonPage = lazy(() => import("./pages/ComingSoonPage.tsx"));
 const AIEngineerPage = lazy(() => import("./pages/AIEngineerPage.tsx"));
 const BOQHubPage = lazy(() => import("./pages/BOQHubPage.tsx"));
 const RateAnalysisPage = lazy(() => import("./pages/RateAnalysisPage.tsx"));
+const BBSGeneratorPage = lazy(() => import("./pages/BBSGeneratorPage.tsx"));
+const SiteInspectionPage = lazy(() => import("./pages/SiteInspectionPage.tsx"));
 const ProjectDetailPage = lazy(() => import("./pages/ProjectDetailPage.tsx"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage.tsx"));
-const NotificationSettingsPage = lazy(() => import("./pages/NotificationSettingsPage.tsx"));
+const NotificationSettingsPage = lazy(
+  () => import("./pages/NotificationSettingsPage.tsx")
+);
 const AffiliatePage = lazy(() => import("./pages/AffiliatePage.tsx"));
 const AdminAffiliatePage = lazy(() => import("./pages/AdminAffiliatePage.tsx"));
 const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage.tsx"));
@@ -54,94 +61,212 @@ const BillingPage = lazy(() => import("./pages/BillingPage.tsx"));
 const AdminBillingPage = lazy(() => import("./pages/AdminBillingPage.tsx"));
 const FinancePage = lazy(() => import("./pages/FinancePage.tsx"));
 const DefectDetectionPage = lazy(() => import("./pages/DefectDetectionPage.tsx"));
-const KnowledgeLibraryPage = lazy(() => import("./pages/KnowledgeLibraryPage.tsx"));
-const TrainingCornerPage = lazy(() => import("./pages/TrainingCornerPage.tsx"));
-
-
+const KnowledgeLibraryPage = lazy(
+  () => import("./pages/KnowledgeLibraryPage.tsx")
+);
+const TrainingCornerPage = lazy(
+  () => import("./pages/TrainingCornerPage.tsx")
+);
+const MaterialCalculatorPage = lazy(
+  () => import("./pages/MaterialCalculatorPage.tsx")
+);
+const VisualizationsPage = lazy(
+  () => import("./pages/VisualizationsPage.tsx")
+);
+const VisualizationWorkspacePage = lazy(
+  () => import("./pages/VisualizationWorkspacePage.tsx")
+);
+const BackupPage = lazy(() => import("./pages/BackupPage.tsx"));
+const ReportsPage = lazy(() => import("./pages/ReportsPage.tsx"));
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <I18nProvider>
-      <ThemeProvider>
-        <PwaProvider>
-        <AuthProvider>
-          <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <ScrollToTop />
-            <InstallCivilOS />
-            <UpdateAvailable />
-            <Suspense fallback={<AppLoading compact />}>
-              <Routes>
+      <UnitsProvider>
+        <ThemeProvider>
+          <PwaProvider>
+            <AuthProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
 
-              <Route path="/" element={<Index />} />
-              <Route path="/upload" element={<UploadPage />} />
-              <Route path="/estimate/demo" element={<EstimatePage />} />
-              <Route path="/about" element={<AboutPage />} />
-              <Route path="/contact" element={<ContactPage />} />
-              <Route path="/auth" element={<AuthPage />} />
-              <Route path="/projects" element={<ProjectsPage />} />
-              <Route path="/projects/:id" element={<ProjectDetailPage />} />
-              <Route path="/modules" element={<ModulesPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
+                <BrowserRouter>
+                  <ScrollToTop />
+                  <ReferralCapture />
+                  <InstallCivilOS />
+                  <FloatingAssistant />
+                  <UpdateAvailable />
 
-              <Route path="/ai-assistant" element={<AIAssistantPage />} />
-              <Route path="/ai-engineer" element={<AIEngineerPage />} />
-              <Route path="/boq-hub" element={<BOQHubPage />} />
-              <Route path="/rate-analysis" element={<RateAnalysisPage />} />
-              <Route path="/file-assistant" element={<FileAssistantPage />} />
-              <Route path="/boq" element={<BOQGeneratorPage />} />
-              <Route path="/tender" element={<TenderAnalysisPage />} />
-              <Route path="/site-diary" element={<SiteDiaryPage />} />
-              <Route path="/plan-generator" element={<PlanGeneratorPage />} />
-              <Route path="/bim-studio" element={<BimStudioPage />} />
-              <Route path="/site-geo" element={<SiteGeoPage />} />
-              <Route path="/scheduler" element={<SchedulerPage />} />
-              <Route path="/inventory" element={<InventoryPage />} />
-              <Route path="/requisitions" element={<InventoryPage />} />
-              <Route path="/purchase-orders" element={<InventoryPage />} />
-              <Route path="/vendors" element={<InventoryPage />} />
-              <Route path="/equipment" element={<EquipmentPage />} />
-              <Route path="/defect-detection" element={<DefectDetectionPage />} />
-              <Route path="/knowledge-library" element={<KnowledgeLibraryPage />} />
-              <Route path="/training-corner" element={<TrainingCornerPage />} />
-              <Route path="/invoices" element={<FinancePage />} />
-              <Route path="/contractor-bills" element={<FinancePage />} />
-              <Route path="/payments" element={<FinancePage />} />
-              <Route path="/cash-flow" element={<FinancePage />} />
-              <Route path="/agent" element={<UserAgentPage />} />
-              <Route path="/admin/ai-agent" element={<AdminAgentPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/sponsor" element={<SponsorPage />} />
-              <Route path="/admin" element={<AdminPage />} />
-              <Route path="/notifications" element={<NotificationsPage />} />
-              <Route path="/settings/notifications" element={<NotificationSettingsPage />} />
-              <Route path="/affiliate" element={<AffiliatePage />} />
-              <Route path="/admin/affiliate" element={<AdminAffiliatePage />} />
-              <Route path="/invite" element={<InviteAcceptPage />} />
-              <Route path="/billing" element={<BillingPage />} />
-              <Route path="/admin/billing" element={<AdminBillingPage />} />
-              <Route path="/share/:token" element={<SharedEstimatePage />} />
-              {/* Coming Soon stubs */}
-              {[
-                "ai-writer","ai-drawing","bbs","material-calc",
-                "progress-reports","inspections","site-photos","tender-docs","bid-prep",
-                
-                "analytics","ai-insights","reports","company-settings",
-              ].map((p) => (
-                <Route key={p} path={`/${p}`} element={<ComingSoonPage />} />
-              ))}
-              <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-          </BrowserRouter>
-          </TooltipProvider>
-        </AuthProvider>
-        </PwaProvider>
-      </ThemeProvider>
+                  <Suspense fallback={<AppLoading compact />}>
+                    <Routes>
+                      <Route path="/" element={<Index />} />
+                      <Route path="/upload" element={<UploadPage />} />
+                      <Route path="/estimate/demo" element={<EstimatePage />} />
+                      <Route path="/about" element={<AboutPage />} />
+                      <Route path="/contact" element={<ContactPage />} />
+                      <Route path="/auth" element={<AuthPage />} />
+                      <Route
+                        path="/register"
+                        element={<RegisterRedirect />}
+                      />
+
+                      <Route path="/projects" element={<ProjectsPage />} />
+                      <Route
+                        path="/projects/:id"
+                        element={<ProjectDetailPage />}
+                      />
+                      <Route path="/modules" element={<ModulesPage />} />
+                      <Route path="/dashboard" element={<DashboardPage />} />
+
+                      <Route
+                        path="/ai-assistant"
+                        element={<AIAssistantPage />}
+                      />
+                      <Route path="/ai-engineer" element={<AIEngineerPage />} />
+                      <Route path="/boq-hub" element={<BOQHubPage />} />
+                      <Route
+                        path="/rate-analysis"
+                        element={<RateAnalysisPage />}
+                      />
+                      <Route path="/bbs" element={<BBSGeneratorPage />} />
+                      <Route
+                        path="/inspections"
+                        element={<SiteInspectionPage />}
+                      />
+                      <Route
+                        path="/file-assistant"
+                        element={<FileAssistantPage />}
+                      />
+                      <Route path="/boq" element={<BOQGeneratorPage />} />
+                      <Route path="/tender" element={<TenderAnalysisPage />} />
+                      <Route path="/site-diary" element={<SiteDiaryPage />} />
+                      <Route
+                        path="/plan-generator"
+                        element={<PlanGeneratorPage />}
+                      />
+                      <Route path="/bim-studio" element={<BimStudioPage />} />
+
+                      <Route
+                        path="/visualizations"
+                        element={<VisualizationsPage />}
+                      />
+                      <Route
+                        path="/visualizations/:id"
+                        element={<VisualizationWorkspacePage />}
+                      />
+
+                      <Route path="/site-geo" element={<SiteGeoPage />} />
+                      <Route path="/scheduler" element={<SchedulerPage />} />
+
+                      <Route path="/inventory" element={<InventoryPage />} />
+                      <Route
+                        path="/requisitions"
+                        element={<InventoryPage />}
+                      />
+                      <Route
+                        path="/purchase-orders"
+                        element={<InventoryPage />}
+                      />
+                      <Route path="/vendors" element={<InventoryPage />} />
+                      <Route path="/equipment" element={<EquipmentPage />} />
+
+                      <Route
+                        path="/defect-detection"
+                        element={<DefectDetectionPage />}
+                      />
+                      <Route
+                        path="/knowledge-library"
+                        element={<KnowledgeLibraryPage />}
+                      />
+                      <Route
+                        path="/training-corner"
+                        element={<TrainingCornerPage />}
+                      />
+                      <Route
+                        path="/material-calc"
+                        element={<MaterialCalculatorPage />}
+                      />
+
+                      <Route path="/invoices" element={<FinancePage />} />
+                      <Route
+                        path="/contractor-bills"
+                        element={<FinancePage />}
+                      />
+                      <Route path="/payments" element={<FinancePage />} />
+                      <Route path="/cash-flow" element={<FinancePage />} />
+
+                      <Route path="/agent" element={<UserAgentPage />} />
+                      <Route
+                        path="/admin/ai-agent"
+                        element={<AdminAgentPage />}
+                      />
+
+                      <Route path="/profile" element={<ProfilePage />} />
+                      <Route path="/sponsor" element={<SponsorPage />} />
+                      <Route path="/admin" element={<AdminPage />} />
+
+                      <Route
+                        path="/notifications"
+                        element={<NotificationsPage />}
+                      />
+                      <Route
+                        path="/settings/notifications"
+                        element={<NotificationSettingsPage />}
+                      />
+                      <Route
+                        path="/settings/backup"
+                        element={<BackupPage />}
+                      />
+                      <Route path="/reports" element={<ReportsPage />} />
+
+                      <Route path="/affiliate" element={<AffiliatePage />} />
+                      <Route
+                        path="/admin/affiliate"
+                        element={<AdminAffiliatePage />}
+                      />
+                      <Route path="/invite" element={<InviteAcceptPage />} />
+
+                      <Route path="/billing" element={<BillingPage />} />
+                      <Route
+                        path="/admin/billing"
+                        element={<AdminBillingPage />}
+                      />
+
+                      <Route
+                        path="/share/:token"
+                        element={<SharedEstimatePage />}
+                      />
+
+                      {/* Coming Soon stubs */}
+                      {[
+                        "ai-writer",
+                        "ai-drawing",
+                        "progress-reports",
+                        "site-photos",
+                        "tender-docs",
+                        "bid-prep",
+                        "analytics",
+                        "ai-insights",
+                        "company-settings",
+                      ].map((p) => (
+                        <Route
+                          key={p}
+                          path={`/${p}`}
+                          element={<ComingSoonPage />}
+                        />
+                      ))}
+
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </Suspense>
+                </BrowserRouter>
+              </TooltipProvider>
+            </AuthProvider>
+          </PwaProvider>
+        </ThemeProvider>
+      </UnitsProvider>
     </I18nProvider>
   </QueryClientProvider>
 );

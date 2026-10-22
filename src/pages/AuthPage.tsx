@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { useAuth } from "@/lib/auth";
 import { isManagedOAuthHost, LOVABLE_SIGNIN_ORIGIN } from "@/lib/oauthHost";
+import { clearStoredReferral, referralForSignup } from "@/lib/referral";
 
 import { toast } from "sonner";
 import CivilOSLogo from "@/components/CivilOSLogo";
@@ -17,7 +18,9 @@ const AuthPage = () => {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { user } = useAuth();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup">(
+    params.get("mode") === "signup" || referralForSignup(window.location.search) ? "signup" : "signin",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -37,7 +40,8 @@ const AuthPage = () => {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const ref = new URLSearchParams(window.location.search).get("ref") || undefined;
+        // ?ref= from the URL, or the code remembered from an earlier landing page (civilos_referral_code)
+        const ref = referralForSignup(window.location.search);
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -47,6 +51,7 @@ const AuthPage = () => {
           },
         });
         if (error) throw error;
+        clearStoredReferral();
         toast.success("Account created — you're signed in.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });

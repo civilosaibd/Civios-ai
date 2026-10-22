@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Bell, Check, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { formatDistanceToNow } from "date-fns";
+import { shouldRunDaily } from "@/lib/referral";
 
 interface Notif {
   id: string; type: string; title: string; message: string | null;
@@ -17,38 +18,80 @@ export default function NotificationBell() {
   const [items, setItems] = useState<Notif[]>([]);
   const [open, setOpen] = useState(false);
 
-  const load = async () => {
-    if (!user) return;
-    const { data } = await supabase.from("notifications")
-      .select("*").order("created_at", { ascending: false }).limit(30);
+  const load = useCallback(async () => {
+    if (!user) {
+      setItems([]);
+      return;
+    }
+    const { data, error } = await supabase.from("notifications")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(30);
+    if (error) {
+      console.error("Failed to load notifications", error.message);
+      return;
+    }
     setItems((data as Notif[]) || []);
-  };
+  }, [user]);
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { void load(); }, [load]);
+
+  // Deadline alerts (7/3/1 days): once per day per browser, create this user's own alerts, then refresh.
+  // The database de-duplicates, so a second device or a missed day never produces duplicates.
+  useEffect(() => {
+    if (!user || !shouldRunDaily(`civilos_deadline_check:${user.id}`)) return;
+    void supabase.rpc("generate_my_deadline_notifications").then(({ error }) => {
+      if (error) console.error("Deadline check failed", error.message);
+      else void load();
+    });
+  }, [user, load]);
+
   useEffect(() => {
     if (!user) return;
-    const ch = supabase.channel("notifs")
-      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, load)
+    const channel = supabase.channel(`notifications:${user.id}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${user.id}`,
+      }, () => { void load(); })
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [user]);
+    return () => { void supabase.removeChannel(channel); };
+  }, [user, load]);
 
   const unread = items.filter((n) => !n.read).length;
 
   const markAllRead = async () => {
     if (!user) return;
-    await supabase.from("notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
-    load();
+    const { error } = await supabase.from("notifications")
+      .update({ read: true })
+      .eq("user_id", user.id)
+      .eq("read", false);
+    if (error) {
+      console.error("Failed to mark notifications read", error.message);
+      return;
+    }
+    await load();
   };
+
   const remove = async (id: string) => {
-    await supabase.from("notifications").delete().eq("id", id);
-    load();
+    if (!user) return;
+    const { error } = await supabase.from("notifications")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
+    if (error) {
+      console.error("Failed to delete notification", error.message);
+      return;
+    }
+    await load();
   };
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative h-9 w-9">
+        <Button variant="ghost" size="icon" className="relative h-9 w-9" aria-label="Open notifications">
           <Bell className="h-4 w-4" />
           {unread > 0 && (
             <Badge className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px] flex items-center justify-center">
@@ -69,8 +112,7 @@ export default function NotificationBell() {
         <div className="flex-1 overflow-y-auto -mx-6 px-6 divide-y">
           {items.length === 0 ? (
             <div className="py-16 text-center text-sm text-muted-foreground">
-              <Bell className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              No notifications yet
+              <Bell className="h-8 w-8 mx-auto mb-2 opacity-30" /> No notifications yet
             </div>
           ) : items.map((n) => (
             <div key={n.id} className={`py-3 flex gap-3 ${!n.read ? "bg-accent/5 -mx-2 px-2 rounded" : ""}`}>
@@ -82,7 +124,7 @@ export default function NotificationBell() {
                   {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })} · {n.type}
                 </p>
               </div>
-              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => remove(n.id)}>
+              <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Delete notification" onClick={() => void remove(n.id)}>
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>

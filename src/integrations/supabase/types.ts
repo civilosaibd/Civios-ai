@@ -835,6 +835,26 @@ export type Database = {
         }
         Relationships: []
       }
+      referral_commissions: {
+        Row: {
+          base_amount: number
+          commission_amount: number
+          created_at: string
+          flag_reason: string | null
+          id: string
+          payment_id: string | null
+          rate: number
+          referral_id: string
+          referred_user_id: string
+          referrer_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: never // written only by SECURITY DEFINER functions (approve_payment / review_commission)
+        Update: never
+        Relationships: []
+      }
       site_logs: {
         Row: {
           activities: string | null
@@ -1171,6 +1191,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_payment: { Args: { _payment_id: string }; Returns: string }
+      cancel_my_subscription: { Args: Record<PropertyKey, never>; Returns: undefined }
+      claim_referral: { Args: { _code: string }; Returns: string }
+      generate_my_deadline_notifications: { Args: Record<PropertyKey, never>; Returns: number }
+      my_affiliate_stats: { Args: Record<PropertyKey, never>; Returns: Json }
+      review_commission: {
+        Args: { _commission_id: string; _approve: boolean; _note?: string }
+        Returns: undefined
+      }
+      reject_payment: { Args: { _payment_id: string; _note?: string }; Returns: undefined }
+      request_withdrawal: {
+        Args: { _amount: number; _method: string; _account_number: string }
+        Returns: string
+      }
       accept_project_invitation: { Args: { _token: string }; Returns: string }
       decline_project_invitation: { Args: { _token: string }; Returns: boolean }
       get_project_role: {

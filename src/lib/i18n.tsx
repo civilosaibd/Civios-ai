@@ -11,6 +11,15 @@ interface I18nContextType {
 }
 
 const translations: Record<string, Record<Lang, string>> = {
+  // Billing — yearly is the only subscription period
+  "billing.year": { en: "/year", bn: "/বছর" },
+  "billing.perYear": { en: "per year", bn: "প্রতি বছর" },
+  "billing.yearly": { en: "Yearly", bn: "বার্ষিক" },
+  "billing.yearlyPlan": { en: "Yearly Plan", bn: "বার্ষিক প্ল্যান" },
+  "billing.yearlyNote": { en: "All paid plans are billed once per year.", bn: "সব পেইড প্ল্যান বছরে একবার বিল করা হয়।" },
+  "billing.pricesLoading": { en: "Loading prices…", bn: "মূল্য লোড হচ্ছে…" },
+  "billing.pricesUnavailable": { en: "See current prices on the Billing page", bn: "বর্তমান মূল্য Billing পেজে দেখুন" },
+
   // Navbar
   "nav.home": { en: "Home", bn: "হোম" },
   "nav.upload": { en: "Upload Design", bn: "ডিজাইন আপলোড" },
