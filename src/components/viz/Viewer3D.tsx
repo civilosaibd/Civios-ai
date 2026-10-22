@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { buildScene, countByKind, type Kind } from "@/lib/viz/geometry";
+import { buildScene, countByKind, DEFAULT_MATERIAL_SETTINGS, type Kind, type MaterialSettings } from "@/lib/viz/geometry";
 import { posToStage, stageVisible, advance, initialSim, type Sim } from "@/lib/viz/stages";
 import { buildEnvironment, DEFAULT_CUSTOM, type CustomEnv, type Env, type EnvPreset } from "@/lib/viz/environment";
 import { bounds } from "@/lib/viz/model";
@@ -161,6 +161,7 @@ export default function Viewer3D({ model, name }: { model: BuildingModel; name?:
   const L = useL();
   const mobile = useIsMobile();
   const [opts, setOpts] = useState<Opts>(initialOpts);
+  const [materialSettings, setMaterialSettings] = useState<MaterialSettings>(DEFAULT_MATERIAL_SETTINGS);
   const [preset, setPreset] = useState<{ p: Preset; n: number }>({ p: "iso", n: 0 });
   const [measures, setMeasures] = useState<Measurement[]>([]);
   const pending = useRef<THREE.Vector3 | null>(null);
@@ -171,7 +172,7 @@ export default function Viewer3D({ model, name }: { model: BuildingModel; name?:
   const [sheet, setSheet] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const built = useMemo(() => buildScene(model), [model]);
+  const built = useMemo(() => buildScene(model, materialSettings), [model, materialSettings]);
   const [sim, setSimState] = useState<Sim>(initialSim);
   const setSim = useCallback((f: (s: Sim) => Sim) => setSimState(f), []);
   const [envPreset, setEnvPreset] = useState<EnvPreset>("residential");
@@ -281,6 +282,38 @@ export default function Viewer3D({ model, name }: { model: BuildingModel; name?:
   const Panel = (
     <div className="space-y-4 text-sm">
       <EnvironmentPanel preset={envPreset} setPreset={setEnvPreset} custom={envCustom} setCustom={setEnvCustom} />
+      <section className="space-y-3 rounded-lg border p-3 bg-card/60" data-testid="material-studio">
+        <div>
+          <Label className="text-xs uppercase text-muted-foreground">{L("Professional material studio", "প্রফেশনাল ম্যাটেরিয়াল স্টুডিও")}</Label>
+          <p className="text-[11px] text-muted-foreground mt-1">{L("Preview PBR-style finishes directly on the 3D model.", "৩ডি মডেলে সরাসরি ম্যাটেরিয়াল ও টেক্সচার প্রিভিউ করুন।")}</p>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">{L("Exterior finish", "বাইরের ফিনিশ")}</Label>
+          <select aria-label="Exterior finish" value={materialSettings.exteriorFinish} onChange={(e) => setMaterialSettings((s) => ({ ...s, exteriorFinish: e.target.value as MaterialSettings["exteriorFinish"] }))} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
+            <option value="paint">{L("Smooth paint", "স্মুথ পেইন্ট")}</option>
+            <option value="brick">{L("Brick texture", "ইটের টেক্সচার")}</option>
+            <option value="stone">{L("Natural stone", "ন্যাচারাল স্টোন")}</option>
+            <option value="wood">{L("Wood cladding", "উড ক্ল্যাডিং")}</option>
+            <option value="tile">{L("Exterior tiles", "এক্সটেরিয়র টাইলস")}</option>
+            <option value="concrete">{L("Fair-face concrete", "কংক্রিট ফিনিশ")}</option>
+          </select>
+        </div>
+        {materialSettings.exteriorFinish === "paint" && <div className="flex items-center justify-between gap-2"><Label className="text-xs">{L("Paint colour", "পেইন্টের রং")}</Label><input aria-label="Exterior paint colour" type="color" value={materialSettings.exteriorColor} onChange={(e) => setMaterialSettings((s) => ({ ...s, exteriorColor: e.target.value }))} className="h-8 w-12 cursor-pointer rounded border bg-transparent p-0.5" /></div>}
+        <div className="space-y-1">
+          <div className="flex justify-between gap-2"><Label className="text-xs">{L("Surface roughness", "সারফেস রাফনেস")}</Label><span className="text-xs text-muted-foreground">{materialSettings.roughness.toFixed(2)}</span></div>
+          <input aria-label="Surface roughness" type="range" min="0.15" max="1" step="0.05" value={materialSettings.roughness} onChange={(e) => setMaterialSettings((s) => ({ ...s, roughness: Number(e.target.value) }))} className="w-full accent-primary" />
+        </div>
+        {materialSettings.exteriorFinish !== "paint" && <div className="space-y-1">
+          <div className="flex justify-between gap-2"><Label className="text-xs">{L("Texture scale", "টেক্সচার স্কেল")}</Label><span className="text-xs text-muted-foreground">{materialSettings.textureScale.toFixed(1)}×</span></div>
+          <input aria-label="Texture scale" type="range" min="0.5" max="4" step="0.25" value={materialSettings.textureScale} onChange={(e) => setMaterialSettings((s) => ({ ...s, textureScale: Number(e.target.value) }))} className="w-full accent-primary" />
+        </div>}
+        <div className="space-y-1">
+          <div className="flex justify-between gap-2"><Label className="text-xs">{L("Glass opacity", "কাচের অস্বচ্ছতা")}</Label><span className="text-xs text-muted-foreground">{Math.round(materialSettings.glassOpacity * 100)}%</span></div>
+          <input aria-label="Glass opacity" type="range" min="0.15" max="0.9" step="0.05" value={materialSettings.glassOpacity} onChange={(e) => setMaterialSettings((s) => ({ ...s, glassOpacity: Number(e.target.value) }))} className="w-full accent-primary" />
+        </div>
+        <Button variant="outline" size="sm" className="w-full" onClick={() => setMaterialSettings(DEFAULT_MATERIAL_SETTINGS)}>{L("Reset materials", "ম্যাটেরিয়াল রিসেট")}</Button>
+        <p className="text-[10px] leading-relaxed text-muted-foreground">{L("Procedural texture previews are generated locally. This is a real-time WebGL preview, not a path-traced V-Ray/Lumion render.", "প্রসিডিউরাল টেক্সচার লোকালেই তৈরি হয়। এটি রিয়েল-টাইম WebGL প্রিভিউ—পাথ-ট্রেসড V-Ray/Lumion রেন্ডার নয়।")}</p>
+      </section>
       <section className="space-y-2">
         <Label className="text-xs uppercase text-muted-foreground">{L("View", "ভিউ")}</Label>
         <div className="grid grid-cols-3 gap-1">
