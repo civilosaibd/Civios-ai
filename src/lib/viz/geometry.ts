@@ -19,6 +19,71 @@ export interface BuiltScene {
 const EXTERIOR: Record<string, string> = { Paint: "#f1f5f9", "Brick finish": "#b45a3c", Stone: "#a8a29e", Tile: "#d6c7a1", Glass: "#93c5fd", Metal: "#94a3b8" };
 const STRUCT: Record<string, string> = { "Reinforced concrete": "#9ca3af", Steel: "#64748b", Brick: "#b45a3c", "Concrete block": "#a1a1aa" };
 
+export type ExteriorFinish = "paint" | "brick" | "stone" | "wood" | "tile" | "concrete";
+export interface MaterialSettings {
+  exteriorFinish: ExteriorFinish;
+  exteriorColor: string;
+  roughness: number;
+  textureScale: number;
+  glassOpacity: number;
+}
+export const DEFAULT_MATERIAL_SETTINGS: MaterialSettings = {
+  exteriorFinish: "paint", exteriorColor: "#f1f5f9", roughness: 0.82, textureScale: 1.5, glassOpacity: 0.48,
+};
+
+/** Small procedural, tileable textures keep the viewer self-contained and do not require third-party image downloads. */
+function proceduralTexture(finish: ExteriorFinish, scale: number): THREE.CanvasTexture | null {
+  if (finish === "paint") return null;
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 512;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const rand = (n: number) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+  if (finish === "brick") {
+    ctx.fillStyle = "#b9a89b"; ctx.fillRect(0, 0, 512, 512);
+    const bh = 42, bw = 96;
+    for (let row = 0; row < 13; row++) for (let col = -1; col < 7; col++) {
+      const x = col * bw + (row % 2 ? -bw / 2 : 0), y = row * bh;
+      const v = Math.round(150 + rand(row * 19 + col + 4) * 65);
+      ctx.fillStyle = `rgb(${v + 25},${Math.max(55,v - 38)},${Math.max(35,v - 65)})`;
+      ctx.fillRect(x + 2, y + 2, bw - 4, bh - 4);
+      ctx.fillStyle = "rgba(255,255,255,.12)"; ctx.fillRect(x + 4, y + 3, bw - 8, 2);
+    }
+  } else if (finish === "wood") {
+    ctx.fillStyle = "#9a6842"; ctx.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 180; i++) {
+      ctx.strokeStyle = `rgba(${i%3===0?35:225},${i%3===0?22:165},${i%3===0?12:105},${0.08+rand(i)*0.18})`;
+      ctx.lineWidth = 1 + rand(i + 2) * 3; ctx.beginPath();
+      const y = rand(i + 9) * 512; ctx.moveTo(0, y);
+      ctx.bezierCurveTo(140, y - 15, 300, y + 18, 512, y + (rand(i+5)-0.5)*16); ctx.stroke();
+    }
+    for (let y = 0; y < 512; y += 128) { ctx.strokeStyle = "rgba(35,20,10,.45)"; ctx.strokeRect(0, y, 512, 128); }
+  } else if (finish === "tile") {
+    ctx.fillStyle = "#b9b7b0"; ctx.fillRect(0, 0, 512, 512);
+    for (let y = 0; y < 512; y += 128) for (let x = 0; x < 512; x += 128) {
+      const shade = Math.round(205 + rand(x+y) * 35); ctx.fillStyle = `rgb(${shade},${shade-2},${shade-8})`;
+      ctx.fillRect(x+3,y+3,122,122); ctx.strokeStyle="rgba(255,255,255,.45)"; ctx.strokeRect(x+7,y+7,114,114);
+    }
+  } else {
+    const base = finish === "stone" ? "#a7a29a" : "#aaa9a4";
+    ctx.fillStyle = base; ctx.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 4500; i++) {
+      const v = Math.round(rand(i+scale) * 100);
+      ctx.fillStyle = `rgba(${v},${v},${v},.13)`; ctx.fillRect(rand(i+12)*512, rand(i+23)*512, 1+rand(i+33)*3, 1+rand(i+43)*3);
+    }
+    if (finish === "stone") {
+      for (let y = 0; y < 512; y += 128) { ctx.strokeStyle = "rgba(60,60,60,.35)"; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(512,y); ctx.stroke(); }
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(Math.max(0.2, scale), Math.max(0.2, scale));
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
 const onFloor = (f: FloorRef, i: number) => f === "all" || f === i;
 const V = (p: Pt, y = 0) => new THREE.Vector3(p.x, y, -p.y);
 
@@ -54,17 +119,27 @@ function wallPieces(w: Wall, ops: Opening[], wallH: number) {
   return { pieces, ux, uy, L, iv };
 }
 
-export function buildScene(model: BuildingModel): BuiltScene {
+export function buildScene(model: BuildingModel, settings: MaterialSettings = DEFAULT_MATERIAL_SETTINGS): BuiltScene {
   const H = model.floorHeight.value, T = model.slabThickness, floors = model.floors;
-  const ext = new THREE.Color(EXTERIOR[model.materials.exterior] ?? EXTERIOR.Paint);
+  const finishColor: Record<ExteriorFinish, string> = {
+    paint: settings.exteriorColor,
+    brick: "#ffffff",
+    stone: "#ffffff",
+    wood: "#ffffff",
+    tile: "#ffffff",
+    concrete: "#ffffff",
+  };
+  const texture = proceduralTexture(settings.exteriorFinish, settings.textureScale);
+  const extColor = new THREE.Color(finishColor[settings.exteriorFinish] ?? (EXTERIOR[model.materials.exterior] ?? EXTERIOR.Paint));
+  const extMaterial = new THREE.MeshStandardMaterial({ color: extColor, map: texture ?? undefined, roughness: settings.roughness, metalness: settings.exteriorFinish === "tile" ? 0.08 : 0.02 });
   const mat = {
-    wall: new THREE.MeshStandardMaterial({ color: ext, roughness: 0.9 }),
-    wallInt: new THREE.MeshStandardMaterial({ color: "#e5e7eb", roughness: 0.9 }),
-    struct: new THREE.MeshStandardMaterial({ color: STRUCT[model.materials.structure] ?? STRUCT["Reinforced concrete"], roughness: 0.8 }),
+    wall: extMaterial,
+    wallInt: new THREE.MeshStandardMaterial({ color: "#e5e7eb", roughness: 0.92 }),
+    struct: new THREE.MeshStandardMaterial({ color: STRUCT[model.materials.structure] ?? STRUCT["Reinforced concrete"], roughness: 0.82 }),
     slab: new THREE.MeshStandardMaterial({ color: "#8b8f98", roughness: 0.9 }),
-    roof: new THREE.MeshStandardMaterial({ color: "#7c6f64", roughness: 0.9 }),
-    glass: new THREE.MeshStandardMaterial({ color: "#60a5fa", transparent: true, opacity: 0.55, roughness: 0.1, metalness: 0.2 }),
-    door: new THREE.MeshStandardMaterial({ color: "#7c4a21", roughness: 0.7 }),
+    roof: new THREE.MeshStandardMaterial({ color: "#7c6f64", roughness: 0.82, map: settings.exteriorFinish === "tile" ? texture ?? undefined : undefined }),
+    glass: new THREE.MeshPhysicalMaterial({ color: "#b9d8ed", transparent: true, opacity: settings.glassOpacity, roughness: 0.08, metalness: 0.05, transmission: 0.18, thickness: 0.08, ior: 1.45, depthWrite: false }),
+    door: new THREE.MeshStandardMaterial({ color: settings.exteriorFinish === "wood" ? "#a8784e" : "#7c4a21", roughness: settings.exteriorFinish === "wood" ? 0.58 : 0.7, map: settings.exteriorFinish === "wood" ? texture ?? undefined : undefined }),
     stair: new THREE.MeshStandardMaterial({ color: "#a3a3a3", roughness: 0.8 }),
     footing: new THREE.MeshStandardMaterial({ color: "#6b7280", roughness: 1 }),
   };
