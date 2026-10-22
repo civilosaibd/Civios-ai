@@ -45,6 +45,7 @@ const AIEngineerPage = lazy(() => import("./pages/AIEngineerPage.tsx"));
 const BOQHubPage = lazy(() => import("./pages/BOQHubPage.tsx"));
 const RateAnalysisPage = lazy(() => import("./pages/RateAnalysisPage.tsx"));
 const BBSGeneratorPage = lazy(() => import("./pages/BBSGeneratorPage.tsx"));
+const SiteInspectionPage = lazy(() => import("./pages/SiteInspectionPage.tsx"));
 const ProjectDetailPage = lazy(() => import("./pages/ProjectDetailPage.tsx"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage.tsx"));
 const NotificationSettingsPage = lazy(() => import("./pages/NotificationSettingsPage.tsx"));
@@ -100,6 +101,7 @@ const App = () => (
               <Route path="/boq-hub" element={<BOQHubPage />} />
               <Route path="/rate-analysis" element={<RateAnalysisPage />} />
               <Route path="/bbs" element={<BBSGeneratorPage />} />
+              <Route path="/inspections" element={<SiteInspectionPage />} />
               <Route path="/file-assistant" element={<FileAssistantPage />} />
               <Route path="/boq" element={<BOQGeneratorPage />} />
               <Route path="/tender" element={<TenderAnalysisPage />} />
@@ -139,7 +141,7 @@ const App = () => (
               {/* Coming Soon stubs */}
               {[
                 "ai-writer","ai-drawing",
-                "progress-reports","inspections","site-photos","tender-docs","bid-prep",
+                "progress-reports","site-photos","tender-docs","bid-prep",
                 
                 "analytics","ai-insights","reports","company-settings",
               ].map((p) => (
