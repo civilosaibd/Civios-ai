@@ -74,25 +74,33 @@
   }
   </script>
     <style>
-      #civilos-boot{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#f8f9fc;color:#111827;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;transition:opacity 200ms ease}
+      #civilos-boot{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;overflow:hidden;background:radial-gradient(ellipse at center,#102b70 0%,#07132f 48%,#030712 100%);color:#f8fafc;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;transition:opacity 360ms ease}
+      html.civilos-seen #civilos-boot{display:none}
+      #civilos-boot:before{content:"";position:absolute;width:min(82vw,430px);aspect-ratio:1;border:1px solid rgba(34,211,238,.2);border-radius:50%;box-shadow:0 0 45px rgba(0,153,255,.12),inset 0 0 45px rgba(0,153,255,.08);animation:boot-orbit 7s linear infinite}
       #civilos-boot.boot-exit{opacity:0;pointer-events:none}
-      .boot-content{display:flex;flex-direction:column;align-items:center;padding:24px;text-align:center}
-      .boot-logo{width:78px;height:78px;border-radius:18px;box-shadow:0 10px 28px rgba(17,29,81,.22);animation:boot-breathe 2.4s ease-in-out infinite}
-      @keyframes boot-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
-      .boot-title{margin:18px 0 4px;font-size:21px;line-height:1.2;font-weight:750}
-      .boot-tagline{margin:0;color:#667085;font-size:12px}
-      .boot-label{margin:22px 0 9px;color:#667085;font-size:11px}
-      .boot-track{width:116px;height:4px;overflow:hidden;border-radius:9px;background:#e5e7eb}
-      .boot-bar{width:48%;height:100%;border-radius:9px;background:#f97316;animation:boot-slide .9s ease-in-out infinite}
-      @keyframes boot-slide{0%{transform:translateX(-110%)}100%{transform:translateX(220%)}}
-      @media(prefers-color-scheme:dark){#civilos-boot{background:#0d1020;color:#f8fafc}.boot-logo:after{border-color:#0d1020}.boot-tagline,.boot-label{color:#a5adbd}.boot-track{background:#262b3b}}
-      @media(prefers-reduced-motion:reduce){#civilos-boot{transition:none}.boot-bar{animation-duration:1.8s}}
+      .boot-content{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;padding:24px;text-align:center}
+      .boot-mark{position:relative;display:grid;place-items:center;width:142px;height:142px;margin-bottom:8px;perspective:800px}
+      .boot-mark:before,.boot-mark:after{content:"";position:absolute;inset:4px;border:2px solid transparent;border-top-color:#22d3ee;border-right-color:#2563eb;border-radius:28px;filter:drop-shadow(0 0 8px rgba(34,211,238,.9));animation:boot-ring 2.8s linear infinite}
+      .boot-mark:after{inset:13px;border-top-color:#f97316;border-right-color:transparent;border-bottom-color:#2563eb;animation-duration:3.8s;animation-direction:reverse}
+      .boot-logo{position:relative;width:112px;height:112px;object-fit:contain;border-radius:24px;box-shadow:0 0 32px rgba(0,153,255,.38);animation:boot-rotate 1.5s cubic-bezier(.2,.72,.25,1) both,boot-glow 2.2s ease-in-out 1.5s infinite}
+      .boot-title{margin:10px 0 5px;font-size:clamp(22px,5vw,28px);line-height:1.2;font-weight:800;letter-spacing:.04em;text-shadow:0 0 22px rgba(34,211,238,.35)}
+      .boot-tagline{margin:0;color:#a5f3fc;font-size:11px;letter-spacing:.19em}
+      .boot-label{margin:25px 0 9px;color:#a5adbd;font-size:11px}
+      .boot-track{width:150px;height:4px;overflow:hidden;border-radius:9px;background:#1e293b}
+      .boot-bar{width:42%;height:100%;border-radius:9px;background:linear-gradient(90deg,#2563eb,#22d3ee,#f97316);box-shadow:0 0 12px rgba(34,211,238,.8);animation:boot-slide .9s ease-in-out infinite}
+      @keyframes boot-rotate{0%{opacity:0;transform:rotateY(-90deg) scale(.72)}70%{opacity:1;transform:rotateY(390deg) scale(1.04)}100%{opacity:1;transform:rotateY(360deg) scale(1)}}
+      @keyframes boot-glow{0%,100%{filter:drop-shadow(0 0 8px rgba(34,211,238,.55))}50%{filter:drop-shadow(0 0 22px rgba(37,99,235,.95))}}
+      @keyframes boot-ring{to{transform:rotate(360deg)}}
+      @keyframes boot-orbit{to{transform:rotate(360deg)}}
+      @keyframes boot-slide{0%{transform:translateX(-120%)}100%{transform:translateX(260%)}}
+      @media(max-width:480px){.boot-mark{width:126px;height:126px}.boot-logo{width:98px;height:98px}#civilos-boot:before{width:88vw}}
+      @media(prefers-reduced-motion:reduce){#civilos-boot,#civilos-boot *{animation:none!important;transition:none!important}.boot-logo{transform:none!important}}
     </style>
 </head>
   <body>
     <div id="civilos-boot" role="status" aria-live="polite" aria-label="Loading CivilOS AI">
       <div class="boot-content">
-        <img class="boot-logo" src="/branding/civilos-ai-icon-192.png" width="78" height="78" alt="CivilOS AI logo" />
+        <div class="boot-mark"><img class="boot-logo" src="/branding/civilos-ai-icon-192.png" width="112" height="112" alt="CivilOS AI logo" /></div>
         <h1 class="boot-title">CivilOS AI</h1>
         <p class="boot-tagline">BUILD SMARTER • ENGINEER BETTER</p>
         <p class="boot-label">Loading workspace…</p>
@@ -101,7 +109,8 @@
     </div>
     <div id="root"></div>
     <script>
-      window.addEventListener("civilos:ready",function(){var splash=document.getElementById("civilos-boot");if(!splash)return;splash.classList.add("boot-exit");setTimeout(function(){splash.remove()},220)},{once:true});
+      try { if (sessionStorage.getItem("civilos-intro-seen") === "1") { document.documentElement.classList.add("civilos-seen"); } else { sessionStorage.setItem("civilos-intro-seen", "1"); } } catch (_) {}
+      window.addEventListener("civilos:ready",function(){var splash=document.getElementById("civilos-boot");if(!splash||document.documentElement.classList.contains("civilos-seen"))return;splash.classList.add("boot-exit");setTimeout(function(){splash.remove()},380)},{once:true});
       window.setTimeout(function(){var label=document.querySelector(".boot-label");if(label)label.textContent="Still loading — check your connection…"},10000);
     </script>
     <script type="module" src="/src/main.tsx"></script>
