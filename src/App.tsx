@@ -57,6 +57,7 @@ const FinancePage = lazy(() => import("./pages/FinancePage.tsx"));
 const DefectDetectionPage = lazy(() => import("./pages/DefectDetectionPage.tsx"));
 const KnowledgeLibraryPage = lazy(() => import("./pages/KnowledgeLibraryPage.tsx"));
 const TrainingCornerPage = lazy(() => import("./pages/TrainingCornerPage.tsx"));
+const MaterialCalculatorPage = lazy(() => import("./pages/MaterialCalculatorPage.tsx"));
 const VisualizationsPage = lazy(() => import("./pages/VisualizationsPage.tsx"));
 const VisualizationWorkspacePage = lazy(() => import("./pages/VisualizationWorkspacePage.tsx"));
 
@@ -115,6 +116,7 @@ const App = () => (
               <Route path="/defect-detection" element={<DefectDetectionPage />} />
               <Route path="/knowledge-library" element={<KnowledgeLibraryPage />} />
               <Route path="/training-corner" element={<TrainingCornerPage />} />
+              <Route path="/material-calc" element={<MaterialCalculatorPage />} />
               <Route path="/invoices" element={<FinancePage />} />
               <Route path="/contractor-bills" element={<FinancePage />} />
               <Route path="/payments" element={<FinancePage />} />
@@ -134,7 +136,7 @@ const App = () => (
               <Route path="/share/:token" element={<SharedEstimatePage />} />
               {/* Coming Soon stubs */}
               {[
-                "ai-writer","ai-drawing","bbs","material-calc",
+                "ai-writer","ai-drawing","bbs",
                 "progress-reports","inspections","site-photos","tender-docs","bid-prep",
                 
                 "analytics","ai-insights","reports","company-settings",
