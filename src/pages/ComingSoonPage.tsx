@@ -1,4 +1,4 @@
-import { useParams, Link, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,10 @@ const LABELS: Record<string, { title: string; desc: string }> = {
 
 export default function ComingSoonPage() {
   const location = useLocation();
+  // Reuse existing working modules instead of showing a Coming Soon screen.
+  if (location.pathname === "/progress-reports") return <Navigate to="/reports" replace />;
+  if (location.pathname === "/ai-drawing") return <Navigate to="/file-assistant" replace />;
+
   const info = LABELS[location.pathname] || { title: "Module", desc: "This module is coming soon." };
 
   return (

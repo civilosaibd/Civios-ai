@@ -3,3 +3,6 @@ project_id = "qtvwjjcyvswjwzymknlg"
 [functions.ai-analyze]
 # Require a valid Supabase JWT before the function executes.
 verify_jwt = true
+
+[functions.viz-analyze]
+verify_jwt = true

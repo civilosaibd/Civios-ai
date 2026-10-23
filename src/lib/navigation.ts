@@ -3,7 +3,7 @@ import {
   Sparkles, Calculator, FileText, HardHat, ShoppingCart, Wallet, BarChart3,
   Bot, FileSearch, PenTool, Ruler, ClipboardList, Camera, ClipboardCheck,
   Package, Truck, Receipt, TrendingUp, Lightbulb, FileBarChart, User,
-  Building2, Shield, Upload, Hammer, Cpu,
+  Building2, Shield, Upload, Download, Hammer, Cpu, Box, BookOpen, GraduationCap,
 } from "lucide-react";
 
 export type NavLeaf = {
@@ -50,6 +50,7 @@ export const constructionTools: NavCategory[] = [
       { title: "Building Estimate", url: "/upload", icon: Upload },
       { title: "Create Your Own Plan", url: "/plan-generator", icon: Building2 },
       { title: "BIM Studio 3D", url: "/bim-studio", icon: Building2 },
+      { title: "3D Construction Viz", url: "/visualizations", icon: Box },
       { title: "BOQ Hub", url: "/boq-hub", icon: Calculator },
       { title: "BOQ Generator (Lite)", url: "/boq", icon: Calculator },
       { title: "Rate Analysis", url: "/rate-analysis", icon: ClipboardList },
@@ -101,6 +102,15 @@ export const constructionTools: NavCategory[] = [
   },
 ];
 
+export const learningNav: NavCategory = {
+  label: "Learning & Knowledge",
+  icon: BookOpen,
+  items: [
+    { title: "Knowledge Library", url: "/knowledge-library", icon: BookOpen },
+    { title: "Training Corner", url: "/training-corner", icon: GraduationCap },
+  ],
+};
+
 export const analyticsNav: NavCategory = {
   label: "Analytics & Reports",
   icon: BarChart3,
@@ -117,6 +127,7 @@ export const settingsNav: NavCategory = {
     { title: "Profile", url: "/profile", icon: User },
     { title: "Company Settings", url: "/company-settings", icon: Building2 },
     { title: "Notification Settings", url: "/settings/notifications", icon: Bell },
+    { title: "Backup & Restore", url: "/settings/backup", icon: Download },
     { title: "Affiliate Program", url: "/affiliate", icon: Sparkles },
     { title: "All Modules", url: "/modules", icon: Wrench },
     { title: "Admin Dashboard", url: "/admin", icon: Shield, adminOnly: true },
@@ -131,7 +142,7 @@ export const bottomNav: NavLeaf[] = [
   { title: "Plans & Billing", url: "/billing", icon: CreditCard },
 ];
 
-export const allToolCategories: NavCategory[] = [...constructionTools, analyticsNav];
+export const allToolCategories: NavCategory[] = [...constructionTools, learningNav, analyticsNav];
 
 export function findActiveCategory(pathname: string): string | null {
   for (const cat of allToolCategories) {

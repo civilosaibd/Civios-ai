@@ -13,6 +13,10 @@ import { Map as MapIcon, Ruler, Hexagon, Home, Undo2, Trash2, LocateFixed, Downl
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useI18n } from "@/lib/i18n";
+import { useUnits } from "@/lib/UnitsContext";
+import UnitsSwitch from "@/components/UnitsSwitch";
+import LengthInput from "@/components/LengthInput";
+import { fmtLengthFt, sftToDisplay } from "@/lib/units";
 import { toast } from "sonner";
 import { DEFAULT_INPUT, generatePlan, type PlanInput } from "@/lib/planGenerator";
 import { bearing, distance, landUnits, offset, pathLength, polygonArea, quadArea, SFT_PER_M2, type LatLng } from "@/lib/survey";
@@ -25,6 +29,7 @@ export default function SiteGeoPage() {
   const { lang } = useI18n();
   const bn = lang === "bn";
   const T = (en: string, b: string) => (bn ? b : en);
+  const { system } = useUnits();
   const mapEl = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const drawLayer = useRef<L.LayerGroup | null>(null);
@@ -75,11 +80,11 @@ export default function SiteGeoPage() {
     for (let i = 1; i < pts.length; i++) {
       const a = pts[i - 1], b = pts[i];
       L.marker([(a.lat + b.lat) / 2, (a.lng + b.lng) / 2], {
-        icon: L.divIcon({ className: "", html: `<span style="background:#fff;color:#0f172a;padding:1px 4px;border-radius:4px;font-size:11px;white-space:nowrap;box-shadow:0 1px 3px #0003">${(distance(a, b) / FT).toFixed(1)} ft</span>` }),
+        icon: L.divIcon({ className: "", html: `<span style="background:#fff;color:#0f172a;padding:1px 4px;border-radius:4px;font-size:11px;white-space:nowrap;box-shadow:0 1px 3px #0003">${fmtLengthFt(distance(a, b) / FT, system, 1)}</span>` }),
         interactive: false,
       }).addTo(g);
     }
-  }, [pts, mode]);
+  }, [pts, mode, system]);
 
   const placePlan = () => {
     const m = map.current, g = planLayer.current; if (!m || !g) return;
@@ -145,7 +150,7 @@ export default function SiteGeoPage() {
             <div className="flex items-center gap-2"><SidebarTrigger />
               <h1 className="font-heading font-semibold flex items-center gap-2"><MapIcon className="h-4 w-4 text-accent" /> {T("Site Geo & Survey", "সাইট ম্যাপ ও সার্ভে")}</h1>
             </div>
-            <ThemeToggle />
+            <div className="flex items-center gap-2"><UnitsSwitch /><ThemeToggle /></div>
           </header>
           <main className="p-4 md:p-6 grid lg:grid-cols-[1fr_340px] gap-5">
             <div className="space-y-3 min-w-0">
@@ -181,7 +186,7 @@ export default function SiteGeoPage() {
                     ))}
                   </div>
                 ) : null}
-                <p className="text-sm">{T("Perimeter / length", "পরিসীমা / দৈর্ঘ্য")}: <b>{fmt(len / FT, 1)} ft</b> ({fmt(len, 1)} m)</p>
+                <p className="text-sm">{T("Perimeter / length", "পরিসীমা / দৈর্ঘ্য")}: <b>{system === "metric" ? `${fmt(len, 2)} m` : `${fmt(len / FT, 1)} ft`}</b> ({system === "metric" ? `${fmt(len / FT, 1)} ft` : `${fmt(len, 1)} m`})</p>
                 {pts.length >= 2 && <p className="text-xs text-muted-foreground">{T("Last bearing", "শেষ দিক")}: {bearing(pts[pts.length - 2], pts[pts.length - 1]).toFixed(1)}°</p>}
               </Card>
               <SurveyCalculator T={T} fmt={fmt} />
@@ -194,7 +199,9 @@ export default function SiteGeoPage() {
 }
 
 function SurveyCalculator({ T, fmt }: { T: (e: string, b: string) => string; fmt: (n: number, d?: number) => string }) {
-  const [q, setQ] = useState({ a: 40, b: 60, c: 40, d: 60, diag: 72.1 });
+  const { system } = useUnits();
+  const lu = system === "metric" ? T("m", "মি") : T("ft", "ফুট");
+  const [q, setQ] = useState({ a: 40, b: 60, c: 40, d: 60, diag: 72.1 }); // always stored in feet
   const [conv, setConv] = useState({ v: 5, unit: "katha" });
   const [lv, setLv] = useState({ bm: 10, bs: 1.5, fs: 2.1 });
   const toSft: Record<string, number> = { sft: 1, m2: SFT_PER_M2, decimal: 435.6, katha: 720, bigha: 14400, acre: 43560 };
@@ -202,6 +209,9 @@ function SurveyCalculator({ T, fmt }: { T: (e: string, b: string) => string; fmt
   const quad = quadArea(q.a, q.b, q.c, q.d, q.diag);
   const cu = landUnits(conv.v * toSft[conv.unit]);
   const hi = lv.bm + lv.bs, rl = hi - lv.fs;
+  const len_ = (ft: number, on: (n: number) => void, label: string) => (
+    <LengthInput label={label} unitLabel={lu} valueFt={ft} onChangeFt={on} minFt={0} maxFt={100000} />
+  );
   const num = (val: number, on: (n: number) => void, label: string) => (
     <div className="space-y-1"><Label className="text-xs">{label}</Label><Input type="number" value={val} onChange={(e) => on(Number(e.target.value) || 0)} /></div>
   );
@@ -215,13 +225,13 @@ function SurveyCalculator({ T, fmt }: { T: (e: string, b: string) => string; fmt
           <TabsTrigger value="level" className="text-xs">{T("Levelling", "লেভেল")}</TabsTrigger>
         </TabsList>
         <TabsContent value="plot" className="space-y-2">
-          <p className="text-xs text-muted-foreground">{T("4 sides + one diagonal (ft), for irregular plots", "৪ বাহু + একটি কর্ণ (ফুট), অসমান প্লটের জন্য")}</p>
+          <p className="text-xs text-muted-foreground">{T(`4 sides + one diagonal (${lu}), for irregular plots`, `৪ বাহু + একটি কর্ণ (${lu}), অসমান প্লটের জন্য`)}</p>
           <div className="grid grid-cols-2 gap-2">
-            {num(q.a, (a) => setQ({ ...q, a }), T("Side A", "বাহু A"))}{num(q.b, (b) => setQ({ ...q, b }), T("Side B", "বাহু B"))}
-            {num(q.c, (c) => setQ({ ...q, c }), T("Side C", "বাহু C"))}{num(q.d, (d) => setQ({ ...q, d }), T("Side D", "বাহু D"))}
+            {len_(q.a, (a) => setQ({ ...q, a }), T("Side A", "বাহু A"))}{len_(q.b, (b) => setQ({ ...q, b }), T("Side B", "বাহু B"))}
+            {len_(q.c, (c) => setQ({ ...q, c }), T("Side C", "বাহু C"))}{len_(q.d, (d) => setQ({ ...q, d }), T("Side D", "বাহু D"))}
           </div>
-          {num(q.diag, (diag) => setQ({ ...q, diag }), T("Diagonal A–B corner to C–D corner", "কর্ণ (A-B কোণ থেকে C-D কোণ)"))}
-          <p className="text-sm">{T("Area", "ক্ষেত্রফল")}: <b>{fmt(quad, 0)} sft</b> = {fmt(quad / 720, 2)} {T("katha", "কাঠা")} = {fmt(quad / 435.6, 2)} {T("decimal", "শতাংশ")}</p>
+          {len_(q.diag, (diag) => setQ({ ...q, diag }), T("Diagonal A–B corner to C–D corner", "কর্ণ (A-B কোণ থেকে C-D কোণ)"))}
+          <p className="text-sm">{T("Area", "ক্ষেত্রফল")}: <b>{fmt(sftToDisplay(quad, system), 0)} {system === "metric" ? "m²" : T("sft", "বর্গফুট")}</b> = {fmt(quad / 720, 2)} {T("katha", "কাঠা")} = {fmt(quad / 435.6, 2)} {T("decimal", "শতাংশ")}</p>
           {quad === 0 && <p className="text-xs text-destructive">{T("These sides cannot form a plot — check the diagonal.", "এই মাপে প্লট হয় না — কর্ণ যাচাই করুন।")}</p>}
         </TabsContent>
         <TabsContent value="conv" className="space-y-2">

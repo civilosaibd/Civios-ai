@@ -11,6 +11,8 @@ import { parseDXF, type DxfSummary } from "@/lib/dxfParser";
 import { toast } from "sonner";
 import DistrictRates from "@/components/DistrictRates";
 import { getTodayRates, type DistrictRates as DistrictRatesT } from "@/lib/marketRates";
+import { useUnits } from "@/lib/UnitsContext";
+import { convertLength, type UnitSystem } from "@/lib/units";
 
 const UploadPage = () => {
   const [dxfSummary, setDxfSummary] = useState<DxfSummary | null>(null);
@@ -23,7 +25,17 @@ const UploadPage = () => {
 
   const [plotLength, setPlotLength] = useState("40");
   const [plotWidth, setPlotWidth] = useState("30");
-  const [unit, setUnit] = useState("feet");
+  // the unit system is global (metric/imperial) and remembered; "feet"/"meters" is what the estimate page expects
+  const { system, setSystem } = useUnits();
+  const unit = system === "metric" ? "meters" : "feet";
+  const setUnit = (u: string) => {
+    const next: UnitSystem = u === "meters" ? "metric" : "imperial";
+    if (next === system) return;
+    // convert what is already typed so the numbers keep meaning the same real size
+    const conv = (v: string, set: (x: string) => void) => { const n = parseFloat(v); if (Number.isFinite(n)) set(String(convertLength(n, system, next, next === "metric" ? 3 : 2))); };
+    conv(plotLength, setPlotLength); conv(plotWidth, setPlotWidth); conv(floorHeight, setFloorHeight);
+    setSystem(next);
+  };
   const [floors, setFloors] = useState("1");
   const [floorHeight, setFloorHeight] = useState("10");
   const [wallThickness, setWallThickness] = useState("5");
@@ -166,9 +178,10 @@ const UploadPage = () => {
                 if (d.estimatedArea_sqft) {
                   // derive a square-ish plot from area (sqft) so the form is plausible
                   const side = Math.round(Math.sqrt(d.estimatedArea_sqft));
-                  setPlotLength(String(side));
-                  setPlotWidth(String(side));
-                  setUnit("feet");
+                  // the area is in sqft: show the side in whichever unit the user has selected
+                  const shown = String(convertLength(side, "imperial", system, system === "metric" ? 3 : 2));
+                  setPlotLength(shown);
+                  setPlotWidth(shown);
                 }
                 const q = a?.estimateHints?.suggestedQuality;
                 if (q === "premium" || q === "luxury") setQuality("premium");

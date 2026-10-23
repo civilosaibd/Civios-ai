@@ -35,7 +35,7 @@ const faqJsonLd = {
       name: "Is the estimate free?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Basic estimates, BOQ generation and BNBC load analysis are free. Paid plans start at ৳499/month for advanced modules.",
+        text: "Basic estimates, BOQ generation and BNBC load analysis are free. Paid plans are billed yearly for advanced modules — see the Pricing section for current prices.",
       },
     },
   ],

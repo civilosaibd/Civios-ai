@@ -20,7 +20,8 @@ import NotificationBell from "@/components/NotificationBell";
 import SEO from "@/components/SEO";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
-import { useSubscription, formatBDT, formatLimit, type Plan } from "@/lib/subscription";
+import { useSubscription, formatBDT, formatLimit, planPrice, type Plan } from "@/lib/subscription";
+import { useI18n } from "@/lib/i18n";
 import { paymentService, subscriptionService, totalFor, MANUAL_PAYMENT_NUMBER } from "@/lib/billing";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Crown, Loader2, CreditCard, Download, AlertTriangle, Receipt } from "lucide-react";
@@ -55,8 +56,10 @@ export default function BillingPage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useI18n();
   const { loading, plans, plan, subscription, activeSub, usage, limitOf, percentUsed, reload } = useSubscription();
   const [cycle, setCycle] = useState<"monthly" | "yearly">("yearly");
+  const cycle = "yearly" as const; // monthly billing has been removed
   const [checkoutPlan, setCheckoutPlan] = useState<Plan | null>(null);
   const [method, setMethod] = useState("bkash");
   const [txn, setTxn] = useState("");
@@ -219,15 +222,7 @@ export default function BillingPage() {
                     <h2 className="font-heading text-lg md:text-xl font-bold">Packages</h2>
                     <p className="text-xs text-muted-foreground">All prices in Bangladeshi Taka (৳).</p>
                   </div>
-                  <div className="inline-flex rounded-lg border p-0.5 bg-muted/50">
-                    {(["monthly", "yearly"] as const).map((c) => (
-                      <button key={c} onClick={() => setCycle(c)}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                          cycle === c ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
-                        {c === "monthly" ? "Monthly" : "Yearly · 2 months free"}
-                      </button>
-                    ))}
-                  </div>
+                  <Badge variant="outline" className="text-xs">{t("billing.yearlyPlan")} · {t("billing.yearlyNote")}</Badge>
                 </div>
 
                 {loading ? (
@@ -238,8 +233,8 @@ export default function BillingPage() {
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     {plans.map((p) => {
                       const isCurrent = plan?.id === p.id;
-                      const price = cycle === "yearly" ? p.price_yearly : p.price_monthly;
-                      const currentPrice = plan ? (cycle === "yearly" ? plan.price_yearly : plan.price_monthly) : 0;
+                      const price = planPrice(p);
+                      const currentPrice = plan ? planPrice(plan) : 0;
                       const isDowngrade = price < currentPrice;
                       return (
                         <div key={p.id}
@@ -257,7 +252,7 @@ export default function BillingPage() {
                           <p className="text-[11px] text-muted-foreground">{p.tagline}</p>
                           <p className="flex items-baseline gap-1 mt-3">
                             <span className="font-heading text-2xl font-bold">{price > 0 ? formatBDT(price) : "৳0"}</span>
-                            <span className="text-[11px] text-muted-foreground">/{cycle === "yearly" ? "year" : "month"}</span>
+                            <span className="text-[11px] text-muted-foreground">{t("billing.year")}</span>
                           </p>
                           <ul className="mt-4 space-y-1.5 flex-1">
                             {p.features.map((f) => (
