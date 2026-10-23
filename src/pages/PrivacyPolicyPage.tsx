@@ -96,7 +96,7 @@ const PrivacyPolicyPage = () => (
             );
           })}
 
-          <section>
+          <section id="security-and-retention" className="scroll-mt-24">
             <h2 className="font-heading text-xl font-semibold md:text-2xl">5. Security and retention</h2>
             <p className="mt-3 leading-7 text-muted-foreground">
               We use reasonable technical and organizational measures intended to protect information. No internet service can guarantee absolute security. Information may be kept for as long as needed to provide the service, maintain legitimate business records, resolve disputes, meet legal obligations or enforce our agreements. Actual retention may depend on the feature and service provider involved.
