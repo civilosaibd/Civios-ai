@@ -105,11 +105,29 @@ export async function downloadText(path: string): Promise<string> {
 export async function startAnalysis(vizId: string): Promise<string> {
   const { data, error } = await supabase.functions.invoke("viz-analyze", { body: { visualization_id: vizId } });
   if (error) {
-    // surface the function's own message when it sent one
-    try { const j = await (error as { context?: Response }).context?.json?.(); if (j?.error) throw new Error(j.error); } catch (e) { if (e instanceof Error && e.message) throw e; }
-    throw new Error("Could not start analysis. The analysis service may not be deployed yet.");
+    // Preserve actionable server errors (missing AI key, auth, rate limit) instead of
+    // hiding every failure behind the misleading "not deployed" message.
+    const context = (error as { context?: Response }).context;
+    if (context) {
+      try {
+        const payload = await context.clone().json() as { error?: unknown; message?: unknown };
+        const message = typeof payload?.error === "string" ? payload.error : typeof payload?.message === "string" ? payload.message : null;
+        if (message) throw new Error(message);
+      } catch (cause) {
+        if (cause instanceof Error && cause.message && cause.message !== "Unexpected end of JSON input") throw cause;
+      }
+    }
+    const raw = typeof error.message === "string" ? error.message : "";
+    if (/404|not found|failed to send a request|failed to fetch|functionsfetcherror/i.test(raw)) {
+      throw new Error("Drawing analysis service is unreachable in the Supabase project configured for this app. Deploy the viz-analyze Edge Function to that exact project, then retry.");
+    }
+    throw new Error(raw || "Could not start drawing analysis. Check the Edge Function deployment and its server logs.");
   }
-  if (!data?.job_id) throw new Error("Analysis did not start."); return data.job_id as string;
+  if (!data?.job_id) {
+    const message = typeof data?.error === "string" ? data.error : "Analysis did not start. The service returned no job ID.";
+    throw new Error(message);
+  }
+  return data.job_id as string;
 }
 export async function getJob(id: string): Promise<VizJob> {
   const { data, error } = await db.from("visualization_jobs").select("*").eq("id", id).single();
