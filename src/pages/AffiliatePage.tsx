@@ -25,25 +25,41 @@ export default function AffiliatePage() {
   const [commissions, setCommissions] = useState<CommissionRow[]>([]);
   // numbers come from the database (my_affiliate_stats) — the same source request_withdrawal checks
   const [stats, setStats] = useState<AffiliateStats | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [wOpen, setWOpen] = useState(false);
   const [wForm, setWForm] = useState({ amount: "", method: "bKash", account_number: "" });
 
   const load = async () => {
-    if (!user) return;
-    const { data: p } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-    setProfile(p);
-    const { data: r } = await (supabase as any).from("referrals")
-      .select("*, referred:referred_user_id(id)").eq("referrer_id", user.id).order("created_at",{ascending:false});
-    setRefs(r || []);
-    const { data: w } = await (supabase as any).from("withdrawals").select("*").eq("user_id", user.id).order("requested_at",{ascending:false});
-    setWithdrawals(w || []);
-    const { data: st } = await supabase.rpc("my_affiliate_stats");
-    if (st) setStats(st as unknown as AffiliateStats);
-    const { data: c } = await supabase.from("referral_commissions")
-      .select("id, base_amount, rate, commission_amount, status, created_at").order("created_at", { ascending: false }).limit(50);
-    setCommissions(c || []);
+    if (!user) { setLoading(false); return; }
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const { data: p, error: profileError } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+      if (profileError) throw profileError;
+      setProfile(p);
+      const [{ data: r, error: referralError }, { data: w, error: withdrawalError }, { data: st, error: statsError }, { data: c, error: commissionError }] = await Promise.all([
+        (supabase as any).from("referrals").select("*").eq("referrer_id", user.id).order("created_at", { ascending: false }),
+        (supabase as any).from("withdrawals").select("*").eq("user_id", user.id).order("requested_at", { ascending: false }),
+        supabase.rpc("my_affiliate_stats"),
+        supabase.from("referral_commissions").select("id, referrer_id, base_amount, rate, commission_amount, status, created_at").eq("referrer_id", user.id).order("created_at", { ascending: false }).limit(50),
+      ]);
+      if (referralError) throw referralError;
+      if (withdrawalError) throw withdrawalError;
+      if (statsError) throw statsError;
+      if (commissionError) throw commissionError;
+      setRefs(r || []);
+      setWithdrawals(w || []);
+      if (st) setStats(st as unknown as AffiliateStats);
+      setCommissions((c || []) as CommissionRow[]);
+      if (!p?.referral_code) setLoadError("Your referral profile is not ready yet. Please refresh in a moment; if this continues, contact support.");
+    } catch (error: any) {
+      setLoadError(error?.message || "Could not load your referral information.");
+    } finally {
+      setLoading(false);
+    }
   };
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { void load(); }, [user?.id]);
 
   const referralLink = profile ? buildReferralLink(window.location.origin, profile.referral_code) : "";
   const total = stats?.referred ?? refs.length;
@@ -54,7 +70,15 @@ export default function AffiliatePage() {
   const ratePct = Math.round(Number(stats?.rate ?? 0.1) * 100);
   const money = (n: number) => `৳${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
-  const copy = () => { navigator.clipboard.writeText(referralLink); toast.success("Copied!"); };
+  const copy = async () => {
+    if (!referralLink) return toast.error("Your referral link is not available yet.");
+    try {
+      await navigator.clipboard.writeText(referralLink);
+      toast.success("Referral link copied!");
+    } catch {
+      toast.error("Could not copy automatically. Please select and copy the link.");
+    }
+  };
 
   const share = (net: string) => {
     const text = encodeURIComponent(`CivilOS AI ব্যবহার করুন — Bangladesh এর #1 AI Civil Engineering platform! ${referralLink}`);
@@ -89,6 +113,9 @@ export default function AffiliatePage() {
             <h1 className="font-heading text-2xl md:text-3xl font-bold">Affiliate Program</h1>
             <p className="text-sm text-muted-foreground">Referred user-এর প্রতিটি verified payment-এ {ratePct}% commission (সার্ভার হিসাব করে)। Minimum withdrawal: ৳500।</p>
           </div>
+
+          {loading && <p className="text-sm text-muted-foreground">Loading your referral details…</p>}
+          {loadError && <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{loadError}</div>}
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card><CardContent className="pt-6"><Users className="h-5 w-5 text-accent mb-2"/><p className="text-xs text-muted-foreground">Total Referrals</p><p className="text-2xl font-bold">{total}</p></CardContent></Card>
