@@ -114,28 +114,34 @@ const AuthPage = () => {
             disabled={loading}
             onClick={async () => {
               const redirect = safeRedirect(params.get("redirect"));
-              if (!isManagedOAuthHost()) {
-                // Managed Google sign-in is only served on Lovable-hosted origins.
-                // Send the user to the secure CivilOS domain to finish sign-in there.
-                toast.info("Google সাইন-ইন সিকিউর CivilOS ডোমেইনে সম্পন্ন হবে…");
-                window.location.assign(
-                  `${LOVABLE_SIGNIN_ORIGIN}/auth?redirect=${encodeURIComponent(redirect)}`,
-                );
-                return;
-              }
               setLoading(true);
               try {
-                // Keep the OAuth redirect_uri clean (no query params) — Google
-                // rejects unregistered URIs with redirect_uri_mismatch otherwise.
+                // Save the destination before leaving for Google; AuthPage restores it
+                // after Supabase returns to this exact domain.
                 sessionStorage.setItem("civilos.auth.redirect", redirect);
-                const result = await lovable.auth.signInWithOAuth("google", {
-                  redirect_uri: `${window.location.origin}/auth`,
-                  extraParams: { prompt: "select_account" },
-                });
-                if (result.error) throw result.error;
-                if (result.redirected) return; // browser is navigating to Google
-                navigate(redirect, { replace: true });
+                if (isManagedOAuthHost()) {
+                  // Lovable-managed OAuth is required on Lovable-hosted origins.
+                  const result = await lovable.auth.signInWithOAuth("google", {
+                    redirect_uri: `${window.location.origin}/auth`,
+                    extraParams: { prompt: "select_account" },
+                  });
+                  if (result.error) throw result.error;
+                  if (result.redirected) return;
+                  navigate(redirect, { replace: true });
+                } else {
+                  // Vercel/custom domains must use this project's Supabase Google
+                  // provider directly instead of bouncing users to lovable.app.
+                  const { error } = await supabase.auth.signInWithOAuth({
+                    provider: "google",
+                    options: {
+                      redirectTo: `${window.location.origin}/auth`,
+                      queryParams: { prompt: "select_account" },
+                    },
+                  });
+                  if (error) throw error;
+                }
               } catch (err: any) {
+                sessionStorage.removeItem("civilos.auth.redirect");
                 toast.error(err?.message || "Google sign-in failed");
               } finally {
                 setLoading(false);
