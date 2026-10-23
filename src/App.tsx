@@ -23,6 +23,8 @@ const UploadPage = lazy(() => import("./pages/UploadPage.tsx"));
 const EstimatePage = lazy(() => import("./pages/EstimatePage.tsx"));
 const AboutPage = lazy(() => import("./pages/AboutPage.tsx"));
 const ContactPage = lazy(() => import("./pages/ContactPage.tsx"));
+const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage.tsx"));
+const TermsOfServicePage = lazy(() => import("./pages/TermsOfServicePage.tsx"));
 const AuthPage = lazy(() => import("./pages/AuthPage.tsx"));
 const ProjectsPage = lazy(() => import("./pages/ProjectsPage.tsx"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage.tsx"));
@@ -115,6 +117,8 @@ const App = () => (
                       <Route path="/estimate/demo" element={<EstimatePage />} />
                       <Route path="/about" element={<AboutPage />} />
                       <Route path="/contact" element={<ContactPage />} />
+                      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                      <Route path="/terms" element={<TermsOfServicePage />} />
                       <Route path="/auth" element={<AuthPage />} />
                       <Route
                         path="/register"
