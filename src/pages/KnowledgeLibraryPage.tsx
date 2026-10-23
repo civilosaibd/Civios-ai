@@ -45,8 +45,11 @@ const KnowledgeLibraryPage = () => {
 
   const categories = useMemo(() => ["all", ...Array.from(new Set(resources.map(r => r.category).filter(Boolean)))], [resources]);
   const filtered = useMemo(() => resources.filter(r => {
-    const text = [r.title, r.title_bn, r.summary, r.summary_bn, r.category, ...(r.tags || [])].join(" ").toLowerCase();
-    return (category === "all" || r.category === category) && text.includes(query.toLowerCase().trim());
+    // Search the full published resource, not just its card summary, so users can find a guide by a phrase inside it.
+    const text = [r.title, r.title_bn, r.slug, r.summary, r.summary_bn, r.content, r.content_bn, r.category, r.resource_type, r.language, r.source_name, ...(r.tags || [])]
+      .filter(Boolean).join(" ").toLocaleLowerCase();
+    const term = query.trim().toLocaleLowerCase();
+    return (category === "all" || r.category === category) && text.includes(term);
   }), [resources, query, category]);
 
   return <SidebarProvider><SEO title={bn ? "জ্ঞান ভান্ডার" : "Knowledge Library"} description="Civil engineering guides, checklists and practical references." />
