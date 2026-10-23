@@ -58,6 +58,7 @@ export default function BillingPage() {
   const { toast } = useToast();
   const { t } = useI18n();
   const { loading, plans, plan, subscription, activeSub, usage, limitOf, percentUsed, reload } = useSubscription();
+  const [cycle, setCycle] = useState<"monthly" | "yearly">("yearly");
   const cycle = "yearly" as const; // monthly billing has been removed
   const [checkoutPlan, setCheckoutPlan] = useState<Plan | null>(null);
   const [method, setMethod] = useState("bkash");

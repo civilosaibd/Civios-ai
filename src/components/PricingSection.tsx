@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Check, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
@@ -6,24 +7,28 @@ import { formatBDT, planPrice, usePublicPlans } from "@/lib/subscription";
 
 const tiers = [
   {
+    name: "Free", price: "৳0", cta: "Get Started Free", to: "/billing",
     name: "Free", code: "free", cta: "Get Started Free", to: "/billing",
     highlight: false,
     features: ["3 projects", "Basic BOQ Generator", "50 AI credits / month", "Community support"],
     disabled: ["AI Drawing & AI Writer", "Analytics & finance modules"],
   },
   {
+    name: "Starter", price: "৳499", cta: "Start Starter", to: "/billing",
     name: "Starter", code: "starter", cta: "Start Starter", to: "/billing",
     highlight: false,
     features: ["15 projects", "BOQ + Rate Analysis", "1,000 AI credits / month", "PDF & Excel export", "Email support"],
     disabled: [],
   },
   {
+    name: "Professional", price: "৳1,999", cta: "Go Professional", to: "/billing",
     name: "Professional", code: "professional", cta: "Go Professional", to: "/billing",
     highlight: true,
     features: ["Unlimited projects", "All AI modules incl. AI Drawing", "10,000 AI credits / month", "Tender, analytics & finance", "BNBC 2022 compliance", "Team collaboration"],
     disabled: [],
   },
   {
+    name: "Business", price: "৳4,999", cta: "Contact Sales", to: "/contact",
     name: "Business", code: "business", cta: "Contact Sales", to: "/contact",
     highlight: false,
     features: ["Everything in Professional", "Unlimited team seats", "Company management & roles", "Advanced analytics", "Priority AI processing", "Dedicated manager"],
@@ -32,6 +37,8 @@ const tiers = [
 ];
 
 export default function PricingSection() {
+  // Yearly is the default billing period. Numeric prices intentionally remain unchanged per product requirement.
+  const [billingPeriod, setBillingPeriod] = useState<"yearly" | "monthly">("yearly");
   // Yearly is the ONLY billing period. Prices are read from the plans table (price_yearly);
   // nothing is hardcoded here and nothing is multiplied.
   const { t: tr } = useI18n();
@@ -52,6 +59,17 @@ export default function PricingSection() {
           <p className="text-sm md:text-base text-muted-foreground">
             Start free. Upgrade any time as your team grows.
           </p>
+          <div className="inline-flex items-center rounded-full border p-1 gap-1" role="group" aria-label="Billing period">
+            <Button type="button" size="sm" variant={billingPeriod === "monthly" ? "default" : "ghost"} onClick={() => setBillingPeriod("monthly")}>
+              Monthly
+            </Button>
+            <Button type="button" size="sm" variant={billingPeriod === "yearly" ? "default" : "ghost"} onClick={() => setBillingPeriod("yearly")}>
+              Yearly
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {billingPeriod === "yearly" ? "Yearly billing selected. Listed prices remain unchanged as requested." : "Monthly billing selected."}
+          </p>
           <p className="text-xs text-muted-foreground">{tr("billing.yearlyPlan")} — {tr("billing.yearlyNote")}</p>
         </div>
 
@@ -69,6 +87,8 @@ export default function PricingSection() {
               <div className="space-y-1">
                 <p className="font-heading text-lg font-bold">{t.name}</p>
                 <p className="flex items-baseline gap-1">
+                  <span className="font-heading text-3xl font-bold">{t.price}</span>
+                  <span className="text-xs text-muted-foreground">/{billingPeriod === "yearly" ? "year" : "month"}</span>
                   <span className="font-heading text-3xl font-bold">
                     {priceOf(t.code) ?? (loading ? "…" : "—")}
                   </span>

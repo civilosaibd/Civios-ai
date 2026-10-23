@@ -36,6 +36,7 @@ export default function NotificationBell() {
   }, [user]);
 
   useEffect(() => { void load(); }, [load]);
+ security/phase-1-hardening
 
   // Deadline alerts (7/3/1 days): once per day per browser, create this user's own alerts, then refresh.
   // The database de-duplicates, so a second device or a missed day never produces duplicates.
@@ -46,6 +47,7 @@ export default function NotificationBell() {
       else void load();
     });
   }, [user, load]);
+ main
 
   useEffect(() => {
     if (!user) return;
