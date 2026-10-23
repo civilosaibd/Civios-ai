@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Globe, LogOut, FolderOpen, User, Bell, LayoutDashboard, CreditCard } from "lucide-react";
+import { Menu, X, Globe, LogOut, FolderOpen, User, Bell, LayoutDashboard, CreditCard, Users } from "lucide-react";
 import { useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
@@ -67,6 +67,9 @@ const Navbar = () => {
               </Button>
               <Button variant="ghost" size="sm" asChild>
                 <Link to="/profile"><User className="h-4 w-4 mr-1" /> Profile</Link>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/affiliate"><Users className="h-4 w-4 mr-1" /> Referrals</Link>
               </Button>
               <Button variant="ghost" size="sm" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4 mr-1" /> Sign out
