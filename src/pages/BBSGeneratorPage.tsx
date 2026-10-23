@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useCloudState } from "@/lib/cloudState";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { Button } from "@/components/ui/button";
@@ -9,11 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
-import { ClipboardList, Plus, Trash2, Download, RotateCcw, Info } from "lucide-react";
+import { ClipboardList, Plus, Trash2, Download, RotateCcw, Info, Save, FolderOpen, History } from "lucide-react";
 import { toast } from "sonner";
 
 type Shape = "straight" | "L-bar" | "U-bar" | "stirrup";
 type BarRow = { id: string; mark: string; diameter: number; shape: Shape; a: number; b: number; hook: number; qty: number; note: string };
+type SavedSchedule = { id: string; name: string; project: string; member: string; waste: number; rows: BarRow[]; updatedAt: string };
 const newRow = (mark: string): BarRow => ({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, mark, diameter: 12, shape: "straight", a: 6, b: 0, hook: 0.15, qty: 1, note: "" });
 const num = (n: number) => Number.isFinite(n) && n > 0 ? n : 0;
 const fmt = (n: number, d = 2) => n.toLocaleString("en-BD", { maximumFractionDigits: d });
@@ -31,6 +33,8 @@ export default function BBSGeneratorPage() {
   const [waste, setWaste] = useState(5);
   const [project, setProject] = useState("Sample Residence");
   const [member, setMember] = useState("Beam / Column / Slab");
+  const [savedSchedules, setSavedSchedules, syncingSchedules] = useCloudState<SavedSchedule[]>("civilos.bbs-schedules", []);
+  const [scheduleName, setScheduleName] = useState("Main reinforcement schedule");
   const computed = useMemo(() => rows.map(row => {
     const length = cuttingLength(row);
     const totalLength = length * num(row.qty);
@@ -41,7 +45,21 @@ export default function BBSGeneratorPage() {
   const totalBars = computed.reduce((sum, row) => sum + num(row.qty), 0);
   const update = (id: string, key: keyof BarRow, value: string | number) => setRows(current => current.map(row => row.id === id ? { ...row, [key]: value } as BarRow : row));
   const addRow = () => setRows(current => [...current, newRow(`B${current.length + 1}`)]);
-  const reset = () => { setRows([newRow("B1")]); setWaste(5); setProject("Sample Residence"); setMember("Beam / Column / Slab"); };
+  const reset = () => { setRows([newRow("B1")]); setWaste(5); setProject("Sample Residence"); setMember("Beam / Column / Slab"); setScheduleName("Main reinforcement schedule"); };
+  const saveSchedule = () => {
+    const cleanProject = project.trim(); const cleanName = scheduleName.trim();
+    if (!cleanProject || !cleanName) { toast.error("Enter a project name and schedule name."); return; }
+    if (rows.length === 0) { toast.error("Add at least one bar row before saving."); return; }
+    const invalid = rows.find(row => !row.mark.trim() || !Number.isFinite(row.diameter) || row.diameter <= 0 || !Number.isFinite(row.a) || row.a <= 0 || !Number.isFinite(row.b) || row.b < 0 || !Number.isFinite(row.hook) || row.hook < 0 || !Number.isInteger(row.qty) || row.qty < 1 || (row.shape !== "straight" && row.b <= 0));
+    if (invalid) { toast.error("Check dimensions, mark and whole-piece quantity for bar " + (invalid.mark || "(unnamed)") + "."); return; }
+    if (!Number.isFinite(waste) || waste < 0 || waste > 100) { toast.error("Wastage must be between 0 and 100%."); return; }
+    const existing = savedSchedules.find(s => s.name.toLowerCase() === cleanName.toLowerCase() && s.project.toLowerCase() === cleanProject.toLowerCase());
+    const record: SavedSchedule = { id: existing?.id ?? ("bbs-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8)), name: cleanName, project: cleanProject, member: member.trim(), waste, rows: rows.map(row => ({ ...row })), updatedAt: new Date().toISOString() };
+    setSavedSchedules(current => [record, ...current.filter(s => s.id !== record.id)]);
+    toast.success(existing ? "Saved schedule updated." : "Schedule saved to your workspace.");
+  };
+  const loadSchedule = (schedule: SavedSchedule) => { setProject(schedule.project); setMember(schedule.member); setWaste(schedule.waste); setRows(schedule.rows.map(row => ({ ...row }))); setScheduleName(schedule.name); toast.success("Loaded " + schedule.name); };
+  const deleteSchedule = (id: string) => { setSavedSchedules(current => current.filter(s => s.id !== id)); toast.success("Saved schedule deleted."); };
   const exportCsv = () => {
     const data = [
       ["CivilOS AI - Bar Bending Schedule"], ["Project", project], ["Structural member", member], [],
@@ -68,6 +86,28 @@ export default function BBSGeneratorPage() {
           </header>
           <main className="mx-auto w-full max-w-7xl space-y-5 p-4 md:p-6">
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><h2 className="text-2xl font-bold">Reinforcement BBS worksheet</h2><p className="mt-1 text-sm text-muted-foreground">Enter bar dimensions and quantities to calculate cutting lengths and estimated steel weight.</p></div><div className="flex gap-2"><Button variant="outline" onClick={reset}><RotateCcw className="mr-1 h-4 w-4"/>Reset</Button><Button onClick={addRow}><Plus className="mr-1 h-4 w-4"/>Add bar row</Button></div></div>
+            <Card className="space-y-4 p-4 md:p-5">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-primary/10 p-2"><History className="h-5 w-5 text-primary" /></div>
+                <div className="min-w-0 flex-1"><h3 className="font-semibold">Save & manage schedules</h3><p className="text-sm text-muted-foreground">Save this BBS, reopen it later, or update an existing schedule using the same project and name.</p><p className="mt-1 text-xs text-muted-foreground">{syncingSchedules ? "Syncing workspace…" : "Workspace storage: signed-in data syncs across devices; signed-out data stays on this device."}</p></div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                <div className="space-y-1.5"><Label>Schedule name</Label><Input value={scheduleName} maxLength={100} onChange={e=>setScheduleName(e.target.value)} placeholder="e.g. Ground floor columns" /></div>
+                <div className="space-y-1.5"><Label>Project name</Label><Input value={project} maxLength={120} onChange={e=>setProject(e.target.value)} placeholder="Project name" /></div>
+                <div className="flex items-end"><Button className="w-full sm:w-auto" onClick={saveSchedule}><Save className="mr-2 h-4 w-4"/>Save schedule</Button></div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-medium">Saved schedules ({savedSchedules.length})</h4><span className="text-xs text-muted-foreground">Most recently updated first</span></div>
+                {savedSchedules.length === 0 ? <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">No saved schedules yet. Enter your bar details and select Save schedule.</p> : <div className="grid gap-2 md:grid-cols-2">
+                  {savedSchedules.map(schedule => <div key={schedule.id} className="flex min-w-0 items-center gap-3 rounded-lg border p-3">
+                    <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground"/>
+                    <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{schedule.name}</p><p className="truncate text-xs text-muted-foreground">{schedule.project} · {schedule.rows.length} bar marks · {new Date(schedule.updatedAt).toLocaleDateString()}</p></div>
+                    <Button size="sm" variant="outline" onClick={()=>loadSchedule(schedule)}>Open</Button>
+                    <Button size="icon" variant="ghost" aria-label={"Delete saved schedule " + schedule.name} onClick={()=>deleteSchedule(schedule.id)}><Trash2 className="h-4 w-4"/></Button>
+                  </div>)}
+                </div>}
+              </div>
+            </Card>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Card className="p-4"><p className="text-xs text-muted-foreground">Bar marks</p><p className="mt-1 text-2xl font-bold">{rows.length}</p></Card>
               <Card className="p-4"><p className="text-xs text-muted-foreground">Total pieces</p><p className="mt-1 text-2xl font-bold">{fmt(totalBars, 0)}</p></Card>
