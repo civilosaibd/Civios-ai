@@ -1,6 +1,251 @@
 import { useCallback, useEffect, useState } from "react";
 import { Bell, Check, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
+import { formatDistanceToNow } from "date-fns";
+import { shouldRunDaily } from "@/lib/referral";
+
+interface Notif {
+  id: string;
+  type: string;
+  title: string;
+  message: string | null;
+  link: string | null;
+  read: boolean;
+  created_at: string;
+}
+
+export default function NotificationBell() {
+  const { user } = useAuth();
+  const [items, setItems] = useState<Notif[]>([]);
+  const [open, setOpen] = useState(false);
+
+  // Load notifications for the authenticated user.
+  const load = useCallback(async () => {
+    if (!user) {
+      setItems([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(30);
+
+    if (error) {
+      console.error("Failed to load notifications:", error.message);
+      return;
+    }
+
+    setItems((data as Notif[]) || []);
+  }, [user]);
+
+  // Initial load and refresh when the authenticated user changes.
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // Generate deadline notifications at most once per day per browser.
+  useEffect(() => {
+    if (!user) return;
+
+    if (!shouldRunDaily(`civilos_deadline_check:${user.id}`)) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const generateDeadlineNotifications = async () => {
+      const { error } = await supabase.rpc(
+        "generate_my_deadline_notifications"
+      );
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error("Deadline notification check failed:", error.message);
+        return;
+      }
+
+      await load();
+    };
+
+    void generateDeadlineNotifications();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, load]);
+
+  // Keep notifications synchronized in real time.
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`notifications:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          void load();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [user, load]);
+
+  const unread = items.filter((notification) => !notification.read).length;
+
+  // Mark all notifications as read.
+  const markAllRead = async () => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("user_id", user.id)
+      .eq("read", false);
+
+    if (error) {
+      console.error("Failed to mark notifications as read:", error.message);
+      return;
+    }
+
+    await load();
+  };
+
+  // Delete a notification belonging to the authenticated user.
+  const remove = async (id: string) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("notifications")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("Failed to delete notification:", error.message);
+      return;
+    }
+
+    await load();
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative h-9 w-9"
+          aria-label={`Open notifications${
+            unread > 0 ? `, ${unread} unread` : ""
+          }`}
+        >
+          <Bell className="h-4 w-4" />
+
+          {unread > 0 && (
+            <Badge className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center px-1 text-[10px]">
+              {unread > 9 ? "9+" : unread}
+            </Badge>
+          )}
+        </Button>
+      </SheetTrigger>
+
+      <SheetContent className="flex w-full flex-col sm:max-w-md">
+        <SheetHeader className="flex-row items-center justify-between">
+          <SheetTitle>Notifications</SheetTitle>
+
+          {unread > 0 && (
+            <Button size="sm" variant="ghost" onClick={markAllRead}>
+              <Check className="mr-1 h-3.5 w-3.5" />
+              Mark all read
+            </Button>
+          )}
+        </SheetHeader>
+
+        <div className="-mx-6 flex-1 divide-y overflow-y-auto px-6">
+          {items.length === 0 ? (
+            <div className="py-16 text-center text-sm text-muted-foreground">
+              <Bell className="mx-auto mb-2 h-8 w-8 opacity-30" />
+              No notifications yet
+            </div>
+          ) : (
+            items.map((notification) => (
+              <div
+                key={notification.id}
+                className={`flex gap-3 py-3 ${
+                  !notification.read
+                    ? "-mx-2 rounded bg-accent/5 px-2"
+                    : ""
+                }`}
+              >
+                <div
+                  className={`mt-2 h-2 w-2 shrink-0 rounded-full ${
+                    !notification.read ? "bg-accent" : "bg-muted"
+                  }`}
+                />
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium leading-tight">
+                    {notification.title}
+                  </p>
+
+                  {notification.message && (
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {notification.message}
+                    </p>
+                  )}
+
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    {formatDistanceToNow(
+                      new Date(notification.created_at),
+                      { addSuffix: true }
+                    )}
+                    {" · "}
+                    {notification.type}
+                  </p>
+                </div>
+
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 shrink-0"
+                  aria-label="Delete notification"
+                  onClick={() => void remove(notification.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}import { useCallback, useEffect, useState } from "react";
+import { Bell, Check, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
