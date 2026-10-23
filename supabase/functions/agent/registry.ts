@@ -36,8 +36,8 @@ export const FEATURES: { key: string; name: string; bn: string; url: string; pla
   { key: "tender", name: "Tender Analyzer", bn: "টেন্ডার বিশ্লেষণ", url: "/tender", plan: "tender", aliases: ["tender"] },
   { key: "ai_writer", name: "AI Writer", bn: "এআই রাইটার", url: "/ai-writer", plan: "ai_writer", aliases: ["writer"] },
   { key: "analytics", name: "Project Analytics", bn: "প্রজেক্ট অ্যানালিটিক্স", url: "/analytics", plan: "analytics", aliases: ["analytics", "reports"] },
-  { key: "knowledge_library", name: "Knowledge Library", bn: "জ্ঞানভাণ্ডার", url: "", aliases: ["knowledge", "library"], status: "coming_soon" },
-  { key: "training_corner", name: "Training Corner", bn: "ট্রেনিং কর্নার", url: "", aliases: ["training"], status: "coming_soon" },
+  { key: "knowledge_library", name: "Knowledge Library", bn: "জ্ঞানভাণ্ডার", url: "/knowledge-library", aliases: ["knowledge", "library"] },
+  { key: "training_corner", name: "Training Corner", bn: "ট্রেনিং কর্নার", url: "/training-corner", aliases: ["training"] },
 ];
 
 export function resolveFeature(q: string) {
