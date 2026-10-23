@@ -60,6 +60,7 @@ const TrainingCornerPage = () => {
     () => new Set(progressRows.filter((row) => row.status === "completed" && publishedLessonIds.has(row.lesson_id)).map((row) => row.lesson_id)),
     [progressRows, publishedLessonIds],
   );
+  const inProgress = useMemo(() => new Set(progressRows.filter((row) => row.status === "in_progress" && publishedLessonIds.has(row.lesson_id)).map((row) => row.lesson_id)), [progressRows, publishedLessonIds]);
   const percent = lessons.length ? Math.round((done.size / lessons.length) * 100) : 0;
 
   const saveProgress = async (lesson: Lesson, completed: boolean): Promise<boolean> => {
@@ -130,15 +131,15 @@ const TrainingCornerPage = () => {
                         <CardDescription>{bn && course.description_bn ? course.description_bn : course.description}</CardDescription>
                       </CardHeader>
                       <CardContent className="flex-1 space-y-3">
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <div className="space-y-2"><div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{course.duration_minutes} min</span>
                           <span className="flex items-center gap-1"><BookOpen className="h-3 w-3" />{courseLessons.length} {bn ? "টি লেসন" : "lessons"}</span>
                           <span>{courseDone}/{courseLessons.length} {bn ? "সম্পন্ন" : "done"}</span>
-                        </div>
+                        </div><Progress value={courseLessons.length ? Math.round((courseDone / courseLessons.length) * 100) : 0} aria-label={bn ? "কোর্সের অগ্রগতি" : "Course progress"} /></div>
                         {courseLessons.map((lesson) => (
                           <div key={lesson.id} className="border rounded-lg p-3 flex items-center gap-3">
                             <div className="shrink-0">{done.has(lesson.id) ? <CheckCircle2 className="h-5 w-5 text-green-600" /> : <PlayCircle className="h-5 w-5 text-primary" />}</div>
-                            <div className="min-w-0 flex-1"><p className="font-medium text-sm">{bn && lesson.title_bn ? lesson.title_bn : lesson.title}</p><p className="text-xs text-muted-foreground">{lesson.duration_minutes} min</p></div>
+                            <div className="min-w-0 flex-1"><p className="font-medium text-sm">{bn && lesson.title_bn ? lesson.title_bn : lesson.title}</p><p className="text-xs text-muted-foreground">{lesson.duration_minutes} min · {done.has(lesson.id) ? (bn ? "সম্পন্ন" : "Completed") : inProgress.has(lesson.id) ? (bn ? "চলমান" : "In progress") : (bn ? "শুরু হয়নি" : "Not started")}</p></div>
                             <Button size="sm" variant="outline" onClick={() => { setActionError(""); setActive(lesson); }}>{bn ? "খুলুন" : "Open"}</Button>
                           </div>
                         ))}
@@ -160,6 +161,7 @@ const TrainingCornerPage = () => {
                   <CardContent>
                     <div className="whitespace-pre-wrap leading-7 mb-6">{bn && active.content_bn ? active.content_bn : active.content || ""}</div>
                     {actionError && <p role="alert" className="text-sm text-destructive mb-4">{bn ? "অগ্রগতি সেভ করা যায়নি। আবার চেষ্টা করুন।" : "Progress could not be saved. Please try again."}</p>}
+                    {!done.has(active.id) && <Button variant="outline" disabled={saving || inProgress.has(active.id)} onClick={async () => { await saveProgress(active, false); }}>{saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Clock className="h-4 w-4 mr-2" />}{inProgress.has(active.id) ? (bn ? "চলমান" : "In progress") : (bn ? "শেখা শুরু করুন" : "Start lesson")}</Button>}
                     <Button disabled={saving || done.has(active.id)} onClick={async () => { const saved = await saveProgress(active, true); if (saved) setActive(null); }}>
                       {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
                       {saving ? (bn ? "সেভ হচ্ছে..." : "Saving...") : done.has(active.id) ? (bn ? "সম্পন্ন হয়েছে" : "Completed") : (bn ? "লেসন সম্পন্ন হিসেবে চিহ্নিত করুন" : "Mark lesson complete")}
