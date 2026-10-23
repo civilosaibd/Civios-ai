@@ -124,8 +124,8 @@ export default function SiteInspectionPage() {
       [], ["Category", "Checklist item", "Status", "Notes"],
       ...checks.map((c, i) => [c[0], c[1], data.status[i] ?? "Pending", data.notes[i] ?? ""]),
     ];
-    const csv = rows.map((row) => row.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\\r\\n");
-    const url = URL.createObjectURL(new Blob(["\\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
+    const csv = rows.map((row) => row.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
     a.download = `civilos-site-inspection-${(data.project || "report").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${data.date || today()}.csv`;
