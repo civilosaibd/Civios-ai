@@ -58,9 +58,8 @@ export default function ProgressReportsPage() {
     const manpower = logs.reduce((sum, log) => sum + (log.manpower ?? []).reduce((s, m) => s + Math.max(0, Number(m.count) || 0), 0), 0);
     const materials = logs.reduce((sum, log) => sum + (log.materials ?? []).filter(m => m.name && m.qty).length, 0);
     const issueLogs = logs.filter(log => Boolean(log.issues?.trim()));
-    const activityLogs = logs.filter(log => Boolean(log.activities?.trim()));
     const uniqueDates = new Set(logs.map(log => log.log_date)).size;
-    return { manpower, materials, issueLogs, activityLogs, uniqueDates };
+    return { manpower, materials, issueLogs, uniqueDates };
   }, [logs]);
 
   const reportText = useMemo(() => [
