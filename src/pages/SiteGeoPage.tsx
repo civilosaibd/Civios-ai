@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Map as MapIcon, Ruler, Hexagon, Home, Undo2, Trash2, LocateFixed, Download, Search } from "lucide-react";
+import { Map as MapIcon, Ruler, Hexagon, Home, Undo2, Trash2, LocateFixed, Download, Search, Upload } from "lucide-react";
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useI18n } from "@/lib/i18n";
@@ -31,6 +31,7 @@ export default function SiteGeoPage() {
   const T = (en: string, b: string) => (bn ? b : en);
   const { system } = useUnits();
   const mapEl = useRef<HTMLDivElement>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
   const map = useRef<L.Map | null>(null);
   const drawLayer = useRef<L.LayerGroup | null>(null);
   const planLayer = useRef<L.LayerGroup | null>(null);
@@ -135,6 +136,80 @@ export default function SiteGeoPage() {
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "civilos-survey.geojson"; a.click();
   };
 
+  const importGeoJSON = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Allow selecting the same file again after a failed or successful import.
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error(T("GeoJSON file must be 10 MB or smaller", "GeoJSON ফাইল ১০ MB বা তার কম হতে হবে"));
+      return;
+    }
+    try {
+      const parsed: unknown = JSON.parse(await file.text());
+      const root = parsed as {
+        type?: string;
+        features?: Array<{ geometry?: { type?: string; coordinates?: unknown } | null }>;
+        geometry?: { type?: string; coordinates?: unknown } | null;
+        coordinates?: unknown;
+      };
+      let geometry: { type?: string; coordinates?: unknown } | null | undefined;
+      if (root?.type === "FeatureCollection") {
+        if (!Array.isArray(root.features) || root.features.length !== 1) {
+          throw new Error(T("Import one feature at a time. Export or select a GeoJSON with a single feature.", "একবারে একটি ফিচার ইমপোর্ট করুন। একটি ফিচারসহ GeoJSON নির্বাচন করুন।"));
+        }
+        geometry = root.features[0]?.geometry;
+      } else if (root?.type === "Feature") {
+        geometry = root.geometry;
+      } else {
+        geometry = root as { type?: string; coordinates?: unknown };
+      }
+      if (!geometry || !Array.isArray(geometry.coordinates)) {
+        throw new Error(T("No supported geometry was found in this GeoJSON file.", "এই GeoJSON ফাইলে সমর্থিত জ্যামিতি পাওয়া যায়নি।"));
+      }
+      const raw = geometry.coordinates as unknown[];
+      let coordinatePairs: unknown[];
+      if (geometry.type === "Point") coordinatePairs = [raw];
+      else if (geometry.type === "MultiPoint" || geometry.type === "LineString") coordinatePairs = raw;
+      else if (geometry.type === "Polygon") coordinatePairs = Array.isArray(raw[0]) ? raw[0] as unknown[] : [];
+      else throw new Error(T("Supported geometry: Point, MultiPoint, LineString, or Polygon.", "সমর্থিত জ্যামিতি: Point, MultiPoint, LineString অথবা Polygon।"));
+
+      const imported = coordinatePairs.map((pair): LatLng => {
+        if (!Array.isArray(pair) || pair.length < 2 || typeof pair[0] !== "number" || typeof pair[1] !== "number") {
+          throw new Error(T("The file contains invalid coordinates.", "ফাইলে ভুল স্থানাঙ্ক রয়েছে।"));
+        }
+        const [lng, lat] = pair as [number, number];
+        if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+          throw new Error(T("Coordinates are outside valid latitude/longitude ranges.", "স্থানাঙ্ক বৈধ অক্ষাংশ/দ্রাঘিমাংশ সীমার বাইরে।"));
+        }
+        return { lat, lng };
+      });
+      if (imported.length > 1) {
+        const first = imported[0], last = imported[imported.length - 1];
+        if (first.lat === last.lat && first.lng === last.lng) imported.pop();
+      }
+      if (imported.length < 1 || imported.length > 5000) {
+        throw new Error(T("Import must contain between 1 and 5,000 vertices.", "ইমপোর্টে ১ থেকে ৫,০০০টি শীর্ষবিন্দু থাকতে হবে।"));
+      }
+      if (geometry.type === "Polygon" && imported.length < 3) {
+        throw new Error(T("A polygon needs at least 3 distinct vertices.", "একটি বহুভুজে অন্তত ৩টি শীর্ষবিন্দু দরকার।"));
+      }
+      centered.current = false;
+      setPts(imported);
+      const m = map.current;
+      if (m && imported.length > 1) {
+        m.fitBounds(L.latLngBounds(imported.map((p) => [p.lat, p.lng] as [number, number])), { padding: [40, 40], maxZoom: 19 });
+      } else if (m && imported.length === 1) {
+        m.setView([imported[0].lat, imported[0].lng], 18);
+      }
+      if (geometry.type === "Polygon") setMode("area");
+      else if (geometry.type === "LineString") setMode("distance");
+      toast.success(T(`Imported ${imported.length} coordinate point(s)`, `${imported.length}টি স্থানাঙ্ক বিন্দু ইমপোর্ট হয়েছে`));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : T("Could not read this GeoJSON file.", "GeoJSON ফাইলটি পড়া যায়নি।"));
+    }
+  };
+
   const areaSft = polygonArea(pts) * SFT_PER_M2;
   const u = landUnits(areaSft);
   const len = pathLength(pts, mode === "area");
@@ -168,12 +243,14 @@ export default function SiteGeoPage() {
                 <Button size="sm" variant="outline" onClick={() => setPts((p) => p.slice(0, -1))}><Undo2 className="h-4 w-4 mr-1" />{T("Undo", "পিছনে")}</Button>
                 <Button size="sm" variant="outline" onClick={() => setPts([])}><Trash2 className="h-4 w-4 mr-1" />{T("Clear", "মুছুন")}</Button>
                 <Button size="sm" variant="secondary" onClick={placePlan}><Home className="h-4 w-4 mr-1" />{T("Show my plan on map", "আমার প্ল্যান ম্যাপে দেখান")}</Button>
+                <input ref={importFileRef} type="file" accept=".geojson,.json,application/geo+json,application/json" className="hidden" onChange={importGeoJSON} />
+                <Button size="sm" variant="outline" onClick={() => importFileRef.current?.click()}><Upload className="h-4 w-4 mr-1" />{T("Import GeoJSON", "GeoJSON ইমপোর্ট")}</Button>
                 <Button size="sm" variant="outline" onClick={exportGeoJSON}><Download className="h-4 w-4 mr-1" />GeoJSON</Button>
               </div>
               <Card className="overflow-hidden">
                 <div ref={mapEl} className="h-[60vh] lg:h-[calc(100vh-14rem)] w-full z-0" />
               </Card>
-              <p className="text-xs text-muted-foreground">{T("Tap the map to add corner points. Map measurements are approximate — confirm with a licensed surveyor.", "ম্যাপে ট্যাপ করে কোণের বিন্দু দিন। ম্যাপের মাপ আনুমানিক — চূড়ান্ত মাপ লাইসেন্সধারী সার্ভেয়ার দিয়ে নিশ্চিত করুন।")}</p>
+              <p className="text-xs text-muted-foreground">{T("Tap the map to add corner points, or import a single-feature GeoJSON (Point, MultiPoint, LineString, Polygon). Imports replace the current survey points. Map measurements are approximate — confirm with a licensed surveyor.", "ম্যাপে ট্যাপ করে কোণের বিন্দু দিন, অথবা একটি ফিচারসহ GeoJSON (Point, MultiPoint, LineString, Polygon) ইমপোর্ট করুন। ইমপোর্ট করলে বর্তমান সার্ভে পয়েন্ট প্রতিস্থাপিত হবে। ম্যাপের মাপ আনুমানিক — লাইসেন্সধারী সার্ভেয়ার দিয়ে নিশ্চিত করুন।")}</p>
             </div>
 
             <div className="space-y-4">
