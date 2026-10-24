@@ -14,7 +14,7 @@ const Footer = () => {
             <p className="text-[11px] text-accent/90 font-medium">The AI Operating System for Civil Engineers</p>
             <p className="text-sm text-primary-foreground/70">{t("footer.desc")}</p>
             <p className="text-xs text-primary-foreground/50">
-              {t("footer.developedBy").replace(/Md Zobaer Hasan|মোঃ জোবায়ের হাসান/, "")}
+              {t("footer.developedBy").replace(/Md Zobaer Hasan|মোঃ যোবায়ের হাসান/, "")}
               <a
                 href="https://zobaerio.pro.bd"
                 target="_blank"
