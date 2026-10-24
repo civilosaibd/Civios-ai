@@ -32,7 +32,6 @@ const SponsorPage = lazy(() => import("./pages/SponsorPage.tsx"));
 const AdminPage = lazy(() => import("./pages/AdminPage.tsx"));
 const SharedEstimatePage = lazy(() => import("./pages/SharedEstimatePage.tsx"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage.tsx"));
-const AIAssistantPage = lazy(() => import("./pages/AIAssistantPage.tsx"));
 const AIWriterPage = lazy(() => import("./pages/AIWriterPage.tsx"));
 const SitePhotosPage = lazy(() => import("./pages/SitePhotosPage.tsx"));
 const FileAssistantPage = lazy(() => import("./pages/FileAssistantPage.tsx"));
