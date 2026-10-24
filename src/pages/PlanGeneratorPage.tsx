@@ -21,6 +21,7 @@ import { displayToFt, fmtAreaSft, ftToDisplay, lengthUnit, roundTo } from "@/lib
 import { useI18n } from "@/lib/i18n";
 import { DEFAULT_INPUT, generatePlan, parsePrompt, type PlanInput, type RoadSide } from "@/lib/planGenerator";
 import { toast } from "sonner";
+import ProfessionalCadWorkspace from "@/components/cad/ProfessionalCadWorkspace";
 
 const zoneFill = { front: "hsl(var(--primary) / 0.14)", mid: "hsl(var(--accent) / 0.16)", rear: "hsl(var(--secondary))" };
 
@@ -80,6 +81,7 @@ export default function PlanGeneratorPage() {
             <div className="flex items-center gap-2"><UnitsSwitch /><ThemeToggle /></div>
           </header>
           <main className="p-4 md:p-6 grid lg:grid-cols-[340px_1fr] gap-5">
+            <div className="lg:col-span-2"><ProfessionalCadWorkspace /></div>
             <div className="space-y-4">
               <Card className="p-4 space-y-2">
                 <Label className="text-xs">{L("Describe in plain words", "সহজ ভাষায় লিখুন")}</Label>

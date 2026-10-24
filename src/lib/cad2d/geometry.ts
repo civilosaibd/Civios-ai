@@ -13,6 +13,7 @@ export type CadEntity =
   | (BaseEntity & { type: "polyline"; points: Point2D[]; closed: boolean })
   | (BaseEntity & { type: "rectangle"; min: Point2D; max: Point2D })
   | (BaseEntity & { type: "circle"; center: Point2D; radius: number })
+  | (BaseEntity & { type: "ellipse"; center: Point2D; rx: number; ry: number })
   | (BaseEntity & { type: "arc"; center: Point2D; radius: number; startAngle: number; endAngle: number })
   | (BaseEntity & { type: "wall"; start: Point2D; end: Point2D; thickness: number });
 
@@ -72,7 +73,7 @@ export function translateEntity(entity: CadEntity, dx: number, dy: number): CadE
     case "line": case "wall": return { ...entity, start: move(entity.start), end: move(entity.end) };
     case "polyline": return { ...entity, points: entity.points.map(move) };
     case "rectangle": return { ...entity, min: move(entity.min), max: move(entity.max) };
-    case "circle": case "arc": return { ...entity, center: move(entity.center) };
+    case "circle": case "arc": case "ellipse": return { ...entity, center: move(entity.center) };
   }
 }
 export function rotateEntity(entity: CadEntity, angleRadians: number, origin: Point2D = { x: 0, y: 0 }): CadEntity {
@@ -89,7 +90,7 @@ export function rotateEntity(entity: CadEntity, angleRadians: number, origin: Po
       const pts = [entity.min, { x: entity.max.x, y: entity.min.y }, entity.max, { x: entity.min.x, y: entity.max.y }].map(rotate);
       return { id: entity.id, layerId: entity.layerId, type: "polyline", points: pts, closed: true };
     }
-    case "circle": return { ...entity, center: rotate(entity.center) };
+    case "circle": case "ellipse": return { ...entity, center: rotate(entity.center) };
     case "arc": return { ...entity, center: rotate(entity.center), startAngle: entity.startAngle + angleRadians, endAngle: entity.endAngle + angleRadians };
   }
 }
