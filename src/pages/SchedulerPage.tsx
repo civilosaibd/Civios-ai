@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarRange, Plus, Trash2, RotateCcw, Download, AlertTriangle } from "lucide-react";
+import { CalendarRange, Plus, Trash2, RotateCcw, Download, AlertTriangle, Save, FolderOpen } from "lucide-react";
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useI18n } from "@/lib/i18n";
@@ -24,6 +24,10 @@ export default function SchedulerPage() {
   const [tasks, setTasks] = useCloudState<Task[]>("civilos.schedule", TEMPLATE);
   const [qa, setQa] = useCloudState<QAItem[]>("civilos.qa", QA_TEMPLATE);
   const [start, setStart] = useCloudState<string>("civilos.scheduleStart", new Date().toISOString().slice(0, 10));
+  type SavedSchedule = { id: string; name: string; tasks: Task[]; qa: QAItem[]; start: string; updatedAt: string };
+  const [savedSchedules, setSavedSchedules] = useCloudState<SavedSchedule[]>("civilos.saved-schedules", []);
+  const [scheduleName, setScheduleName] = useState("");
+  const [selectedScheduleId, setSelectedScheduleId] = useState("");
 
   const { rows, total, cycle } = useMemo(() => schedule(tasks), [tasks]);
   const date = (d: number) => { const x = new Date(start); x.setDate(x.getDate() + d); return x.toLocaleDateString(bn ? "bn-BD" : "en-GB", { day: "2-digit", month: "short" }); };
@@ -35,6 +39,37 @@ export default function SchedulerPage() {
   const remove = (id: string) => setTasks((ts) => ts.filter((t) => t.id !== id).map((t) => ({ ...t, deps: t.deps.filter((d) => d.id !== id) })));
   const overall = tasks.length ? Math.round(rows.reduce((s, r) => s + r.progress * r.duration, 0) / rows.reduce((s, r) => s + r.duration, 0)) : 0;
   const qaDone = qa.filter((q) => q.done).length;
+
+  const saveSchedule = () => {
+    const name = scheduleName.trim();
+    if (!name) return toast.error(T("Enter a schedule name first.", "আগে শিডিউলের নাম লিখুন।"));
+    if (name.length > 80) return toast.error(T("Schedule name must be 80 characters or fewer.", "শিডিউলের নাম সর্বোচ্চ ৮০ অক্ষর হতে পারে।"));
+    const existing = savedSchedules.find((s) => s.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase());
+    const id = existing?.id ?? (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `schedule-${Date.now()}`);
+    const record: SavedSchedule = { id, name, tasks: JSON.parse(JSON.stringify(tasks)) as Task[], qa: JSON.parse(JSON.stringify(qa)) as QAItem[], start, updatedAt: new Date().toISOString() };
+    setSavedSchedules((items) => [record, ...items.filter((s) => s.id !== id)].slice(0, 50));
+    setSelectedScheduleId(id);
+    toast.success(existing ? T("Saved schedule updated.", "শিডিউল আপডেট হয়েছে।") : T("Schedule saved.", "শিডিউল সংরক্ষণ হয়েছে।"));
+  };
+
+  const loadSchedule = () => {
+    const record = savedSchedules.find((s) => s.id === selectedScheduleId);
+    if (!record) return toast.error(T("Choose a saved schedule first.", "আগে সংরক্ষিত শিডিউল নির্বাচন করুন।"));
+    if (!Array.isArray(record.tasks) || !Array.isArray(record.qa) || typeof record.start !== "string") return toast.error(T("This saved schedule is invalid and was not loaded.", "সংরক্ষিত শিডিউলটি সঠিক নয়, লোড করা হয়নি।"));
+    setTasks(record.tasks);
+    setQa(record.qa);
+    setStart(record.start);
+    setScheduleName(record.name);
+    toast.success(T(`Loaded “${record.name}”.`, `“${record.name}” লোড হয়েছে।`));
+  };
+
+  const deleteSchedule = () => {
+    const record = savedSchedules.find((s) => s.id === selectedScheduleId);
+    if (!record) return toast.error(T("Choose a saved schedule first.", "আগে সংরক্ষিত শিডিউল নির্বাচন করুন।"));
+    setSavedSchedules((items) => items.filter((s) => s.id !== record.id));
+    setSelectedScheduleId("");
+    toast.success(T("Saved schedule deleted.", "সংরক্ষিত শিডিউল মুছে ফেলা হয়েছে।"));
+  };
 
   const exportCsv = () => {
     const head = "WBS,Task,Duration,Start,Finish,Float,Critical,Progress%,Dependencies\n";
@@ -63,6 +98,19 @@ export default function SchedulerPage() {
             <ThemeToggle />
           </header>
           <main className="p-4 md:p-6 space-y-4 min-w-0">
+            <Card className="p-4 space-y-3">
+              <div className="flex items-center gap-2"><FolderOpen className="h-4 w-4 text-accent" /><div><h2 className="font-semibold text-sm">{T("Saved schedule plans", "সংরক্ষিত শিডিউল")}</h2><p className="text-xs text-muted-foreground">{T("Save separate plans for different projects. Saving an existing name updates that plan.", "বিভিন্ন প্রজেক্টের জন্য আলাদা শিডিউল রাখুন। একই নাম দিলে আগেরটি আপডেট হবে।")}</p></div></div>
+              <div className="grid sm:grid-cols-[1fr_1fr_auto_auto] gap-2">
+                <Input value={scheduleName} onChange={(e) => setScheduleName(e.target.value)} maxLength={80} placeholder={T("Schedule name (e.g. Sample Residence)", "শিডিউলের নাম (যেমন: Sample Residence)")} aria-label={T("Schedule name", "শিডিউলের নাম")} />
+                <select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={selectedScheduleId} onChange={(e) => { setSelectedScheduleId(e.target.value); const s = savedSchedules.find((x) => x.id === e.target.value); if (s) setScheduleName(s.name); }} aria-label={T("Saved schedule", "সংরক্ষিত শিডিউল")}>
+                  <option value="">{T("Choose saved schedule", "সংরক্ষিত শিডিউল বাছুন")}</option>
+                  {savedSchedules.map((s) => <option key={s.id} value={s.id}>{s.name} · {new Date(s.updatedAt).toLocaleDateString(bn ? "bn-BD" : "en-GB")}</option>)}
+                </select>
+                <Button onClick={saveSchedule}><Save className="h-4 w-4 mr-1" />{T("Save plan", "সংরক্ষণ")}</Button>
+                <div className="flex gap-2"><Button variant="outline" onClick={loadSchedule} disabled={!selectedScheduleId}><FolderOpen className="h-4 w-4 mr-1" />{T("Load", "লোড")}</Button><Button variant="outline" onClick={deleteSchedule} disabled={!selectedScheduleId} aria-label={T("Delete saved schedule", "সংরক্ষিত শিডিউল মুছুন")}><Trash2 className="h-4 w-4" /></Button></div>
+              </div>
+              <p className="text-xs text-muted-foreground">{T(`${savedSchedules.length}/50 saved plans · changes to the current schedule are not added to a saved plan until you save again.`, `${savedSchedules.length}/৫০টি সংরক্ষিত শিডিউল · বর্তমান শিডিউলের পরিবর্তন সংরক্ষিত প্ল্যানে যোগ করতে আবার Save করুন।`)}</p>
+            </Card>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Card className="p-3"><Label className="text-xs">{T("Start date", "শুরুর তারিখ")}</Label><Input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="mt-1 h-9" /></Card>
               <Card className="p-3"><p className="text-xs text-muted-foreground">{T("Total duration", "মোট সময়")}</p><p className="font-heading font-semibold text-lg">{total} {T("days", "দিন")}</p></Card>
