@@ -24,16 +24,16 @@ const INDEXABLE_PATHS = new Set(["/", "/upload", "/about", "/contact", "/privacy
 
 const SEO = ({ title, description, image, url, path, type = "website", noindex, jsonLd }: SEOProps) => {
   const fullTitle = title ? `${title} | ${BRAND}` : DEFAULT_TITLE;
-  const desc = (description || DEFAULT_DESC).replace(/\\s+/g, " ").trim().slice(0, 160);
+  const desc = (description || DEFAULT_DESC).replace(/\s+/g, " ").trim().slice(0, 160);
   const currentPath = typeof window !== "undefined" ? window.location.pathname : "/";
   const requestedPath = path ?? url ?? currentPath;
   let pathname = "/";
   try {
-    pathname = new URL(requestedPath, SITE).pathname.replace(/\\/{2,}/g, "/");
+    pathname = new URL(requestedPath, SITE).pathname.replace(/\/{2,}/g, "/");
   } catch {
     pathname = currentPath;
   }
-  if (pathname.length > 1) pathname = pathname.replace(/\\/$/, "");
+  if (pathname.length > 1) pathname = pathname.replace(/\/$/, "");
   const canonical = `${SITE}${pathname === "/" ? "/" : pathname}`;
   const shouldIndex = !noindex && INDEXABLE_PATHS.has(pathname);
 
