@@ -109,7 +109,7 @@ const FAQSection = () => {
 
 
   return (
-    <section className="py-16 md:py-20 bg-background relative overflow-hidden">
+    <section id="faq" className="py-16 md:py-20 bg-background relative overflow-hidden">
       <div className="absolute inset-0 bg-dots opacity-40 pointer-events-none" />
       <div className="container max-w-3xl relative">
         <div className="text-center mb-8 md:mb-10">
