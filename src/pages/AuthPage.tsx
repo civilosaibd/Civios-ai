@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -18,6 +18,7 @@ const AuthPage = () => {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { user } = useAuth();
+  const oauthCallbackHandled = useRef(false);
   const [mode, setMode] = useState<"signin" | "signup">(
     params.get("mode") === "signup" || referralForSignup(window.location.search) ? "signup" : "signin",
   );
@@ -25,6 +26,45 @@ const AuthPage = () => {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Supabase normally restores the OAuth session automatically. On custom domains,
+  // explicitly complete a pending PKCE callback if the automatic URL handler did
+  // not restore a session, then leave /auth instead of showing the auth form again.
+  useEffect(() => {
+    const callbackUrl = new URL(window.location.href);
+    const code = callbackUrl.searchParams.get("code");
+    if (!code || oauthCallbackHandled.current) return;
+    oauthCallbackHandled.current = true;
+
+    const completeOAuthCallback = async () => {
+      try {
+        // Give Supabase's built-in URL callback handler a moment to finish first.
+        await new Promise((resolve) => window.setTimeout(resolve, 500));
+        const { data: current, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+
+        let session = current.session;
+        if (!session) {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+          session = data.session;
+        }
+        if (!session?.user) {
+          throw new Error("Google sign-in did not create an active session. Please try again.");
+        }
+
+        const stashed = sessionStorage.getItem("civilos.auth.redirect");
+        sessionStorage.removeItem("civilos.auth.redirect");
+        navigate(safeRedirect(params.get("redirect") || stashed), { replace: true });
+      } catch (err: unknown) {
+        sessionStorage.removeItem("civilos.auth.redirect");
+        const message = err instanceof Error ? err.message : "Google sign-in could not be completed.";
+        toast.error(message);
+      }
+    };
+
+    void completeOAuthCallback();
+  }, [navigate, params]);
 
   useEffect(() => {
     if (!user) return;
