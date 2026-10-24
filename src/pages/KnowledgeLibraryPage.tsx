@@ -67,12 +67,43 @@ const KnowledgeLibraryPage = () => {
     setReadingHistory((current) => [{ id: resource.id, viewedAt: new Date().toISOString() }, ...current.filter((item) => item.id !== resource.id)].slice(0, 20));
   };
   const recentResources = useMemo(() => readingHistory.map((entry) => ({ entry, resource: resources.find((resource) => resource.id === entry.id) })).filter((item): item is { entry: { id: string; viewedAt: string }; resource: Resource } => Boolean(item.resource)).slice(0, 5), [readingHistory, resources]);
+  // Feature only published book/reference resources; never expose drafts in the public library.
+  const trendingBooks = useMemo(() => resources
+    .filter((resource) => /book|ebook|e-book|pdf|handbook|manual|reference/i.test(resource.resource_type || "")
+      || (resource.tags || []).some((tag) => /book|ebook|e-book|pdf|handbook|manual|reference/i.test(tag)))
+    .slice(0, 4), [resources]);
   const clearHistory = () => { setReadingHistory([]); toast.success(bn ? "পড়ার ইতিহাস মুছে ফেলা হয়েছে" : "Reading history cleared"); };
   return <SidebarProvider><SEO title={bn ? "জ্ঞান ভান্ডার" : "Knowledge Library"} description="Civil engineering guides, checklists and practical references." />
     <div className="min-h-screen flex w-full bg-background"><DashboardSidebar /><main className="flex-1 min-w-0">
       <header className="h-16 border-b flex items-center justify-between px-4 md:px-6 gap-3"><div className="flex items-center gap-3"><SidebarTrigger /><div><p className="text-xs text-muted-foreground">CivilOS AI</p><h1 className="font-semibold">{bn ? "জ্ঞান ভান্ডার" : "Knowledge Library"}</h1></div></div><div className="flex items-center gap-2"><NotificationBell /><ThemeToggle /></div></header>
       <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-6">
         <section className="rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-background p-6 md:p-8"><div className="flex items-start gap-4"><div className="rounded-xl bg-primary/10 p-3"><BookOpen className="h-7 w-7 text-primary" /></div><div><h2 className="text-2xl md:text-3xl font-bold">{bn ? "সিভিল ইঞ্জিনিয়ারিং জ্ঞান ভান্ডার" : "Civil Engineering Knowledge Library"}</h2><p className="mt-2 text-muted-foreground max-w-2xl">{bn ? "সাইট চেকলিস্ট, এস্টিমেশন গাইড এবং ব্যবহারিক ইঞ্জিনিয়ারিং রেফারেন্স এক জায়গায়।" : "Practical site checklists, estimation guides and engineering references in one place."}</p></div></div></section>
+        {trendingBooks.length > 0 && !savedOnly && !query.trim() && category === "all" && (
+          <section aria-labelledby="trending-books-heading" className="space-y-3">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wider text-primary">Trending Corner</p>
+                <h2 id="trending-books-heading" className="text-xl md:text-2xl font-bold">{bn ? "বই ও ইঞ্জিনিয়ারিং রেফারেন্স" : "Books & Engineering References"}</h2>
+                <p className="text-sm text-muted-foreground">{bn ? "প্রকাশিত বই, PDF ও হ্যান্ডবুক থেকে দ্রুত পড়া শুরু করুন।" : "Quick access to published books, PDFs and handbooks in the library."}</p>
+              </div>
+              <span className="text-xs text-muted-foreground">{trendingBooks.length} {bn ? "টি রিসোর্স" : "resources"}</span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {trendingBooks.map((resource) => (
+                <Card key={resource.id} className="flex flex-col border-primary/20">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2 text-xs text-primary"><BookOpen className="h-4 w-4" />{resource.resource_type}</div>
+                    <CardTitle className="text-base line-clamp-2">{bn && resource.title_bn ? resource.title_bn : resource.title}</CardTitle>
+                    <CardDescription className="line-clamp-3">{bn && resource.summary_bn ? resource.summary_bn : resource.summary}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="mt-auto">
+                    <Button size="sm" onClick={() => openResource(resource)}><BookOpen className="h-4 w-4 mr-2" />{bn ? "বই খুলুন" : "Open resource"}</Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+        )}
         <div className="flex flex-col md:flex-row gap-3"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9" value={query} onChange={e=>setQuery(e.target.value)} placeholder={bn ? "রিসোর্স খুঁজুন..." : "Search resources..."} /></div><select value={category} onChange={e=>setCategory(e.target.value)} className="h-10 rounded-md border bg-background px-3 text-sm">{categories.map(c=><option key={c} value={c}>{c==="all"?(bn?"সব ক্যাটাগরি":"All categories"):c}</option>)}</select><Button type="button" variant={savedOnly ? "default" : "outline"} onClick={()=>setSavedOnly(v=>!v)} className="shrink-0"><Bookmark className="h-4 w-4 mr-2"/>{savedOnly ? (bn ? "বুকমার্ক দেখানো হচ্ছে" : "Showing saved") : (bn ? "সেভ করা রিসোর্স" : "Saved resources")} ({bookmarks.length})</Button></div>
         {recentResources.length > 0 && !savedOnly && <Card><CardHeader className="pb-3"><div className="flex items-center justify-between gap-3"><div><CardTitle className="text-base flex items-center gap-2"><History className="h-4 w-4"/>{bn ? "সম্প্রতি পড়া" : "Recently read"}</CardTitle><CardDescription>{syncingHistory ? (bn ? "ইতিহাস সিঙ্ক হচ্ছে…" : "Syncing reading history…") : (bn ? "সর্বশেষ খোলা ৫টি রিসোর্স" : "Your five most recently opened resources")}</CardDescription></div><Button variant="ghost" size="sm" onClick={clearHistory}>{bn ? "ইতিহাস মুছুন" : "Clear history"}</Button></div></CardHeader><CardContent className="flex flex-wrap gap-2">{recentResources.map(({entry,resource})=><Button key={entry.id} variant="outline" size="sm" onClick={()=>openResource(resource)}>{bn && resource.title_bn ? resource.title_bn : resource.title}</Button>)}</CardContent></Card>}
         {!recentResources.length && syncingBookmarks && <p className="text-xs text-muted-foreground">{bn ? "বুকমার্ক সিঙ্ক হচ্ছে…" : "Syncing bookmarks…"}</p>}
