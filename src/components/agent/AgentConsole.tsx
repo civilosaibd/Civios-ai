@@ -35,7 +35,22 @@ export default function AgentConsole({ agentType, examples, onTask }: { agentTyp
   const box = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { localStorage.setItem(STORE(agentType), JSON.stringify(msgs.slice(-40))); end.current?.scrollIntoView({ block: "end" }); }, [msgs, agentType]);
+  useEffect(() => {
+    try { localStorage.setItem(STORE(agentType), JSON.stringify(msgs.slice(-40))); } catch { /* storage may be disabled or full */ }
+    end.current?.scrollIntoView({ block: "end" });
+  }, [msgs, agentType]);
+
+  useEffect(() => {
+    const onTemplate = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail;
+      if (typeof detail === "string" && detail.trim()) {
+        setInput(detail.slice(0, 4000));
+        box.current?.focus();
+      }
+    };
+    window.addEventListener("civilos-agent-template", onTemplate);
+    return () => window.removeEventListener("civilos-agent-template", onTemplate);
+  }, []);
   useEffect(() => { box.current?.focus(); }, [busy]);
 
   const send = async (text = input) => {
