@@ -27,7 +27,6 @@ const GROUPS: Group[] = [
   ]},
   { label: "AI Workspace", bn: "এআই ওয়ার্কস্পেস", items: [
     { title: "AI Engineering Assistant", bn: "এআই ইঞ্জিনিয়ারিং সহকারী", url: "/ai-engineer", icon: Bot, live: true },
-    { title: "AI Engineer Chat", bn: "এআই চ্যাট", url: "/ai-assistant", icon: Bot, live: true },
     { title: "File AI Analyzer", bn: "ফাইল বিশ্লেষক", url: "/file-assistant", icon: FileSearch, live: true },
     { title: "AI Office Writer", bn: "অফিস রাইটার", url: "/ai-writer", icon: PenTool },
     { title: "AI Drawing Reader", bn: "ড্রয়িং রিডার", url: "/ai-drawing", icon: Ruler },
