@@ -158,7 +158,7 @@ export const CAD_COMMANDS: CadCommandDefinition[] = [
   { id: "extend", label: "Extend", aliases: ["EXTEND", "EX"], category: "modify", shortcut: "EX" },
   { id: "fillet", label: "Fillet", aliases: ["FILLET", "F"], category: "modify", shortcut: "F" },
   { id: "chamfer", label: "Chamfer", aliases: ["CHAMFER", "CHA"], category: "modify", shortcut: "CHA" },
-  { id: "stretch", label: "Stretch", aliases: ["STRETCH", "S"], category: "modify", requiresSelection: true },
+  { id: "stretch", label: "Stretch", aliases: ["STRETCH", "STRET"], category: "modify", requiresSelection: true },
   { id: "break", label: "Break", aliases: ["BREAK", "BR"], category: "modify", requiresSelection: true },
   { id: "join", label: "Join", aliases: ["JOIN", "J"], category: "modify", requiresSelection: true },
   { id: "explode", label: "Explode", aliases: ["EXPLODE", "X"], category: "modify", requiresSelection: true },
