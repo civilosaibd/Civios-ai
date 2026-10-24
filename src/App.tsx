@@ -43,6 +43,7 @@ const BidPreparationPage = lazy(() => import("./pages/BidPreparationPage.tsx"));
 const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage.tsx"));
 const AIInsightsPage = lazy(() => import("./pages/AIInsightsPage.tsx"));
 const AIDrawingPage = lazy(() => import("./pages/AIDrawingPage.tsx"));
+const CompanySettingsPage = lazy(() => import("./pages/CompanySettingsPage.tsx"));
 const ProgressReportsPage = lazy(() => import("./pages/ProgressReportsPage.tsx"));
 const SiteDiaryPage = lazy(() => import("./pages/SiteDiaryPage.tsx"));
 const PlanGeneratorPage = lazy(() => import("./pages/PlanGeneratorPage.tsx"));
@@ -162,6 +163,7 @@ const App = () => (
                       <Route path="/ai-insights" element={<AIInsightsPage />} />
                       <Route path="/ai-drawing" element={<AIDrawingPage />} />
                       <Route path="/site-diary" element={<SiteDiaryPage />} />
+                      <Route path="/company-settings" element={<CompanySettingsPage />} />
                       <Route path="/progress-reports" element={<ProgressReportsPage />} />
                       <Route path="/site-photos" element={<SitePhotosPage />} />
                       <Route
