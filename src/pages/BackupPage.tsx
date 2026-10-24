@@ -66,25 +66,68 @@ export default function BackupPage() {
   const restore = async () => {
     if (!user || !pending) return;
     setBusy(true);
-    let sections = 0, projects = 0, failed = 0;
+    let sections = 0, projects = 0, failed = 0, duplicates = 0;
     try {
       for (const [key, value] of Object.entries(pending.backup.workspace)) {
         if (!pickKeys[key]) continue;
-        const { error } = await supabase.from("user_workspace").upsert({ user_id: user.id, key, value: value as never, updated_at: new Date().toISOString() });
+        const { error } = await supabase.from("user_workspace").upsert({
+          user_id: user.id, key, value: value as never, updated_at: new Date().toISOString(),
+        });
         if (error) { failed++; continue; }
-        localStorage.setItem(key, JSON.stringify(value));
-        localStorage.removeItem(`${key}:unsaved`);
+        try {
+          localStorage.setItem(key, JSON.stringify(value));
+          localStorage.removeItem(`${key}:unsaved`);
+        } catch { /* server copy is restored even when browser storage is unavailable */ }
         sections++;
       }
+
       if (pickProjects && pending.backup.projects.length) {
-        const rows = pending.backup.projects.map((p) => ({ ...p, user_id: user.id, inputs: p.inputs as never, estimate: p.estimate as never, bnbc_loads: p.bnbc_loads as never }));
-        const { error } = await supabase.from("projects").insert(rows);
-        if (error) failed += rows.length; else projects = rows.length;
+        // Avoid duplicate project creation when the same backup is restored more than once.
+        const { data: existing, error: lookupError } = await supabase
+          .from("projects")
+          .select("name,client_name,location")
+          .eq("user_id", user.id);
+        if (lookupError) throw lookupError;
+
+        const makeKey = (p: { name?: unknown; client_name?: unknown; location?: unknown }) =>
+          [p.name, p.client_name, p.location]
+            .map((v) => typeof v === "string" ? v.trim().toLocaleLowerCase() : "")
+            .join("\\u0000");
+        const seen = new Set((existing ?? []).map((p) => makeKey(p)));
+        const rows = pending.backup.projects.filter((p) => {
+          const key = makeKey(p);
+          if (seen.has(key)) { duplicates++; return false; }
+          seen.add(key);
+          return true;
+        }).map((p) => ({
+          ...p, user_id: user.id, inputs: p.inputs as never,
+          estimate: p.estimate as never, bnbc_loads: p.bnbc_loads as never,
+        }));
+
+        if (rows.length) {
+          const { error } = await supabase.from("projects").insert(rows);
+          if (error) failed += rows.length; else projects = rows.length;
+        }
       }
-      if (failed) toast.error(L(`Restored ${sections} sections and ${projects} project(s); ${failed} item(s) failed.`, `${sections}টি সেকশন ও ${projects}টি প্রজেক্ট রিস্টোর হয়েছে; ${failed}টি ব্যর্থ।`));
-      else toast.success(L(`Restored ${sections} sections and ${projects} project(s).`, `${sections}টি সেকশন ও ${projects}টি প্রজেক্ট রিস্টোর হয়েছে।`));
-      setPending(null); if (fileRef.current) fileRef.current.value = "";
-    } finally { setBusy(false); }
+
+      if (failed) {
+        toast.error(L(
+          `Restored ${sections} sections and ${projects} project(s); ${duplicates} duplicate(s) skipped; ${failed} item(s) failed.`,
+          `${sections}টি সেকশন ও ${projects}টি প্রজেক্ট রিস্টোর হয়েছে; ${duplicates}টি ডুপ্লিকেট বাদ; ${failed}টি আইটেম ব্যর্থ।`,
+        ));
+      } else {
+        toast.success(L(
+          `Restored ${sections} sections and ${projects} project(s). ${duplicates} duplicate(s) skipped.`,
+          `${sections}টি সেকশন ও ${projects}টি প্রজেক্ট রিস্টোর হয়েছে। ${duplicates}টি ডুপ্লিকেট বাদ দেওয়া হয়েছে।`,
+        ));
+      }
+      setPending(null);
+      if (fileRef.current) fileRef.current.value = "";
+    } catch (e) {
+      toast.error(L("Restore failed: ", "রিস্টোর ব্যর্থ: ") + (e instanceof Error ? e.message : "Please try again."));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const chosen = pending ? Object.keys(pending.backup.workspace).filter((k) => pickKeys[k]).length + (pickProjects ? pending.backup.projects.length : 0) : 0;
