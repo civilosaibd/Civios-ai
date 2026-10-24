@@ -32,6 +32,16 @@ const AuthPage = () => {
   // not restore a session, then leave /auth instead of showing the auth form again.
   useEffect(() => {
     const callbackUrl = new URL(window.location.href);
+    const callbackError =
+      callbackUrl.searchParams.get("error_description") || callbackUrl.searchParams.get("error");
+    if (callbackError && !oauthCallbackHandled.current) {
+      oauthCallbackHandled.current = true;
+      sessionStorage.removeItem("civilos.auth.redirect");
+      toast.error(callbackError.replace(/\+/g, " "));
+      navigate("/auth", { replace: true });
+      return;
+    }
+
     const code = callbackUrl.searchParams.get("code");
     if (!code || oauthCallbackHandled.current) return;
     oauthCallbackHandled.current = true;
