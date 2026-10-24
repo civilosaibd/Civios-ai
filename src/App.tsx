@@ -53,7 +53,6 @@ const EquipmentPage = lazy(() => import("./pages/EquipmentPage.tsx"));
 const InventoryPage = lazy(() => import("./pages/InventoryPage.tsx"));
 const UserAgentPage = lazy(() => import("./pages/UserAgentPage.tsx"));
 const AdminAgentPage = lazy(() => import("./pages/AdminAgentPage.tsx"));
-const ComingSoonPage = lazy(() => import("./pages/ComingSoonPage.tsx"));
 const AIEngineerPage = lazy(() => import("./pages/AIEngineerPage.tsx"));
 const BOQHubPage = lazy(() => import("./pages/BOQHubPage.tsx"));
 const RateAnalysisPage = lazy(() => import("./pages/RateAnalysisPage.tsx"));
@@ -258,17 +257,6 @@ const App = () => (
                         path="/share/:token"
                         element={<SharedEstimatePage />}
                       />
-
-                      {/* Coming Soon stubs */}
-                      {[
-                        "company-settings",
-                      ].map((p) => (
-                        <Route
-                          key={p}
-                          path={`/${p}`}
-                          element={<ComingSoonPage />}
-                        />
-                      ))}
 
                       <Route path="*" element={<NotFound />} />
                     </Routes>
