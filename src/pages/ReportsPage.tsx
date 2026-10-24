@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { FileBarChart, Download, Printer, AlertTriangle } from "lucide-react";
+import { FileBarChart, Download, Printer, AlertTriangle, Save, FolderOpen, Trash2, History } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { Button } from "@/components/ui/button";
@@ -19,8 +19,10 @@ import { toast } from "sonner";
 import { MAX_NOTES, MAX_TITLE, SECTION_IDS, SECTION_LABELS, availability, buildReport, normalizeWorkspace, type ProjectLike, type SectionId } from "@/lib/reportBuilder";
 import { renderReportHtml } from "@/lib/reportHtml";
 import { hasNonLatin } from "@/lib/reportPdf";
+import { useCloudState } from "@/lib/cloudState";
 
 type ProjectRow = ProjectLike & { id: string };
+type SavedReportPreset = { id: string; name: string; projectId: string; title: string; company: string; preparedBy: string; notes: string; picked: Record<SectionId, boolean>; updatedAt: string };
 const WS_KEYS = ["civilos.schedule", "civilos.qa", "civilos.defects", "civilos.finance"];
 const NONE = "__none__";
 
@@ -39,6 +41,8 @@ export default function ReportsPage() {
   const [notes, setNotes] = useState("");
   const [picked, setPicked] = useState<Record<SectionId, boolean>>(() => Object.fromEntries(SECTION_IDS.map((s) => [s, true])) as Record<SectionId, boolean>);
   const frame = useRef<HTMLIFrameElement>(null);
+  const [presets, setPresets, syncingPresets] = useCloudState<SavedReportPreset[]>("civilos.report-presets", []);
+  const [presetName, setPresetName] = useState("Monthly project report");
 
   // READ-ONLY: this page never writes to the account.
   useEffect(() => {
@@ -86,6 +90,19 @@ export default function ReportsPage() {
     } catch { toast.error(L("Could not create the PDF", "PDF তৈরি করা যায়নি")); }
   };
   const printIt = () => { const w = frame.current?.contentWindow; if (w) { w.focus(); w.print(); } };
+  const savePreset = () => {
+    const cleanName = presetName.trim();
+    if (!cleanName) { toast.error(L("Enter a preset name", "প্রিসেটের নাম লিখুন")); return; }
+    const existing = presets.find((p) => p.name.trim().toLocaleLowerCase() === cleanName.toLocaleLowerCase());
+    const record: SavedReportPreset = { id: existing?.id ?? ("report-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8)), name: cleanName, projectId, title, company, preparedBy, notes, picked: { ...picked }, updatedAt: new Date().toISOString() };
+    setPresets((current) => [record, ...current.filter((p) => p.id !== record.id)]);
+    toast.success(existing ? L("Report preset updated", "রিপোর্ট প্রিসেট আপডেট হয়েছে") : L("Report preset saved", "রিপোর্ট প্রিসেট সেভ হয়েছে"));
+  };
+  const loadPreset = (preset: SavedReportPreset) => {
+    setPresetName(preset.name); setProjectId(preset.projectId); setTitle(preset.title); setCompany(preset.company); setPreparedBy(preset.preparedBy); setNotes(preset.notes); setPicked({ ...preset.picked });
+    toast.success(L("Report preset loaded", "রিপোর্ট প্রিসেট লোড হয়েছে"));
+  };
+  const deletePreset = (id: string) => { setPresets((current) => current.filter((p) => p.id !== id)); toast.success(L("Report preset deleted", "রিপোর্ট প্রিসেট মুছে ফেলা হয়েছে")); };
 
   const nonLatin = model ? hasNonLatin(model) : false;
 
@@ -124,6 +141,11 @@ export default function ReportsPage() {
                   <div className="space-y-1"><Label className="text-xs">{L("Notes (shown in the summary)", "নোট (সারসংক্ষেপে দেখাবে)")}</Label><Textarea rows={3} value={notes} maxLength={MAX_NOTES} onChange={(e) => setNotes(e.target.value)} /></div>
                 </Card>
 
+                <Card className="p-4 space-y-3">
+                  <div className="flex items-start gap-3"><div className="rounded-lg bg-primary/10 p-2"><History className="h-4 w-4 text-primary" /></div><div className="min-w-0 flex-1"><p className="font-semibold text-sm">{L("Saved report presets", "সেভ করা রিপোর্ট প্রিসেট")}</p><p className="text-xs text-muted-foreground">{syncingPresets ? L("Syncing workspace…", "ওয়ার্কস্পেস সিঙ্ক হচ্ছে…") : L("Reuse report settings across sessions and devices when signed in.", "লগইন থাকলে বিভিন্ন সেশন ও ডিভাইসে রিপোর্ট সেটিংস পুনরায় ব্যবহার করুন।")}</p></div></div>
+                  <div className="flex gap-2"><Input value={presetName} maxLength={100} onChange={(e) => setPresetName(e.target.value)} aria-label={L("Preset name", "প্রিসেটের নাম")} placeholder={L("Preset name", "প্রিসেটের নাম")} /><Button onClick={savePreset} size="sm"><Save className="h-4 w-4 mr-1" />{L("Save", "সেভ")}</Button></div>
+                  {presets.length === 0 ? <p className="text-xs text-muted-foreground">{L("No presets saved yet.", "এখনো কোনো প্রিসেট সেভ করা হয়নি।")}</p> : <div className="space-y-2">{presets.map((preset) => <div key={preset.id} className="flex items-center gap-2 rounded-lg border p-2"><FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{preset.name}</p><p className="text-xs text-muted-foreground">{new Date(preset.updatedAt).toLocaleDateString()}</p></div><Button size="sm" variant="outline" onClick={() => loadPreset(preset)}>{L("Load", "লোড")}</Button><Button size="icon" variant="ghost" aria-label={L("Delete preset", "প্রিসেট মুছুন")} onClick={() => deletePreset(preset.id)}><Trash2 className="h-4 w-4" /></Button></div>)}</div>}
+                </Card>
                 <Card className="p-4 space-y-2" data-testid="section-list">
                   <p className="text-sm font-semibold">{L("Sections", "সেকশন")}</p>
                   {!ready && <p className="text-xs text-muted-foreground">{L("Loading your data…", "ডেটা লোড হচ্ছে…")}</p>}
