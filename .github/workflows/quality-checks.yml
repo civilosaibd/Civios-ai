@@ -34,5 +34,11 @@ jobs:
       - name: Run unit tests
         run: npm test
 
+      - name: Install ephemeral Postgres migration-test dependency
+        run: npm install --no-save --package-lock=false @electric-sql/pglite
+
+      - name: Test Supabase migrations and referral/payment security
+        run: node --test supabase/tests/security.test.mjs supabase/tests/affiliate.test.mjs
+
       - name: Build production bundle
         run: npm run build
