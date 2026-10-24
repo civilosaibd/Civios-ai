@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -32,7 +32,6 @@ const SponsorPage = lazy(() => import("./pages/SponsorPage.tsx"));
 const AdminPage = lazy(() => import("./pages/AdminPage.tsx"));
 const SharedEstimatePage = lazy(() => import("./pages/SharedEstimatePage.tsx"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage.tsx"));
-const AIAssistantPage = lazy(() => import("./pages/AIAssistantPage.tsx"));
 const AIWriterPage = lazy(() => import("./pages/AIWriterPage.tsx"));
 const SitePhotosPage = lazy(() => import("./pages/SitePhotosPage.tsx"));
 const FileAssistantPage = lazy(() => import("./pages/FileAssistantPage.tsx"));
@@ -135,10 +134,7 @@ const App = () => (
                       <Route path="/modules" element={<ModulesPage />} />
                       <Route path="/dashboard" element={<DashboardPage />} />
 
-                      <Route
-                        path="/ai-assistant"
-                        element={<AIAssistantPage />}
-                      />
+                      <Route path="/ai-assistant" element={<Navigate to="/ai-engineer" replace />} />
                       <Route path="/ai-writer" element={<AIWriterPage />} />
                       <Route path="/ai-engineer" element={<AIEngineerPage />} />
                       <Route path="/boq-hub" element={<BOQHubPage />} />

@@ -35,7 +35,6 @@ export const constructionTools: NavCategory[] = [
     items: [
       { title: "AI Agent", url: "/agent", icon: Cpu },
       { title: "AI Engineering Assistant", url: "/ai-engineer", icon: Bot },
-      { title: "AI Engineer Chat", url: "/ai-assistant", icon: Bot },
       { title: "File AI Analyzer", url: "/file-assistant", icon: FileSearch },
       { title: "AI Defect Detection", url: "/defect-detection", icon: Camera },
       { title: "AI Writer", url: "/ai-writer", icon: PenTool, feature: "ai_writer" },
