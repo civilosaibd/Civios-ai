@@ -55,13 +55,13 @@ export default function AgentConsole({ agentType, examples, onTask }: { agentTyp
   return (
     <div className="flex flex-col h-[calc(100vh-12rem)] min-h-[420px] rounded-xl border bg-card">
       <div className="flex items-center justify-between px-4 py-2 border-b">
-        <div className="flex items-center gap-2 text-sm font-medium"><Bot className="h-4 w-4 text-primary" />{agentType === "admin" ? "Admin Agent" : T("Your Agent", "আপনার এজেন্ট")}</div>
+        <div className="flex items-center gap-2 text-sm font-medium"><Bot className="h-4 w-4 text-primary" />{agentType === "admin" ? "Admin Agent" : T("Personal Task Assistant", "ব্যক্তিগত কাজের সহকারী")}</div>
         {msgs.length > 0 && <Button size="sm" variant="ghost" onClick={() => setMsgs([])}><RotateCcw className="h-3.5 w-3.5 mr-1" />{T("New", "নতুন")}</Button>}
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {msgs.length === 0 && (
           <div className="text-center py-8 space-y-4">
-            <p className="text-sm text-muted-foreground">{T("Tell the agent what to do — it will act, check the result and report back.", "এজেন্টকে কাজ বলুন — সে কাজ করবে, ফল যাচাই করবে আর জানাবে।")}</p>
+            <p className="text-sm text-muted-foreground">{T("Assign a task. The agent will inspect available tools, perform supported steps, verify results and report blockers.", "একটি কাজ দিন। এজেন্ট available tools পরীক্ষা করবে, সমর্থিত ধাপগুলো সম্পন্ন করবে, ফল যাচাই করবে এবং বাধা থাকলে জানাবে।")}</p>
             <div className="flex flex-wrap justify-center gap-2">
               {examples.map((e) => <Button key={e} variant="outline" size="sm" className="h-auto py-1.5 whitespace-normal text-left" onClick={() => send(e)}>{e}</Button>)}
             </div>
@@ -75,12 +75,12 @@ export default function AgentConsole({ agentType, examples, onTask }: { agentTyp
             {m.status && <Badge variant="secondary" className={`text-[10px] ${STATUS_TONE[m.status] || ""}`}>{m.status === "awaiting_approval" && <ShieldAlert className="h-3 w-3 mr-1" />}{m.status.replace("_", " ")}</Badge>}
           </div>
         ))}
-        {busy && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />{T("Planning, running tools and verifying…", "পরিকল্পনা, কাজ ও যাচাই চলছে…")}</div>}
+        {busy && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />{T("Working on your task: planning, using tools and verifying…", "আপনার কাজ চলছে: পরিকল্পনা, টুল ব্যবহার ও ফল যাচাই…")}</div>}
         <div ref={end} />
       </div>
       <form className="border-t p-3 flex gap-2 items-end" onSubmit={(e) => { e.preventDefault(); send(); }}>
         <Textarea ref={box} value={input} onChange={(e) => setInput(e.target.value)} rows={1} className="min-h-[44px] max-h-32 resize-none"
-          placeholder={agentType === "admin" ? T("e.g. Check system health", "যেমন: সিস্টেম হেলথ দেখাও") : T("e.g. Turn on BIM Studio", "যেমন: BIM Studio on করো")}
+          placeholder={agentType === "admin" ? T("e.g. Check system health", "যেমন: সিস্টেম হেলথ দেখাও") : T("Assign a task or describe the outcome you need…", "কাজের নির্দেশ দিন বা কী ফল দরকার লিখুন…")}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} disabled={busy} />
         <Button type="submit" size="icon" className="h-11 w-11 shrink-0" disabled={busy || !input.trim()} aria-label="Send">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</Button>
       </form>
