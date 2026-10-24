@@ -125,7 +125,7 @@ $book$,
 নিরাপত্তা নোট
 সাইটের অনুমোদিত নিরাপত্তা পরিকল্পনা ও প্রযোজ্য কোড অনুসরণ করুন। কাঠামোগত গ্রহণযোগ্যতার সিদ্ধান্ত দায়িত্বপ্রাপ্ত যোগ্য ইঞ্জিনিয়ার দেবেন।
 $bookbn$,
-  'site-quality', 'handbook',
+  'qa_qc', 'guide',
   ARRAY['book','handbook','site inspection','foundation','reinforcement','concrete','quality'],
   'both', 'CivilOS AI Original Field Guide', NULL, true
 WHERE NOT EXISTS (
@@ -211,7 +211,7 @@ $book$,
 মনে রাখুন
 প্রকৃত চুক্তি, ড্রয়িং, স্থানীয় মেজারমেন্ট স্ট্যান্ডার্ড ও বর্তমান বাজারদর যাচাই না করা পর্যন্ত পরিমাণ ও মূল্য অনুমানমাত্র।
 $bookbn$,
-  'quantity-surveying', 'handbook',
+  'estimation_boq', 'guide',
   ARRAY['book','handbook','BOQ','quantity takeoff','estimation','measurement','rate analysis'],
   'both', 'CivilOS AI Original Field Guide', NULL, true
 WHERE NOT EXISTS (
@@ -285,7 +285,7 @@ $book$,
 - রডের ব্যাস, স্পেসিং, ল্যাপ, অ্যাঙ্করেজ বা বিন্যাস পরিবর্তনের আগে দায়িত্বপ্রাপ্ত স্ট্রাকচারাল ইঞ্জিনিয়ারের অনুমোদন নিন।
 - এই হ্যান্ডবুকটি সাইট সহায়িকা; স্ট্রাকচারাল ডিজাইন বা অনুমোদিত ডিটেইলিংয়ের বিকল্প নয়।
 $bookbn$,
-  'reinforcement', 'handbook',
+  'rcc_steel', 'guide',
   ARRAY['book','handbook','reinforcement','BBS','bar bending schedule','steel weight'],
   'both', 'CivilOS AI Original Field Guide', NULL, true
 WHERE NOT EXISTS (
