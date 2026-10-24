@@ -1,4 +1,4 @@
-import { Phone, Facebook, Mail, Users } from "lucide-react";
+import { Phone, Globe, Mail, Users } from "lucide-react";
 import CivilOSLogo from "@/components/CivilOSLogo";
 import { Link } from "react-router-dom";
 import { useI18n } from "@/lib/i18n";
@@ -52,7 +52,7 @@ const Footer = () => {
                 <Users className="h-3.5 w-3.5 shrink-0" /> Facebook Community Group
               </a>
               <a href="https://www.facebook.com/share/1F6JtaLbes/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-accent">
-                <Facebook className="h-3.5 w-3.5 shrink-0" /> Facebook Page
+                <Globe className="h-3.5 w-3.5 shrink-0" /> Facebook Page
               </a>
               <a href="https://wa.me/8801832313998" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-accent">
                 <Phone className="h-3.5 w-3.5" /> +880 1832-313998 (WhatsApp)
