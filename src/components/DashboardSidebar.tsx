@@ -11,7 +11,7 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/lib/subscription";
 import {
-  topNav, bottomNav, constructionTools, analyticsNav, settingsNav,
+  topNav, bottomNav, constructionTools, learningNav, analyticsNav, settingsNav,
   findActiveCategory, type NavCategory,
 } from "@/lib/navigation";
 import CivilOSLogo from "@/components/CivilOSLogo";
@@ -150,6 +150,8 @@ export function DashboardSidebar() {
                   </CollapsibleContent>
                 </SidebarMenuItem>
               </Collapsible>
+
+              <CategoryGroup cat={learningNav} collapsed={collapsed} pathname={pathname} locked={locked} />
 
               <CategoryGroup cat={analyticsNav} collapsed={collapsed} pathname={pathname} locked={locked} />
 
