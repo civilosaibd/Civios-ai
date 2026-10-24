@@ -1,0 +1,51 @@
+import { describe, expect, it } from "vitest";
+import {
+  createEmptyDocument, deserializeCadDocument, distance, entityBounds,
+  normalizeRect, parseCadCommand, rotateEntity, serializeCadDocument, snapToGrid,
+  translateEntity, type CadEntity,
+} from "./geometry";
+
+describe("2D CAD geometry foundation", () => {
+  it("normalizes rectangle corners regardless of drag direction", () => {
+    expect(normalizeRect({ x: 8, y: 2 }, { x: 1, y: 9 })).toEqual({
+      min: { x: 1, y: 2 }, max: { x: 8, y: 9 },
+    });
+  });
+
+  it("snaps coordinates to the configured grid", () => {
+    expect(snapToGrid({ x: 2.4, y: -3.6 }, 1)).toEqual({ x: 2, y: -4 });
+    expect(snapToGrid({ x: 2.4, y: -3.6 }, 0)).toEqual({ x: 2.4, y: -3.6 });
+  });
+
+  it("parses common drafting commands and validates inputs", () => {
+    expect(parseCadCommand("LINE 0,0 10,5")).toEqual({
+      name: "LINE", args: [{ x: 0, y: 0 }, { x: 10, y: 5 }],
+    });
+    expect(parseCadCommand("RECTANG 1,2 5,8").name).toBe("RECTANGLE");
+    expect(parseCadCommand("CIRCLE 2,3 4").args[1]).toBe(4);
+    expect(() => parseCadCommand("CIRCLE 2,3 -4")).toThrow(/positive/);
+    expect(() => parseCadCommand("LINE nope 2,3")).toThrow(/Invalid point/);
+  });
+
+  it("translates and rotates entities without mutating the original", () => {
+    const line: CadEntity = { id: "e1", layerId: "layer-0", type: "line", start: { x: 0, y: 0 }, end: { x: 2, y: 0 } };
+    const moved = translateEntity(line, 3, 4);
+    expect(moved).toMatchObject({ start: { x: 3, y: 4 }, end: { x: 5, y: 4 } });
+    expect(line).toMatchObject({ start: { x: 0, y: 0 }, end: { x: 2, y: 0 } });
+    const rotated = rotateEntity(line, Math.PI / 2);
+    expect((rotated as Extract<CadEntity, { type: "line" }>).end.x).toBeCloseTo(0);
+    expect((rotated as Extract<CadEntity, { type: "line" }>).end.y).toBeCloseTo(2);
+  });
+
+  it("calculates entity bounds and distances", () => {
+    const circle: CadEntity = { id: "e2", layerId: "layer-0", type: "circle", center: { x: 5, y: 6 }, radius: 2 };
+    expect(entityBounds(circle)).toEqual({ min: { x: 3, y: 4 }, max: { x: 7, y: 8 } });
+    expect(distance({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(5);
+  });
+
+  it("round-trips versioned documents", () => {
+    const doc = createEmptyDocument("mm");
+    expect(deserializeCadDocument(serializeCadDocument(doc))).toEqual(doc);
+    expect(() => deserializeCadDocument("{}")).toThrow(/invalid CAD document format/i);
+  });
+});
