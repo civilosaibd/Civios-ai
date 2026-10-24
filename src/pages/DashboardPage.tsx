@@ -28,14 +28,14 @@ interface ProjectRow {
 const quickActions = [
   { icon: Plus, label: "New Project", to: "/upload" },
   { icon: Calculator, label: "New BOQ", to: "/boq" },
-  { icon: Bot, label: "AI Chat", to: "/ai-assistant" },
+  { icon: Bot, label: "AI Assistant", to: "/ai-engineer" },
   { icon: Upload, label: "Upload File", to: "/file-assistant" },
   { icon: Hammer, label: "Site Report", to: "/site-diary" },
   { icon: Receipt, label: "New Invoice", to: "/invoices" },
 ];
 
 const upcomingModules = [
-  { icon: Sparkles, name: "AI Engineering Chat", desc: "Ask any civil engineering question", to: "/ai-assistant" },
+  { icon: Sparkles, name: "AI Engineering Assistant", desc: "Get civil engineering help in one workspace", to: "/ai-engineer" },
   { icon: Calculator, name: "BOQ Generator", desc: "Auto BOQ + rate analysis", to: "/boq" },
   { icon: FileText, name: "Tender Analysis", desc: "AI-powered tender summaries", to: "/tender" },
   { icon: Hammer, name: "Site Diary", desc: "Daily progress & material logs", to: "/site-diary" },
@@ -239,7 +239,7 @@ const DashboardPage = () => {
                       {projects.map((p) => (
                         <Link
                           key={p.id}
-                          to="/projects"
+                          to={`/projects/${p.id}`}
                           className="block rounded-lg border bg-background p-4 hover:border-accent hover:shadow-sm transition-all"
                         >
                           <p className="font-semibold text-sm truncate">{p.name}</p>
