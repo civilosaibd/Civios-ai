@@ -81,11 +81,12 @@ const DashboardPage = () => {
   const displayName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "Engineer";
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
+  // Keep dashboard metrics tied to real data; never present placeholder counts as analytics.
   const stats = [
-    { label: "Active Projects", value: projects.length, icon: FolderOpen, color: "text-blue-500" },
-    { label: "BOQs Generated", value: projects.length, icon: Calculator, color: "text-emerald-500" },
-    { label: "AI Queries Today", value: 0, icon: Sparkles, color: "text-purple-500" },
-    { label: "Pending Tasks", value: 0, icon: ClipboardList, color: "text-amber-500" },
+    { label: "Recent Projects", value: projects.length, icon: FolderOpen, color: "text-blue-500" },
+    { label: "Current Plan", value: plan?.name || "Free", icon: Crown, color: "text-amber-500" },
+    { label: "AI Credits Used", value: usage.ai_credits, icon: Sparkles, color: "text-purple-500" },
+    { label: "Storage Used", value: `${Math.round(usage.storage_mb)} MB`, icon: Upload, color: "text-emerald-500" },
   ];
 
   const onSearch = (e: React.FormEvent) => {
@@ -258,9 +259,9 @@ const DashboardPage = () => {
               <section className="rounded-xl border bg-card p-4 md:p-5 space-y-4">
                 <div>
                   <h3 className="font-heading text-base md:text-lg font-semibold flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-accent" /> Coming Soon
+                    <Sparkles className="h-4 w-4 text-accent" /> Quick Access
                   </h3>
-                  <p className="text-xs text-muted-foreground">More modules rolling out across the platform</p>
+                  <p className="text-xs text-muted-foreground">Jump back into frequently used CivilOS AI workflows.</p>
                 </div>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                   {upcomingModules.map((m) => (
