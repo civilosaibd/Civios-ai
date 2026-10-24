@@ -63,7 +63,8 @@ export default function ProfessionalCadWorkspace() {
       return Math.hypot(p.x-e.start.x-t*dx,p.y-e.start.y-t*dy) < 7/view.scale;
     }
     if (e.type === "rectangle") return p.x>=e.min.x-4/view.scale && p.x<=e.max.x+4/view.scale && p.y>=e.min.y-4/view.scale && p.y<=e.max.y+4/view.scale && (Math.abs(p.x-e.min.x)<7/view.scale || Math.abs(p.x-e.max.x)<7/view.scale || Math.abs(p.y-e.min.y)<7/view.scale || Math.abs(p.y-e.max.y)<7/view.scale);
-    if (e.type === "circle") return Math.abs(Math.hypot(p.x-e.center.x,p.y-e.center.y)-e.radius)<7/view.scale;\n    if (e.type === "ellipse") { const t=Math.atan2((p.y-e.center.y)/Math.max(e.ry,.001),(p.x-e.center.x)/Math.max(e.rx,.001)); const q={x:e.center.x+e.rx*Math.cos(t),y:e.center.y+e.ry*Math.sin(t)}; return Math.hypot(p.x-q.x,p.y-q.y)<7/view.scale; }
+    if (e.type === "circle") return Math.abs(Math.hypot(p.x-e.center.x,p.y-e.center.y)-e.radius)<7/view.scale;
+    if (e.type === "ellipse") { const t=Math.atan2((p.y-e.center.y)/Math.max(e.ry,.001),(p.x-e.center.x)/Math.max(e.rx,.001)); const q={x:e.center.x+e.rx*Math.cos(t),y:e.center.y+e.ry*Math.sin(t)}; return Math.hypot(p.x-q.x,p.y-q.y)<7/view.scale; }
     if (e.type === "polyline") return e.points.some((q)=>Math.hypot(p.x-q.x,p.y-q.y)<7/view.scale);
     return false;
   })?.id;
@@ -144,7 +145,8 @@ export default function ProfessionalCadWorkspace() {
     const common={stroke:color,strokeWidth:selected.includes(e.id)?2.5:1.6,fill:"none" as const,vectorEffect:"non-scaling-stroke" as const};
     if(e.type==="line"||e.type==="wall")return <line key={e.id} x1={e.start.x} y1={e.start.y} x2={e.end.x} y2={e.end.y} {...common} strokeWidth={e.type==="wall"?Math.max(2,e.thickness):common.strokeWidth}/>;
     if(e.type==="rectangle")return <rect key={e.id} x={e.min.x} y={e.min.y} width={e.max.x-e.min.x} height={e.max.y-e.min.y} {...common}/>;
-    if(e.type==="circle")return <circle key={e.id} cx={e.center.x} cy={e.center.y} r={e.radius} {...common}/>;\n    if(e.type==="ellipse")return <ellipse key={e.id} cx={e.center.x} cy={e.center.y} rx={e.rx} ry={e.ry} {...common}/>;
+    if(e.type==="circle")return <circle key={e.id} cx={e.center.x} cy={e.center.y} r={e.radius} {...common}/>;
+    if(e.type==="ellipse")return <ellipse key={e.id} cx={e.center.x} cy={e.center.y} rx={e.rx} ry={e.ry} {...common}/>;
     if(e.type==="polyline")return <polyline key={e.id} points={e.points.map((p)=>`${p.x},${p.y}`).join(" ")} {...common}/>;
     if(e.type==="arc")return <path key={e.id} d={`M ${e.center.x+e.radius*Math.cos(e.startAngle)} ${e.center.y+e.radius*Math.sin(e.startAngle)} A ${e.radius} ${e.radius} 0 1 1 ${e.center.x+e.radius*Math.cos(e.endAngle)} ${e.center.y+e.radius*Math.sin(e.endAngle)}`} {...common}/>;
     return null;
