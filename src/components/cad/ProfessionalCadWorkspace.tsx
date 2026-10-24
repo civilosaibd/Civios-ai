@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -51,7 +51,7 @@ export default function ProfessionalCadWorkspace() {
     setDoc({ ...next });
   }, [doc]);
 
-  const toWorld = (event: React.PointerEvent<SVGSVGElement>): Point2D => {
+  const toWorld = (event: ReactPointerEvent<SVGSVGElement>): Point2D => {
     const rect = event.currentTarget.getBoundingClientRect();
     const p = { x: (event.clientX - rect.left - view.x) / view.scale, y: (event.clientY - rect.top - view.y) / view.scale };
     return grid.snapEnabled ? snapToGrid(p, grid.snapSpacing) : p;
@@ -67,7 +67,7 @@ export default function ProfessionalCadWorkspace() {
     if (e.type === "polyline") return e.points.some((q)=>Math.hypot(p.x-q.x,p.y-q.y)<7/view.scale);
     return false;
   })?.id;
-  const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
+  const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
     const p = toWorld(event);
     if (tool === "select") { const id=findHit(p); setSelected(id ? [id] : []); return; }
@@ -91,13 +91,13 @@ export default function ProfessionalCadWorkspace() {
     if (entity) commit({...doc,entities:[...doc.entities,entity]});
     setStart(null); setCursor(null);
   };
-  const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+  const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     const p=toWorld(event); setCursor(p);
     if (start && (tool==="move" || tool==="copy") && selected.length) {
       // Preview is shown by cursor; commit on pointer-up to keep history deterministic.
     }
   };
-  const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
+  const handlePointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (!start || !selected.length || (tool!=="move" && tool!=="copy")) return;
     const end=toWorld(event), dx=end.x-start.x, dy=end.y-start.y;
     const id=selected[0], entity=doc.entities.find((e)=>e.id===id);
@@ -116,13 +116,12 @@ export default function ProfessionalCadWorkspace() {
 
   const runCommand = () => {
     const raw=command.trim(); if(!raw) return;
+    if (/^(UNDO|U)$/i.test(raw)) { undo(); setCommand(""); return; }
+    if (/^(REDO|RE)$/i.test(raw)) { redo(); setCommand(""); return; }
+    if (/^(ERASE|DELETE|E)$/i.test(raw)) { setTool("erase"); setCommand(""); return; }
     const def=normalizeCommand(raw);
-    if (!def) { toast.error(`Unknown command: ${raw.split(/\s+/)[0]}`); return; }
-    const token=def.id;
-    if (token==="undo") { if(history.length){setFuture((f)=>[doc,...f]);setDoc(history[history.length-1]);setHistory(history.slice(0,-1));} }
-    else if (token==="redo") { if(future.length){setHistory((h)=>[...h,doc]);setDoc(future[0]);setFuture(future.slice(1));} }
-    else if (token==="erase") setTool("erase");
-    else setTool(token);
+    if (!def) { toast.error(`Unknown command: ${raw.split(/\\s+/)[0]}`); return; }
+    setTool(def.id);
     setCommand("");
   };
   const undo = () => { if(!history.length)return; setFuture((f)=>[doc,...f]);setDoc(history[history.length-1]);setHistory(history.slice(0,-1)); };
