@@ -18,20 +18,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     let active = true;
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    // Auth events are authoritative. Prevent a slower initial getSession() call
+    // from overwriting a session delivered by the OAuth callback.
+    let receivedAuthEvent = false;
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!active) return;
-      setSession(s);
-      setUser(s?.user ?? null);
+      receivedAuthEvent = true;
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
       setLoading(false);
     });
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      if (!active) return;
-      setSession(s);
-      setUser(s?.user ?? null);
-      setLoading(false);
-    }).catch(() => {
-      if (active) setLoading(false);
-    });
+
+    supabase.auth.getSession()
+      .then(({ data: { session: initialSession }, error }) => {
+        if (!active || receivedAuthEvent) return;
+        if (error) throw error;
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (active && !receivedAuthEvent) setLoading(false);
+      });
+
     return () => {
       active = false;
       sub.subscription.unsubscribe();
