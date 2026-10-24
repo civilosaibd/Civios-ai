@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -135,10 +135,7 @@ const App = () => (
                       <Route path="/modules" element={<ModulesPage />} />
                       <Route path="/dashboard" element={<DashboardPage />} />
 
-                      <Route
-                        path="/ai-assistant"
-                        element={<AIAssistantPage />}
-                      />
+                      <Route path="/ai-assistant" element={<Navigate to="/ai-engineer" replace />} />
                       <Route path="/ai-writer" element={<AIWriterPage />} />
                       <Route path="/ai-engineer" element={<AIEngineerPage />} />
                       <Route path="/boq-hub" element={<BOQHubPage />} />
