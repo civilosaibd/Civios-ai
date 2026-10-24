@@ -1,3 +1,41 @@
+-- Ensure the Knowledge Library table exists in clean migration-test databases.
+-- Existing production installations keep their current table and policies.
+CREATE TABLE IF NOT EXISTS public.knowledge_resources (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug text NOT NULL UNIQUE,
+  title text NOT NULL,
+  title_bn text,
+  summary text,
+  summary_bn text,
+  content text,
+  content_bn text,
+  category text NOT NULL DEFAULT 'general',
+  resource_type text NOT NULL DEFAULT 'article',
+  tags text[] NOT NULL DEFAULT '{}'::text[],
+  language text DEFAULT 'both',
+  source_name text,
+  source_url text,
+  is_published boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.knowledge_resources ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'knowledge_resources'
+      AND policyname = 'Published knowledge resources are readable'
+  ) THEN
+    CREATE POLICY "Published knowledge resources are readable"
+      ON public.knowledge_resources
+      FOR SELECT TO anon, authenticated
+      USING (is_published = true);
+  END IF;
+END $$;
+
 -- Seed original, bilingual field handbooks so the Knowledge Library has
 -- published book-style resources on a fresh or existing CivilOS AI database.
 -- Idempotent by slug: re-running this migration does not create duplicates.
