@@ -35,7 +35,7 @@ jobs:
         run: npm test
 
       - name: Install ephemeral Postgres migration-test dependency
-        run: npm install --no-save --package-lock=false @electric-sql/pglite
+        run: npm install --no-save --no-audit --no-fund @electric-sql/pglite
 
       - name: Test Supabase migrations and referral/payment security
         run: node --test supabase/tests/security.test.mjs supabase/tests/affiliate.test.mjs
