@@ -259,17 +259,6 @@ const App = () => (
                         element={<SharedEstimatePage />}
                       />
 
-                      {/* Coming Soon stubs */}
-                      {[
-                        "company-settings",
-                      ].map((p) => (
-                        <Route
-                          key={p}
-                          path={`/${p}`}
-                          element={<ComingSoonPage />}
-                        />
-                      ))}
-
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </Suspense>
