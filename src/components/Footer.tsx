@@ -1,4 +1,4 @@
-import { Phone } from "lucide-react";
+import { Phone, Facebook, Mail, Users } from "lucide-react";
 import CivilOSLogo from "@/components/CivilOSLogo";
 import { Link } from "react-router-dom";
 import { useI18n } from "@/lib/i18n";
@@ -45,7 +45,15 @@ const Footer = () => {
           <div>
             <h4 className="font-heading font-semibold mb-3">{t("footer.contactTitle")}</h4>
             <div className="space-y-2 text-sm text-primary-foreground/70">
-              <p>support@civilosai.com</p>
+              <a href="mailto:civilosaibd@gmail.com" className="flex items-center gap-1.5 hover:text-accent break-all">
+                <Mail className="h-3.5 w-3.5 shrink-0" /> civilosaibd@gmail.com
+              </a>
+              <a href="https://www.facebook.com/share/g/1F6hmqjkeL/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-accent">
+                <Users className="h-3.5 w-3.5 shrink-0" /> Facebook Community Group
+              </a>
+              <a href="https://www.facebook.com/share/1F6JtaLbes/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-accent">
+                <Facebook className="h-3.5 w-3.5 shrink-0" /> Facebook Page
+              </a>
               <a href="https://wa.me/8801832313998" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-accent">
                 <Phone className="h-3.5 w-3.5" /> +880 1832-313998 (WhatsApp)
               </a>
