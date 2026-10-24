@@ -29,7 +29,7 @@ BEGIN
   FROM public.plans
   WHERE id = pay.plan_id;
 
-  IF plan_code IS DISTINCT FROM ALL (ARRAY['starter', 'professional', 'business']::text[]) THEN
+  IF plan_code IS NULL OR plan_code NOT IN ('starter', 'professional', 'business') THEN
     RETURN;
   END IF;
 
