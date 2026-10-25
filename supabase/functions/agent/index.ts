@@ -128,23 +128,18 @@ Deno.serve(async (req) => {
     // ---------- Run a task ----------
     const agentType = body.agent_type;
     if (agentType === "admin" && !ctx.isAdmin) return json({ error: "Admins only" }, 403);
-    // Persistent per-user guard based on server-recorded task history. This limits ordinary bursts
-    // across Edge Function instances without relying on process-local memory.
-    const now = Date.now();
-    const minuteAgo = new Date(now - 60_000).toISOString();
-    const dayAgo = new Date(now - 24 * 60 * 60_000).toISOString();
-    const [minuteUsage, dailyUsage] = await Promise.all([
-      db.from("agent_tasks").select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("created_at", minuteAgo),
-      db.from("agent_tasks").select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("created_at", dayAgo),
-    ]);
-    if (minuteUsage.error || dailyUsage.error) {
-      console.error("Agent rate-limit lookup failed");
+    // Atomic server-side rolling-window limiter. The database serializes concurrent
+    // requests per user, so parallel Edge Function instances cannot bypass the caps.
+    const { data: limitData, error: limitError } = await db.rpc("consume_agent_rate_limit", { _user_id: user.id });
+    const limit = Array.isArray(limitData) ? limitData[0] : limitData;
+    if (limitError || !limit) {
+      console.error("Agent rate-limit check failed");
       return json({ error: "Agent is temporarily unavailable. Please try again shortly." }, 503);
     }
-    if ((minuteUsage.count || 0) >= 5) {
-      return json({ error: "Rate limit reached: maximum 5 agent tasks per minute. Please wait and try again." }, 429);
-    }
-    if ((dailyUsage.count || 0) >= 40) {
+    if (!limit.allowed) {
+      if (limit.reason === "minute") {
+        return json({ error: "Rate limit reached: maximum 5 agent tasks per minute. Please wait and try again." }, 429);
+      }
       return json({ error: "Daily agent task limit reached (40). Please try again tomorrow." }, 429);
     }
 
