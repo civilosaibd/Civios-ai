@@ -71,6 +71,8 @@ before(async () => {
   }
   await db.exec(`INSERT INTO auth.users (id,email) VALUES
     ('${ADMIN}','zobaerio24@gmail.com'),('${ALICE}','alice@example.com'),('${BOB}','bob@example.com');`);
+  // Model the trusted operator bootstrap for this test fixture; signup itself should not promote admins.
+  await db.query("INSERT INTO public.user_roles (user_id, role) VALUES ($1, 'admin') ON CONFLICT (user_id, role) DO NOTHING", [ADMIN]);
 });
 
 test("sanity: users, profiles and admin role exist after migrations", async () => {
@@ -279,4 +281,17 @@ test("AI endpoint rate limiter: applies separate limits per endpoint and a daily
   const [otherEndpoint] = await as("service_role", BOB, "bob@example.com", () =>
     q("SELECT * FROM public.consume_ai_endpoint_rate_limit($1, 'ai-structured')", [BOB]));
   assert.equal(otherEndpoint.allowed, true);
+});
+
+
+test("signup never automatically grants admin to an allowlisted email", async () => {
+  const candidate = "00000000-0000-4000-8000-0000000000c4";
+  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'zobaerhasan431@gmail.com')", [candidate]);
+  const [{ role }] = await q("SELECT role::text AS role FROM public.user_roles WHERE user_id=$1", [candidate]);
+  assert.equal(role, "user");
+  assert.equal((await q("SELECT public.has_role($1,'admin') AS admin", [candidate]))[0].admin, false);
+});
+
+test("existing explicitly bootstrapped admin role is preserved", async () => {
+  assert.equal((await q("SELECT public.has_role($1,'admin') AS admin", [ADMIN]))[0].admin, true);
 });
