@@ -50,8 +50,14 @@ Deno.serve(async (req) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   if (!supabaseUrl || !anonKey) return jsonResponse({ error: "AI service is temporarily unavailable" }, 503);
   const authClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } } });
-  const { data: { user }, error: authError } = await authClient.auth.getUser(authorization.slice(7));
-  if (authError || !user) return jsonResponse({ error: "Authentication required" }, 401);
+  let userId: string;
+  try {
+    const authResult = await authClient.auth.getUser(authorization.slice(7));
+    if (authResult.error || !authResult.data.user) return jsonResponse({ error: "Authentication required" }, 401);
+    userId = authResult.data.user.id;
+  } catch {
+    return jsonResponse({ error: "Authentication required" }, 401);
+  }
 
   try {
     const contentLength = Number(req.headers.get("content-length") || "0");
@@ -100,7 +106,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Provide an image or text content to analyse" }, 400);
     }
 
-    const rateLimit = await checkAiEndpointRateLimit(user.id, "ai-analyze");
+    const rateLimit = await checkAiEndpointRateLimit(userId, "ai-analyze");
     if (rateLimit) return jsonResponse({ error: rateLimit.message }, rateLimit.status);
 
     const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
