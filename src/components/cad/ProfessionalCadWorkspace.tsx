@@ -158,12 +158,7 @@ export default function ProfessionalCadWorkspace() {
     const end=toWorld(event), dx=end.x-start.x, dy=end.y-start.y;
     const id=selected[0], entity=doc.entities.find((e)=>e.id===id);
     if (entity && (dx!==0 || dy!==0)) {
-      const moved = entity.type==="line" || entity.type==="wall"
-        ? {...entity,start:{x:entity.start.x+dx,y:entity.start.y+dy},end:{x:entity.end.x+dx,y:entity.end.y+dy}}
-        : entity.type==="rectangle" ? {...entity,min:{x:entity.min.x+dx,y:entity.min.y+dy},max:{x:entity.max.x+dx,y:entity.max.y+dy}}
-        : entity.type==="circle" ? {...entity,center:{x:entity.center.x+dx,y:entity.center.y+dy}}
-        : entity.type==="polyline" ? {...entity,points:entity.points.map((p)=>({x:p.x+dx,y:p.y+dy}))}
-        : {...entity};
+      const moved = translateEntity(entity, dx, dy);
       const entities=tool==="copy" ? [...doc.entities,{...moved,id:makeId()} as CadEntity] : doc.entities.map((e)=>e.id===id?moved as CadEntity:e);
       commit({...doc,entities});
     }
