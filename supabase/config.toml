@@ -6,3 +6,12 @@ verify_jwt = true
 
 [functions.viz-analyze]
 verify_jwt = true
+
+[functions.ai-chat]
+verify_jwt = true
+
+[functions.ai-structured]
+verify_jwt = true
+
+[functions.defect-detect]
+verify_jwt = true
