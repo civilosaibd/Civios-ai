@@ -50,6 +50,8 @@ before(async () => {
     try { await db.exec(readFileSync(join(migDir, f), "utf8")); } catch (e) { throw new Error(`migration ${f}: ${e.message}`); }
   }
   await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'zobaerio24@gmail.com')", [ADMIN]);
+  // Bootstrap test administrator as a trusted operator; signup itself never grants admin.
+  await db.query("INSERT INTO public.user_roles (user_id, role) VALUES ($1, 'admin') ON CONFLICT (user_id, role) DO NOTHING", [ADMIN]);
   await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'carol@x.com'),($2,'frank@x.com')", [CAROL, FRANK]);
   carolCode = (await q("SELECT referral_code c FROM public.profiles WHERE id=$1", [CAROL]))[0].c;
   // sign-ups through the real trigger, carrying ?ref=<carol's code> in the auth metadata

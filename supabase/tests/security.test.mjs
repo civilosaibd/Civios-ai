@@ -71,6 +71,8 @@ before(async () => {
   }
   await db.exec(`INSERT INTO auth.users (id,email) VALUES
     ('${ADMIN}','zobaerio24@gmail.com'),('${ALICE}','alice@example.com'),('${BOB}','bob@example.com');`);
+  // Bootstrap the test owner explicitly; public signup must never auto-grant admin.
+  await db.query("INSERT INTO public.user_roles (user_id, role) VALUES ($1, 'admin') ON CONFLICT (user_id, role) DO NOTHING", [ADMIN]);
 });
 
 test("sanity: users, profiles and admin role exist after migrations", async () => {
@@ -337,4 +339,122 @@ test("AI credit quota: administrators remain operational without a subscription"
   assert.equal(result.allowed, true);
   assert.equal(result.plan_code, "admin");
   assert.equal(result.quota, -1);
+});
+
+
+test("signup never automatically grants admin to an allowlisted email", async () => {
+  const candidate = "00000000-0000-4000-8000-0000000000c4";
+  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'zobaerhasan431@gmail.com')", [candidate]);
+  const [{ role }] = await q("SELECT role::text AS role FROM public.user_roles WHERE user_id=$1", [candidate]);
+  assert.equal(role, "user");
+  assert.equal((await q("SELECT public.has_role($1,'admin') AS admin", [candidate]))[0].admin, false);
+});
+
+test("existing explicitly bootstrapped admin role is preserved", async () => {
+  assert.equal((await q("SELECT public.has_role($1,'admin') AS admin", [ADMIN]))[0].admin, true);
+});
+
+test("security: mutable trigger/helper functions have a pinned search_path", async () => {
+  const names = [
+    "viz_guard_update",
+    "try_uuid",
+    "profiles_protect_referral_fields",
+    "withdrawals_guard_update",
+  ];
+  const rows = await q(
+    `SELECT p.proname, p.proconfig
+       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.proname = ANY($1::text[])`,
+    [names]
+  );
+  assert.equal(rows.length, names.length);
+  for (const row of rows) {
+    assert.ok(Array.isArray(row.proconfig), `${row.proname} must have explicit function configuration`);
+    assert.ok(
+      row.proconfig.some((value) => value === "search_path=pg_catalog, public, pg_temp" || value === "search_path=pg_catalog,public,pg_temp"),
+      `${row.proname} must pin search_path to pg_catalog, public, pg_temp; got ${JSON.stringify(row.proconfig)}`
+    );
+  }
+});
+
+test("agent rate limiter: only service_role can invoke it", async () => {
+  await alice(() => rejects(() => db.query("SELECT * FROM public.consume_agent_rate_limit($1)", [ALICE]), /permission denied/));
+  await anon(() => rejects(() => db.query("SELECT * FROM public.consume_agent_rate_limit($1)", [ALICE]), /permission denied/));
+});
+
+test("agent rate limiter: atomically caps requests at five per minute", async () => {
+  const results = [];
+  for (let i = 0; i < 5; i++) {
+    results.push(await as("service_role", ALICE, "alice@example.com", () =>
+      q("SELECT * FROM public.consume_agent_rate_limit($1)", [ALICE])));
+  }
+  assert.ok(results.every((r) => r[0].allowed === true));
+  const [blocked] = await as("service_role", ALICE, "alice@example.com", () =>
+    q("SELECT * FROM public.consume_agent_rate_limit($1)", [ALICE]));
+  assert.equal(blocked.allowed, false);
+  assert.equal(blocked.reason, "minute");
+  assert.equal(blocked.minute_count, 5);
+});
+
+test("agent rate limiter: enforces the 24-hour cap", async () => {
+  await db.query("DELETE FROM public.agent_rate_limit_events WHERE user_id=$1", [BOB]);
+  await db.query(
+    "INSERT INTO public.agent_rate_limit_events (user_id, created_at) SELECT $1, now() - (n || ' minutes')::interval FROM generate_series(2, 41) n",
+    [BOB]
+  );
+  const [limited] = await as("service_role", BOB, "bob@example.com", () =>
+    q("SELECT * FROM public.consume_agent_rate_limit($1)", [BOB]));
+  assert.equal(limited.allowed, false);
+  assert.equal(limited.reason, "day");
+  assert.equal(limited.day_count, 40);
+});
+
+test("agent core schema: client roles can read only their own task history", async () => {
+  const [{ id: aliceTask }] = await db.query(
+    "INSERT INTO public.agent_tasks (agent_type,user_id,objective,status) VALUES ('user',$1,'alice task','completed') RETURNING id",
+    [ALICE]
+  ).then(r => r.rows);
+  await db.query(
+    "INSERT INTO public.agent_tasks (agent_type,user_id,objective,status) VALUES ('user',$1,'bob task','completed')",
+    [BOB]
+  );
+  const aliceRows = await alice(() => q("SELECT objective FROM public.agent_tasks ORDER BY objective"));
+  assert.deepEqual(aliceRows.map((r) => r.objective), ["alice task"]);
+  const adminRows = await admin(() => q("SELECT objective FROM public.agent_tasks ORDER BY objective"));
+  assert.deepEqual(adminRows.map((r) => r.objective), ["alice task", "bob task"]);
+  await alice(() => rejects(
+    () => db.query("INSERT INTO public.agent_tasks (agent_type,user_id,objective) VALUES ('user',$1,'forged task')", [ALICE]),
+    /permission denied/
+  ));
+  assert.ok(aliceTask);
+});
+
+test("agent core schema: audit and approval rows are read-restricted", async () => {
+  const [{ id: taskId }] = (await db.query(
+    "INSERT INTO public.agent_tasks (agent_type,user_id,objective) VALUES ('user',$1,'approval fixture') RETURNING id",
+    [ALICE]
+  )).rows;
+  await db.query(
+    "INSERT INTO public.agent_steps (task_id,agent_type,actor_user_id,kind,status) VALUES ($1,'user',$2,'received','ok')",
+    [taskId, ALICE]
+  );
+  await db.query(
+    "INSERT INTO public.agent_approvals (task_id,requested_by,tool,tool_input,risk_level,status) VALUES ($1,$2,'dangerous_tool','{}','HIGH','pending')",
+    [taskId, ALICE]
+  );
+  const aliceSteps = await alice(() => q("SELECT count(*)::int n FROM public.agent_steps WHERE task_id=$1", [taskId]));
+  assert.equal(aliceSteps[0].n, 1);
+  const aliceApprovals = await alice(() => q("SELECT id FROM public.agent_approvals"));
+  assert.equal(aliceApprovals.length, 0);
+  const adminApprovals = await admin(() => q("SELECT count(*)::int n FROM public.agent_approvals"));
+  assert.equal(adminApprovals[0].n, 1);
+});
+
+test("agent core schema: cron key and automation mutations are server-only", async () => {
+  await alice(() => rejects(() => q("SELECT key FROM public.agent_cron_key"), /permission denied/));
+  await alice(() => rejects(
+    () => db.query("INSERT INTO public.agent_automations (owner_id,name,kind,frequency) VALUES ($1,'x','health_check','daily')", [ALICE]),
+    /permission denied/
+  ));
+  assert.equal((await q("SELECT count(*)::int n FROM public.agent_cron_key")).at(0).n, 1);
 });

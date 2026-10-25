@@ -1,4 +1,4 @@
-project_id = "qtvwjjcyvswjwzymknlg"
+project_id = "kdsoubdybjfgppglzldn"
 
 [functions.ai-analyze]
 # Require a valid Supabase JWT before the function executes.
@@ -15,3 +15,8 @@ verify_jwt = true
 
 [functions.defect-detect]
 verify_jwt = true
+
+[functions.agent]
+# The handler validates user JWTs and the server-only x-cron-key for scheduled runs.
+# Keep gateway JWT verification off so scheduler requests can reach the handler.
+verify_jwt = false
