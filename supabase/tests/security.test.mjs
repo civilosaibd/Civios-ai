@@ -280,3 +280,27 @@ test("AI endpoint rate limiter: applies separate limits per endpoint and a daily
     q("SELECT * FROM public.consume_ai_endpoint_rate_limit($1, 'ai-structured')", [BOB]));
   assert.equal(otherEndpoint.allowed, true);
 });
+
+
+test("security: mutable trigger/helper functions have a pinned search_path", async () => {
+  const names = [
+    "viz_guard_update",
+    "try_uuid",
+    "profiles_protect_referral_fields",
+    "withdrawals_guard_update",
+  ];
+  const rows = await q(
+    `SELECT p.proname, p.proconfig
+       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.proname = ANY($1::text[])`,
+    [names]
+  );
+  assert.equal(rows.length, names.length);
+  for (const row of rows) {
+    assert.ok(Array.isArray(row.proconfig), `${row.proname} must have explicit function configuration`);
+    assert.ok(
+      row.proconfig.some((value) => value === "search_path=pg_catalog, public, pg_temp" || value === "search_path=pg_catalog,public,pg_temp"),
+      `${row.proname} must pin search_path to pg_catalog, public, pg_temp; got ${JSON.stringify(row.proconfig)}`
+    );
+  }
+});
