@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - security/dependency-remediation-2026-10-25
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
