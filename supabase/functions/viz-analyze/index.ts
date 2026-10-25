@@ -1,4 +1,5 @@
 import { checkAiEndpointRateLimit } from "../_shared/aiRateLimit.ts";
+import { consumeAiCredit } from "../_shared/aiUsageQuota.ts";
 // viz-analyze — asynchronous drawing analysis job for the 3D Construction Visualization module.
 //
 //   POST { visualization_id }  →  202 { job_id }   (work continues in the background)
@@ -104,6 +105,9 @@ Deno.serve(async (req) => {
 
   const rateLimit = await checkAiEndpointRateLimit(user.id, "viz-analyze");
   if (rateLimit) return json({ error: rateLimit.message }, rateLimit.status);
+    const creditQuota = await consumeAiCredit(user.id);
+    if (creditQuota) return json({ error: creditQuota.message }, creditQuota.status);
+
 
   const { count: prev } = await db.from("visualization_jobs").select("id", { count: "exact", head: true }).eq("visualization_id", vizId);
   const steps: Step[] = [
