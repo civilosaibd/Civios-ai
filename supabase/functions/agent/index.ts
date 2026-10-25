@@ -68,6 +68,7 @@ async function execute(ctx: Ctx, taskId: string, agentType: AgentType, t: AgentT
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   try {
     const url = Deno.env.get("SUPABASE_URL")!;
     // ---------- Scheduler entry (pg_cron) — authenticated by a server-only key ----------
@@ -127,6 +128,26 @@ Deno.serve(async (req) => {
     // ---------- Run a task ----------
     const agentType = body.agent_type;
     if (agentType === "admin" && !ctx.isAdmin) return json({ error: "Admins only" }, 403);
+    // Persistent per-user guard based on server-recorded task history. This limits ordinary bursts
+    // across Edge Function instances without relying on process-local memory.
+    const now = Date.now();
+    const minuteAgo = new Date(now - 60_000).toISOString();
+    const dayAgo = new Date(now - 24 * 60 * 60_000).toISOString();
+    const [minuteUsage, dailyUsage] = await Promise.all([
+      db.from("agent_tasks").select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("created_at", minuteAgo),
+      db.from("agent_tasks").select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("created_at", dayAgo),
+    ]);
+    if (minuteUsage.error || dailyUsage.error) {
+      console.error("Agent rate-limit lookup failed");
+      return json({ error: "Agent is temporarily unavailable. Please try again shortly." }, 503);
+    }
+    if ((minuteUsage.count || 0) >= 5) {
+      return json({ error: "Rate limit reached: maximum 5 agent tasks per minute. Please wait and try again." }, 429);
+    }
+    if ((dailyUsage.count || 0) >= 40) {
+      return json({ error: "Daily agent task limit reached (40). Please try again tomorrow." }, 429);
+    }
+
     const apiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!apiKey) return json({ error: "AI is not configured" }, 500);
 
