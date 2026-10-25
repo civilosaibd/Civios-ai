@@ -15,3 +15,8 @@ verify_jwt = true
 
 [functions.defect-detect]
 verify_jwt = true
+
+[functions.agent]
+# The function verifies user JWTs itself and checks the server-only x-cron-key for scheduled runs.
+# Gateway-only JWT validation must stay disabled so scheduler requests can reach the handler.
+verify_jwt = false
