@@ -9,17 +9,19 @@ import {
 import {
   createEmptyDocument, normalizeRect, snapToGrid, translateEntity, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
-import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3 } from "lucide-react";
+import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type DraftEntity = CadEntity & { id: string; layerId: string };
 type View = { x: number; y: number; scale: number };
 const palette: { id: CadToolId; label: string; group: string }[] = [
-  { id: "select", label: "Select", group: "General" },
+  { id: "select", label: "Select", group: "Common" },
   { id: "line", label: "Line", group: "Draw" }, { id: "polyline", label: "Polyline", group: "Draw" },
   { id: "rectangle", label: "Rectangle", group: "Draw" }, { id: "circle", label: "Circle", group: "Draw" },
   { id: "arc", label: "Arc", group: "Draw" }, { id: "ellipse", label: "Ellipse", group: "Draw" },
   { id: "polygon", label: "Polygon", group: "Draw" }, { id: "hatch", label: "Hatch", group: "Draw" },
-  { id: "move", label: "Move", group: "Modify" }, { id: "copy", label: "Copy", group: "Modify" },
+  { id: "move", label: "Move", group: "Modify" }, { id: "copy", label: "Copy", group: "Modify" }, { id: "erase", label: "Erase", group: "Modify" },
   { id: "rotate", label: "Rotate", group: "Modify" }, { id: "mirror", label: "Mirror", group: "Modify" },
   { id: "offset", label: "Offset", group: "Modify" }, { id: "trim", label: "Trim", group: "Modify" },
   { id: "extend", label: "Extend", group: "Modify" }, { id: "fillet", label: "Fillet", group: "Modify" },
@@ -42,6 +44,8 @@ export default function ProfessionalCadWorkspace() {
   const [history, setHistory] = useState<CadDocument[]>([]);
   const [future, setFuture] = useState<CadDocument[]>([]);
   const [layerName, setLayerName] = useState("0");
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const isMobile = useIsMobile();
   const svgRef = useRef<SVGSVGElement>(null);
   const activeLayer = doc.layers.find((layer) => layer.name === layerName) ?? doc.layers[0];
 
@@ -139,6 +143,13 @@ export default function ProfessionalCadWorkspace() {
     const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`civilos-drawing.${kind}`;a.click();URL.revokeObjectURL(url);
   };
   const groups=useMemo(()=>Array.from(new Set(palette.map((p)=>p.group))),[]);
+  const selectTool = (id: CadToolId) => { setTool(id); setStart(null); setCursor(null); setToolsOpen(false); };
+  const ToolPalette = (
+    <div className="space-y-3">
+      <div><div className="mb-2 flex items-center gap-2"><Wrench className="h-4 w-4 text-primary"/><h3 className="text-sm font-semibold">Tools</h3></div><p className="mb-2 text-[11px] text-muted-foreground">Choose a tool, then click points on the drawing canvas.</p></div>
+      {groups.map((group)=><div key={group}><p className="mb-1 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{group === "Common" ? "Common tools" : group}</p><div className="grid grid-cols-2 gap-1">{palette.filter((p)=>p.group===group).map((p)=><Button key={p.id} size="sm" variant={tool===p.id?"default":"outline"} className="h-9 min-w-0 justify-start px-2 text-xs" onClick={()=>selectTool(p.id)} title={p.label} aria-pressed={tool===p.id}><MousePointer2 className="mr-1 h-3 w-3 shrink-0"/><span className="truncate">{p.label}</span></Button>)}</div></div>)}
+    </div>
+  );
   const renderEntity = (e: CadEntity) => {
     const layer=doc.layers.find((l)=>l.id===e.layerId); if(layer && !layer.visible)return null;
     const color=selected.includes(e.id)?"#f97316":layer?.color ?? "#111827";
@@ -155,7 +166,8 @@ export default function ProfessionalCadWorkspace() {
   return <section className="space-y-3 rounded-xl border bg-card p-3 md:p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div><h2 className="text-lg font-semibold">CivilOS Professional 2D Drafting</h2><p className="text-xs text-muted-foreground">Interactive drafting workspace · drawing units: feet · local browser session</p></div>
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap items-center gap-1">
+        {isMobile && <Sheet open={toolsOpen} onOpenChange={setToolsOpen}><SheetTrigger asChild><Button size="sm" variant="default"><Wrench className="mr-1 h-4 w-4"/>Tools</Button></SheetTrigger><SheetContent side="bottom" className="max-h-[82dvh] overflow-y-auto"><SheetHeader><SheetTitle>2D Drafting Tools</SheetTitle></SheetHeader><div className="mt-4">{ToolPalette}</div></SheetContent></Sheet>}
         <Button size="sm" variant="outline" onClick={undo} disabled={!history.length}><Undo2 className="mr-1 h-4 w-4"/>Undo</Button>
         <Button size="sm" variant="outline" onClick={redo} disabled={!future.length}><Redo2 className="mr-1 h-4 w-4"/>Redo</Button>
         <Button size="sm" variant="outline" onClick={()=>setGrid((g)=>({...g,enabled:!g.enabled}))}><Grid3X3 className="mr-1 h-4 w-4"/>{grid.enabled?"Grid on":"Grid off"}</Button>
@@ -166,25 +178,23 @@ export default function ProfessionalCadWorkspace() {
         <Button size="sm" variant="outline" onClick={()=>exportFile("json")}>Save JSON</Button>
       </div>
     </div>
-    <div className="grid gap-3 xl:grid-cols-[190px_minmax(0,1fr)_210px]">
-      <aside className="space-y-3 rounded-lg border p-2">
-        {groups.map((group)=><div key={group}><p className="mb-1 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{group}</p><div className="grid grid-cols-2 gap-1">{palette.filter((p)=>p.group===group).map((p)=><Button key={p.id} size="sm" variant={tool===p.id?"default":"outline"} className="h-8 justify-start px-2 text-xs" onClick={()=>{setTool(p.id);setStart(null);}} title={p.label}><MousePointer2 className="mr-1 h-3 w-3"/>{p.label}</Button>)}</div></div>)}
-      </aside>
-      <div className="min-w-0 overflow-hidden rounded-lg border bg-white">
-        <svg ref={svgRef} viewBox="0 0 1000 640" className="h-[480px] w-full touch-none md:h-[640px]" role="img" aria-label="2D CAD drafting canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
+    <div className="grid min-w-0 gap-3 md:grid-cols-[180px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_240px]">
+      <aside className="hidden space-y-3 rounded-lg border p-3 md:block xl:max-h-[76vh] xl:overflow-y-auto">{ToolPalette}</aside>
+      <div className="min-w-0 overflow-hidden rounded-lg border bg-white xl:col-start-2">
+        <svg ref={svgRef} viewBox="0 0 1000 640" className="h-[min(62dvh,640px)] min-h-[340px] w-full touch-none sm:h-[560px] xl:h-[min(76vh,760px)]" role="img" aria-label="2D CAD drafting canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
           <defs><pattern id="cad-grid-small" width={10*view.scale} height={10*view.scale} patternUnits="userSpaceOnUse" x={view.x% (10*view.scale)} y={view.y%(10*view.scale)}><path d={`M ${10*view.scale} 0 L 0 0 0 ${10*view.scale}`} fill="none" stroke="#e5e7eb" strokeWidth=".7"/></pattern></defs>
           {grid.enabled&&<rect width="1000" height="640" fill="url(#cad-grid-small)"/>}
           <g transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>{doc.entities.map(renderEntity)}{start&&cursor&&tool!=="select"&&tool!=="move"&&tool!=="copy"&&<line x1={start.x} y1={start.y} x2={cursor.x} y2={cursor.y} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}</g>
         </svg>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>Tool: {tool.toUpperCase()} · Objects: {doc.entities.length} · Selected: {selected.length}</span><span>Cursor: {cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"}</span></div>
       </div>
-      <aside className="space-y-3 rounded-lg border p-3">
+      <aside className="min-w-0 space-y-3 rounded-lg border p-3 md:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1">
         <div><h3 className="mb-2 flex items-center gap-2 text-sm font-semibold"><Layers3 className="h-4 w-4"/>Layers</h3><div className="space-y-1">{doc.layers.map((l)=><div key={l.id} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={l.visible} onChange={(e)=>commit({...doc,layers:doc.layers.map((x)=>x.id===l.id?{...x,visible:e.target.checked}:x)})}/><span className="h-3 w-3 rounded-sm border" style={{background:l.color}}/><button className="truncate text-left" onClick={()=>setLayerName(l.name)}>{l.name}</button><span className="ml-auto text-muted-foreground">{doc.entities.filter((e)=>e.layerId===l.id).length}</span></div>)}</div><Button size="sm" variant="outline" className="mt-2 w-full" onClick={addLayer}>+ New layer</Button></div>
         <div><label className="mb-1 block text-xs font-medium">Active layer</label><select className="w-full rounded-md border bg-background p-2 text-sm" value={layerName} onChange={(e)=>setLayerName(e.target.value)}>{doc.layers.map((l)=><option key={l.id}>{l.name}</option>)}</select></div>
         <div><label className="mb-1 block text-xs font-medium">Grid / snap spacing</label><Input type="number" min=".01" step=".25" value={grid.snapSpacing} onChange={(e)=>setGrid((g)=>({...g,snapSpacing:Math.max(.01,Number(e.target.value)||1)}))}/><label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={grid.snapEnabled} onChange={(e)=>setGrid((g)=>({...g,snapEnabled:e.target.checked}))}/> Snap to grid</label><label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={grid.ortho} onChange={(e)=>setGrid((g)=>({...g,ortho:e.target.checked}))}/> Ortho mode (setting)</label></div>
         <div><p className="mb-1 text-xs font-medium">Command line</p><form className="flex gap-1" onSubmit={(e)=>{e.preventDefault();runCommand();}}><Input value={command} onChange={(e)=>setCommand(e.target.value)} placeholder="LINE / RECTANG / CIRCLE"/><Button size="sm" type="submit">Run</Button></form><p className="mt-1 text-[10px] text-muted-foreground">Command aliases select the corresponding tool; geometry handlers are enabled for the initial draw tools.</p></div>
       </aside>
     </div>
-    <p className="text-xs text-muted-foreground">Early integrated CAD increment: direct draw for line, rectangle, circle, arc and wall; select, move/copy and erase; grid snap; layers; undo/redo; SVG/JSON export. Advanced palette entries are visible roadmap controls and are not yet implemented. Files currently stay in this browser session unless exported.</p>
+    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, line, rectangle, circle, arc, wall, move, copy and erase. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings stay in this browser session unless exported as SVG or JSON.</p>
   </section>;
 }
