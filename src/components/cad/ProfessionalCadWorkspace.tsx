@@ -7,7 +7,7 @@ import {
   type CadToolId, type CadGridSettings,
 } from "@/lib/cad2d/professional-model";
 import {
-  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, entityBounds, type CadEntity, type CadDocument, type Point2D,
+  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -108,7 +108,7 @@ export default function ProfessionalCadWorkspace() {
     if (event.button !== 0) return;
     const p = toWorld(event);
     if (tool === "select") { const id=findHit(p); setSelected(id ? [id] : []); return; }
-    if (tool === "move" || tool === "copy" || tool === "erase" || tool === "rotate") {
+    if (tool === "move" || tool === "copy" || tool === "erase" || tool === "rotate" || tool === "mirror") {
       const id=findHit(p); if (!id) { toast.info("Click an existing object first."); return; }
       if (tool === "erase") { commit({ ...doc, entities: doc.entities.filter((e)=>e.id!==id) }); setSelected([]); return; }
       if (tool === "rotate") {
@@ -119,6 +119,17 @@ export default function ProfessionalCadWorkspace() {
           commit({...doc,entities:doc.entities.map((e)=>e.id===id?rotateEntity(e,Math.PI/2,pivot):e)});
           setSelected([id]);
           toast.success("Rotated 90°.");
+        }
+        return;
+      }
+      if (tool === "mirror") {
+        const entity = doc.entities.find((e) => e.id === id);
+        if (entity) {
+          const bounds = entityBounds(entity);
+          const axisX = (bounds.min.x + bounds.max.x) / 2;
+          commit({ ...doc, entities: doc.entities.map((e) => e.id === id ? mirrorEntity(e, axisX) : e) });
+          setSelected([id]);
+          toast.success("Mirrored across the object's vertical centerline.");
         }
         return;
       }
@@ -241,6 +252,6 @@ export default function ProfessionalCadWorkspace() {
         <div><p className="mb-1 text-xs font-medium">Command line</p><form className="flex gap-1" onSubmit={(e)=>{e.preventDefault();runCommand();}}><Input value={command} onChange={(e)=>setCommand(e.target.value)} placeholder="LINE / RECTANG / CIRCLE"/><Button size="sm" type="submit">Run</Button></form><p className="mt-1 text-[10px] text-muted-foreground">Command aliases select the corresponding tool; geometry handlers are enabled for the initial draw tools.</p></div>
       </aside>
     </div>
-    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, line, rectangle, circle, arc, wall, move, copy and erase. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings stay in this browser session unless exported as SVG or JSON.</p>
+    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, line, rectangle, circle, arc, wall, polygon, move, copy, rotate, mirror and erase. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings stay in this browser session unless exported as SVG or JSON.</p>
   </section>;
 }
