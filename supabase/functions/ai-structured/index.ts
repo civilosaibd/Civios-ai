@@ -1,3 +1,4 @@
+import { checkAiEndpointRateLimit } from "../_shared/aiRateLimit.ts";
 // CivilOS AI — structured JSON responses for Tender Analysis & BOQ generation
 import { createClient } from "npm:@supabase/supabase-js@2";
 const corsHeaders = {
@@ -65,6 +66,9 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const rateLimit = await checkAiEndpointRateLimit(user.id, "ai-structured");
+    if (rateLimit) return new Response(JSON.stringify({ error: rateLimit.message }), { status: rateLimit.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

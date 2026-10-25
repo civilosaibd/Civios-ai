@@ -1,3 +1,5 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { checkAiEndpointRateLimit } from "../_shared/aiRateLimit.ts";
 // AI Thinking — authenticated multimodal analyzer for uploaded files/images.
 // Uses Lovable AI (Gemini 2.5 Pro) for visual + textual reasoning.
 const corsHeaders = {
@@ -41,6 +43,19 @@ Deno.serve(async (req) => {
   // The Supabase platform must also enforce JWT verification in supabase/config.toml.
   const authorization = req.headers.get("Authorization");
   if (!authorization?.startsWith("Bearer ")) {
+    return jsonResponse({ error: "Authentication required" }, 401);
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!supabaseUrl || !anonKey) return jsonResponse({ error: "AI service is temporarily unavailable" }, 503);
+  const authClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } } });
+  let userId: string;
+  try {
+    const authResult = await authClient.auth.getUser(authorization.slice(7));
+    if (authResult.error || !authResult.data.user) return jsonResponse({ error: "Authentication required" }, 401);
+    userId = authResult.data.user.id;
+  } catch {
     return jsonResponse({ error: "Authentication required" }, 401);
   }
 
@@ -90,6 +105,9 @@ Deno.serve(async (req) => {
     if (userContent.length === 1 && !safePrompt) {
       return jsonResponse({ error: "Provide an image or text content to analyse" }, 400);
     }
+
+    const rateLimit = await checkAiEndpointRateLimit(userId, "ai-analyze");
+    if (rateLimit) return jsonResponse({ error: rateLimit.message }, rateLimit.status);
 
     const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

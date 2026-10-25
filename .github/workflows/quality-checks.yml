@@ -32,6 +32,11 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Run unit tests
+        # Inert values let tests import the browser client without using project secrets.
+        # The test suite does not make network requests to this placeholder project.
+        env:
+          VITE_SUPABASE_URL: https://unit-test.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: unit-test-publishable-key
         run: npm test
 
       - name: Install ephemeral Postgres migration-test dependency
