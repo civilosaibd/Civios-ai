@@ -216,29 +216,31 @@ export function chamferLines(
   if (!hit || hit.t < -1e-8 || hit.t > 1 + 1e-8 || hit.u < -1e-8 || hit.u > 1 + 1e-8) {
     throw new Error("Chamfer requires two finite line segments that intersect.");
   }
-  const firstLength = distance(first.start, first.end);
-  const secondLength = distance(second.start, second.end);
-  if (firstLength < 1e-9 || secondLength < 1e-9) throw new Error("Cannot chamfer a zero-length line.");
-  if (distanceFromCorner >= firstLength - 1e-8 || distanceFromCorner >= secondLength - 1e-8) {
-    throw new Error("Chamfer distance must be shorter than both line segments.");
-  }
-  const pointAtDistance = (line: typeof first, length: number) => {
-    const fromStart = distance(line.start, hit.point);
-    const from = fromStart < distance(line.end, hit.point) ? line.start : line.end;
-    const dx = (from.x - hit.point.x) / length;
-    const dy = (from.y - hit.point.y) / length;
-    return { x: hit.point.x + dx * distanceFromCorner, y: hit.point.y + dy * distanceFromCorner };
+  const pointAtDistance = (line: typeof first) => {
+    const startDistance = distance(line.start, hit.point);
+    const endDistance = distance(line.end, hit.point);
+    const from = startDistance < endDistance ? line.start : line.end;
+    const available = Math.min(startDistance, endDistance);
+    if (available < 1e-9) throw new Error("Cannot chamfer a zero-length corner segment.");
+    if (distanceFromCorner >= available - 1e-8) {
+      throw new Error("Chamfer distance must be shorter than the distance from the corner to each nearest endpoint.");
+    }
+    return {
+      point: {
+        x: hit.point.x + ((from.x - hit.point.x) / available) * distanceFromCorner,
+        y: hit.point.y + ((from.y - hit.point.y) / available) * distanceFromCorner,
+      },
+      fromStart: startDistance < endDistance,
+    };
   };
-  const p1 = pointAtDistance(first, firstLength);
-  const p2 = pointAtDistance(second as typeof first, secondLength);
-  const trim = (line: typeof first, p: Point2D) =>
-    distance(line.start, hit.point) < distance(line.end, hit.point)
-      ? { ...line, start: p }
-      : { ...line, end: p };
+  const a = pointAtDistance(first);
+  const b = pointAtDistance(second as typeof first);
+  const trim = (line: typeof first, point: Point2D, fromStart: boolean) =>
+    fromStart ? { ...line, start: point } : { ...line, end: point };
   return {
-    first: trim(first, p1),
-    second: trim(second as typeof first, p2) as typeof second,
-    connector: { id: "", layerId: first.layerId, type: "line", start: p1, end: p2 },
+    first: trim(first, a.point, a.fromStart),
+    second: trim(second as typeof first, b.point, b.fromStart) as typeof second,
+    connector: { id: "", layerId: first.layerId, type: "line", start: a.point, end: b.point },
   };
 }
 
