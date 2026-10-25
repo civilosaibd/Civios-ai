@@ -166,7 +166,8 @@ export default function ProfessionalCadWorkspace() {
   return <section className="space-y-3 rounded-xl border bg-card p-3 md:p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div><h2 className="text-lg font-semibold">CivilOS Professional 2D Drafting</h2><p className="text-xs text-muted-foreground">Interactive drafting workspace · drawing units: feet · local browser session</p></div>
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap items-center gap-1">
+        {isMobile && <Sheet open={toolsOpen} onOpenChange={setToolsOpen}><SheetTrigger asChild><Button size="sm" variant="default"><Wrench className="mr-1 h-4 w-4"/>Tools</Button></SheetTrigger><SheetContent side="bottom" className="max-h-[82dvh] overflow-y-auto"><SheetHeader><SheetTitle>2D Drafting Tools</SheetTitle></SheetHeader><div className="mt-4">{ToolPalette}</div></SheetContent></Sheet>}
         <Button size="sm" variant="outline" onClick={undo} disabled={!history.length}><Undo2 className="mr-1 h-4 w-4"/>Undo</Button>
         <Button size="sm" variant="outline" onClick={redo} disabled={!future.length}><Redo2 className="mr-1 h-4 w-4"/>Redo</Button>
         <Button size="sm" variant="outline" onClick={()=>setGrid((g)=>({...g,enabled:!g.enabled}))}><Grid3X3 className="mr-1 h-4 w-4"/>{grid.enabled?"Grid on":"Grid off"}</Button>
