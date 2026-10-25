@@ -94,6 +94,26 @@ export function rotateEntity(entity: CadEntity, angleRadians: number, origin: Po
     case "arc": return { ...entity, center: rotate(entity.center), startAngle: entity.startAngle + angleRadians, endAngle: entity.endAngle + angleRadians };
   }
 }
+export function mirrorEntity(entity: CadEntity, axisX: number): CadEntity {
+  const mirror = (p: Point2D): Point2D => ({ x: 2 * axisX - p.x, y: p.y });
+  switch (entity.type) {
+    case "line":
+    case "wall":
+      return { ...entity, start: mirror(entity.start), end: mirror(entity.end) };
+    case "polyline":
+      return { ...entity, points: entity.points.map(mirror) };
+    case "rectangle": {
+      const a = mirror(entity.min);
+      const b = mirror(entity.max);
+      return { ...entity, min: { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y) }, max: { x: Math.max(a.x, b.x), y: Math.max(a.y, b.y) } };
+    }
+    case "circle":
+    case "ellipse":
+      return { ...entity, center: mirror(entity.center) };
+    case "arc":
+      return { ...entity, center: mirror(entity.center), startAngle: Math.PI - entity.startAngle, endAngle: Math.PI - entity.endAngle };
+  }
+}
 export function entityBounds(entity: CadEntity): { min: Point2D; max: Point2D } {
   if (entity.type === "circle" || entity.type === "arc") {
     const r = entity.radius;
