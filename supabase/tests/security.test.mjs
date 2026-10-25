@@ -458,3 +458,59 @@ test("agent core schema: cron key and automation mutations are server-only", asy
   ));
   assert.equal((await q("SELECT count(*)::int n FROM public.agent_cron_key")).at(0).n, 1);
 });
+
+
+test("SECURITY DEFINER authorization helpers reject caller-selected target users", async () => {
+  const projectId = "00000000-0000-4000-8000-0000000000e1";
+  const vizId = "00000000-0000-4000-8000-0000000000e2";
+  await db.query(
+    "INSERT INTO public.projects (id,user_id,name) VALUES ($1,$2,'Bob private project')",
+    [projectId, BOB]
+  );
+  await db.query(
+    "INSERT INTO public.construction_visualizations (id,user_id,name) VALUES ($1,$2,'Bob private visualization')",
+    [vizId, BOB]
+  );
+
+  const [roleProbe] = await alice(() =>
+    q("SELECT public.has_role($1,'admin'::public.app_role) AS allowed", [ADMIN]));
+  assert.equal(roleProbe.allowed, false);
+
+  const [projectRole] = await alice(() =>
+    q("SELECT public.get_project_role($1,$2) AS role", [projectId, BOB]));
+  assert.equal(projectRole.role, null);
+
+  const [membershipProbe] = await alice(() =>
+    q("SELECT public.is_project_member($1,$2) AS member", [projectId, BOB]));
+  assert.equal(membershipProbe.member, false);
+
+  const [vizRole] = await alice(() =>
+    q("SELECT public.viz_role($1,$2) AS role", [vizId, BOB]));
+  assert.equal(vizRole.role, null);
+
+  const [readProbe] = await alice(() =>
+    q("SELECT public.viz_can_read($1,$2) AS allowed", [vizId, BOB]));
+  assert.equal(readProbe.allowed, false);
+
+  const [writeProbe] = await alice(() =>
+    q("SELECT public.viz_can_write($1,$2) AS allowed", [vizId, BOB]));
+  assert.equal(writeProbe.allowed, false);
+});
+
+test("SECURITY DEFINER authorization helpers pin their search_path", async () => {
+  const names = ["has_role", "get_project_role", "is_project_member", "viz_role", "viz_can_read", "viz_can_write"];
+  const rows = await q(
+    `SELECT p.proname, p.proconfig
+       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.proname = ANY($1::text[])`,
+    [names]
+  );
+  assert.equal(rows.length, names.length);
+  for (const row of rows) {
+    assert.ok(Array.isArray(row.proconfig), `${row.proname} should have an explicit search_path`);
+    assert.ok(
+      row.proconfig.some((value) => value === "search_path=pg_catalog, public, pg_temp" || value === "search_path=pg_catalog,public,pg_temp"),
+      `${row.proname} search_path was not pinned: ${JSON.stringify(row.proconfig)}`
+    );
+  }
+});
