@@ -293,6 +293,8 @@ test("agent core schema: client roles can read only their own task history", asy
   );
   const aliceRows = await alice(() => q("SELECT objective FROM public.agent_tasks ORDER BY objective"));
   assert.deepEqual(aliceRows.map((r) => r.objective), ["alice task"]);
+  const adminRows = await admin(() => q("SELECT objective FROM public.agent_tasks ORDER BY objective"));
+  assert.deepEqual(adminRows.map((r) => r.objective), ["alice task", "bob task"]);
   await alice(() => rejects(
     () => db.query("INSERT INTO public.agent_tasks (agent_type,user_id,objective) VALUES ('user',$1,'forged task')", [ALICE]),
     /permission denied/
