@@ -1,7 +1,9 @@
 // CivilOS AI — structured JSON responses for Tender Analysis & BOQ generation
+import { createClient } from "npm:@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 const SYSTEM_PROMPTS: Record<string, string> = {
@@ -36,12 +38,29 @@ Use realistic PWD rates. amount = qty*rate_bdt. total = sum of amounts.`,
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   try {
+    const authorization = req.headers.get("Authorization") || "";
+    if (!authorization.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Authentication required" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!supabaseUrl || !anonKey) {
+      console.error("Supabase auth configuration missing");
+      return new Response(JSON.stringify({ error: "AI service is temporarily unavailable" }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const authClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } } });
+    const { data: { user }, error: authError } = await authClient.auth.getUser(authorization.slice(7));
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Authentication required" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const { mode, input } = await req.json() as { mode: "tender" | "boq" | "insights"; input: string };
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
     const sys = SYSTEM_PROMPTS[mode];
-    if (!sys || !input || typeof input !== "string") {
+    if (!sys || !input || typeof input !== "string" || input.length > 20000) {
       return new Response(JSON.stringify({ error: "mode (tender|boq|insights) and input required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -77,8 +96,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error("ai-structured error", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }), {
+    console.error("ai-structured error", e instanceof Error ? e.message : "Unknown");
+    return new Response(JSON.stringify({ error: "Unable to process this request. Please try again." }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
