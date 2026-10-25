@@ -15,3 +15,8 @@ verify_jwt = true
 
 [functions.defect-detect]
 verify_jwt = true
+
+[functions.agent]
+# The function validates user JWTs itself with auth.getUser() and validates the server-only x-cron-key for scheduled runs.
+# Disable gateway-only JWT enforcement so authenticated cron requests can reach the function; do not remove in-function checks.
+verify_jwt = false
