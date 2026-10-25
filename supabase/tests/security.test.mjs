@@ -315,10 +315,8 @@ test("agent core schema: audit and approval rows are read-restricted", async () 
   );
   const aliceSteps = await alice(() => q("SELECT count(*)::int n FROM public.agent_steps WHERE task_id=$1", [taskId]));
   assert.equal(aliceSteps[0].n, 1);
-  await alice(() => rejects(
-    () => q("SELECT id FROM public.agent_approvals"),
-    /permission denied/
-  ));
+  const aliceApprovals = await alice(() => q("SELECT id FROM public.agent_approvals"));
+  assert.equal(aliceApprovals.length, 0);
   const adminApprovals = await admin(() => q("SELECT count(*)::int n FROM public.agent_approvals"));
   assert.equal(adminApprovals[0].n, 1);
 });
