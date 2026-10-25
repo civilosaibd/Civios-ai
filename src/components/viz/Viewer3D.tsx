@@ -382,6 +382,13 @@ export default function Viewer3D({ model, name }: { model: BuildingModel; name?:
           <Canvas shadows camera={{ fov: 45, position: [20, 15, 20] }} gl={{ preserveDrawingBuffer: true, antialias: true }} dpr={[1, 2]}>
             <Suspense fallback={null}><Controller built={built} model={model} opts={opts} preset={preset} measures={measures} onPoint={onPoint} glRef={glRef} sim={sim} env={env} /></Suspense>
           </Canvas>
+          <div className="absolute top-2 left-2 flex max-w-[55%] flex-wrap gap-1">
+            {(["iso", "top", "front"] as Preset[]).map((p) => (
+              <Button key={p} size="sm" variant={preset.p === p ? "default" : "secondary"} className="h-8 px-2 text-[11px] shadow-sm" onClick={() => setPreset((x) => ({ p, n: x.n + 1 }))} aria-label={p === "iso" ? "Isometric 3D view" : `${p} view`}>
+                {p === "iso" ? "3D" : p === "top" ? "Top" : "Front"}
+              </Button>
+            ))}
+          </div>
           <div className="absolute top-2 right-2 flex gap-1.5">
             {mobile && (
               <Sheet open={sheet} onOpenChange={setSheet}>
@@ -401,7 +408,7 @@ export default function Viewer3D({ model, name }: { model: BuildingModel; name?:
             </DropdownMenu>
             <Button size="icon" variant="secondary" onClick={fullscreen} aria-label="Fullscreen">{fs ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}</Button>
           </div>
-          {model.conceptual && <div className="absolute top-2 left-2 rounded bg-amber-500 text-black text-[11px] font-semibold px-2 py-1">{L("CONCEPTUAL 3D RECONSTRUCTION", "কনসেপ্টুয়াল ৩ডি পুনর্গঠন")}</div>}
+          {model.conceptual && <div className="absolute top-12 left-2 rounded bg-amber-500 text-black text-[11px] font-semibold px-2 py-1">{L("CONCEPTUAL 3D RECONSTRUCTION", "কনসেপ্টুয়াল ৩ডি পুনর্গঠন")}</div>}
           {recording && <div className="absolute bottom-2 right-2 flex items-center gap-2 rounded bg-red-600 text-white text-xs px-2 py-1" data-testid="recording"><span className="h-2 w-2 rounded-full bg-white animate-pulse" />{L("Recording…", "রেকর্ড হচ্ছে…")}<button className="underline" onClick={() => stopRecording(false)}>{L("Cancel", "বাতিল")}</button></div>}
           {opts.measure && <div className="absolute bottom-2 left-2 rounded bg-background/90 text-xs px-2 py-1 border">{hasFirst ? L("Pick the 2nd point", "২য় বিন্দু বাছুন") : L("Measure: pick the 1st point", "মাপ: ১ম বিন্দু বাছুন")}</div>}
         </div>
