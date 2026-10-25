@@ -1,4 +1,4 @@
-project_id = "qtvwjjcyvswjwzymknlg"
+project_id = "kdsoubdybjfgppglzldn"
 
 [functions.ai-analyze]
 # Require a valid Supabase JWT before the function executes.
