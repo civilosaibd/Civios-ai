@@ -1,8 +1,10 @@
 // CivilOS AI — conversational engineering assistant (Lovable AI / Gemini)
+import { createClient } from "npm:@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 const SYSTEM_PROMPT = `You are CivilOS AI — an expert civil, structural & quantity-surveying assistant for Bangladesh.
@@ -30,19 +32,46 @@ interface ChatMsg { role: "user" | "assistant" | "system"; content: string }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   try {
+    const authorization = req.headers.get("Authorization") || "";
+    if (!authorization.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Authentication required" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!supabaseUrl || !anonKey) {
+      console.error("Supabase auth configuration missing");
+      return new Response(JSON.stringify({ error: "AI service is temporarily unavailable" }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const authClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } } });
+    const { data: { user }, error: authError } = await authClient.auth.getUser(authorization.slice(7));
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Authentication required" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const { messages, context } = await req.json() as { messages: ChatMsg[]; context?: string };
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-    if (!Array.isArray(messages) || messages.length === 0) {
-      return new Response(JSON.stringify({ error: "messages required" }), {
+    if (!Array.isArray(messages) || messages.length === 0 || messages.length > 30) {
+      return new Response(JSON.stringify({ error: "Provide between 1 and 30 messages" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!messages.every((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.length <= 12000)) {
+      return new Response(JSON.stringify({ error: "Invalid message format or message too large" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (context !== undefined && (typeof context !== "string" || context.length > 10000)) {
+      return new Response(JSON.stringify({ error: "Reference context is too large" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const sys = context
-      ? `${SYSTEM_PROMPT}\n\n--- Reference document the user uploaded ---\n${context.slice(0, 50000)}`
+      ? `${SYSTEM_PROMPT}\n\n--- Reference document the user uploaded ---\n${context}`
       : SYSTEM_PROMPT;
 
     const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -85,8 +114,8 @@ Deno.serve(async (req) => {
       },
     });
   } catch (e) {
-    console.error("ai-chat error", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }), {
+    console.error("ai-chat error", e instanceof Error ? e.message : "Unknown");
+    return new Response(JSON.stringify({ error: "Unable to process this request. Please try again." }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
