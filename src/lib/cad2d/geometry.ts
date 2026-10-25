@@ -195,7 +195,7 @@ export function trimLineAtPoint<T extends Extract<CadEntity, { type: "line" | "w
 }
 
 /** Extend a line/wall to meet a finite straight boundary, only when the hit lies beyond an endpoint. */
-export function extendLineToBoundary<T extends Extract<CadEntity, { type: "line" | "wall" }>(entity: T, boundary: Extract<CadEntity, { type: "line" | "wall" }>): T {
+export function extendLineToBoundary<T extends Extract<CadEntity, { type: "line" | "wall" }>>(entity: T, boundary: Extract<CadEntity, { type: "line" | "wall" }>): T {
   const hit = lineIntersection(entity.start, entity.end, boundary.start, boundary.end);
   if (!hit || hit.u < -1e-8 || hit.u > 1 + 1e-8 || (hit.t >= -1e-8 && hit.t <= 1 + 1e-8)) {
     throw new Error("No valid extension intersection with the boundary.");
