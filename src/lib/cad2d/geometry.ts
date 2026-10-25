@@ -114,6 +114,96 @@ export function mirrorEntity(entity: CadEntity, axisX: number): CadEntity {
       return { ...entity, center: mirror(entity.center), startAngle: Math.PI - entity.startAngle, endAngle: Math.PI - entity.endAngle };
   }
 }
+/**
+ * Offset supported 2D entities by a signed distance. Positive distance is to
+ * the left of a line's direction; for circles/arcs it increases the radius.
+ * Polyline vertices are computed from adjacent offset-line intersections.
+ */
+export function offsetEntity(entity: CadEntity, amount: number): CadEntity {
+  if (!Number.isFinite(amount) || amount === 0) throw new Error("Offset distance must be a finite non-zero number.");
+  const offsetSegment = (a: Point2D, b: Point2D) => {
+    const length = distance(a, b);
+    if (length < 1e-9) throw new Error("Cannot offset a zero-length segment.");
+    const n = { x: -(b.y - a.y) / length, y: (b.x - a.x) / length };
+    return { a: { x: a.x + n.x * amount, y: a.y + n.y * amount }, b: { x: b.x + n.x * amount, y: b.y + n.y * amount } };
+  };
+  if (entity.type === "line" || entity.type === "wall") {
+    const shifted = offsetSegment(entity.start, entity.end);
+    return { ...entity, start: shifted.a, end: shifted.b };
+  }
+  if (entity.type === "circle" || entity.type === "arc") {
+    const radius = entity.radius + amount;
+    if (radius <= 0) throw new Error("Offset would create a zero or negative radius.");
+    return { ...entity, radius };
+  }
+  if (entity.type === "ellipse") {
+    const rx = entity.rx + amount, ry = entity.ry + amount;
+    if (rx <= 0 || ry <= 0) throw new Error("Offset would create a zero or negative ellipse radius.");
+    return { ...entity, rx, ry };
+  }
+  if (entity.type === "rectangle") {
+    const { min, max } = entity;
+    const width = max.x - min.x, height = max.y - min.y;
+    if (width <= 0 || height <= 0) throw new Error("Cannot offset a degenerate rectangle.");
+    const signX = amount > 0 ? -1 : 1, signY = amount > 0 ? -1 : 1;
+    const inset = Math.abs(amount);
+    const nextMin = { x: min.x + signX * inset, y: min.y + signY * inset };
+    const nextMax = { x: max.x - signX * inset, y: max.y - signY * inset };
+    if (nextMin.x >= nextMax.x || nextMin.y >= nextMax.y) throw new Error("Offset is larger than the rectangle.");
+    return { ...entity, min: nextMin, max: nextMax };
+  }
+  if (entity.points.length < 2) throw new Error("Polyline needs at least two vertices.");
+  const points = entity.points;
+  const segmentCount = entity.closed ? points.length : points.length - 1;
+  const shiftedSegments = Array.from({ length: segmentCount }, (_, i) => offsetSegment(points[i], points[(i + 1) % points.length]));
+  const intersect = (a: Point2D, b: Point2D, c: Point2D, d: Point2D): Point2D | null => {
+    const r = { x: b.x - a.x, y: b.y - a.y }, s = { x: d.x - c.x, y: d.y - c.y };
+    const cross = r.x * s.y - r.y * s.x;
+    if (Math.abs(cross) < 1e-9) return null;
+    const t = ((c.x - a.x) * s.y - (c.y - a.y) * s.x) / cross;
+    return { x: a.x + t * r.x, y: a.y + t * r.y };
+  };
+  const out = points.map((point, i) => {
+    if (!entity.closed && i === 0) return shiftedSegments[0].a;
+    if (!entity.closed && i === points.length - 1) return shiftedSegments[shiftedSegments.length - 1].b;
+    const prev = shiftedSegments[(i - 1 + segmentCount) % segmentCount];
+    const next = shiftedSegments[i % segmentCount];
+    return intersect(prev.a, prev.b, next.a, next.b) ?? { ...next.a };
+  });
+  if (out.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) throw new Error("Offset produced invalid geometry.");
+  return { ...entity, points: out };
+}
+
+function lineIntersection(a: Point2D, b: Point2D, c: Point2D, d: Point2D): { point: Point2D; t: number; u: number } | null {
+  const r = { x: b.x - a.x, y: b.y - a.y }, s = { x: d.x - c.x, y: d.y - c.y };
+  const cross = r.x * s.y - r.y * s.x;
+  if (Math.abs(cross) < 1e-9) return null;
+  const t = ((c.x - a.x) * s.y - (c.y - a.y) * s.x) / cross;
+  const u = ((c.x - a.x) * r.y - (c.y - a.y) * r.x) / cross;
+  return { point: { x: a.x + t * r.x, y: a.y + t * r.y }, t, u };
+}
+
+/** Trim a straight segment at a point on its existing extent, removing the nearer end. */
+export function trimLineAtPoint<T extends Extract<CadEntity, { type: "line" | "wall" }>>(entity: T, point: Point2D): T {
+  const dx = entity.end.x - entity.start.x, dy = entity.end.y - entity.start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared < 1e-12) throw new Error("Cannot trim a zero-length line.");
+  const t = ((point.x - entity.start.x) * dx + (point.y - entity.start.y) * dy) / lengthSquared;
+  if (t <= 1e-6 || t >= 1 - 1e-6) throw new Error("Trim point must lie inside the line segment.");
+  const projected = { x: entity.start.x + t * dx, y: entity.start.y + t * dy };
+  if (distance(projected, point) > Math.sqrt(lengthSquared) * 1e-4 + 1e-6) throw new Error("Trim point must lie on the line.");
+  return t < 0.5 ? { ...entity, start: projected } : { ...entity, end: projected };
+}
+
+/** Extend a line/wall to meet a finite straight boundary, only when the hit lies beyond an endpoint. */
+export function extendLineToBoundary<T extends Extract<CadEntity, { type: "line" | "wall" }>(entity: T, boundary: Extract<CadEntity, { type: "line" | "wall" }>): T {
+  const hit = lineIntersection(entity.start, entity.end, boundary.start, boundary.end);
+  if (!hit || hit.u < -1e-8 || hit.u > 1 + 1e-8 || (hit.t >= -1e-8 && hit.t <= 1 + 1e-8)) {
+    throw new Error("No valid extension intersection with the boundary.");
+  }
+  return hit.t < 0 ? { ...entity, start: hit.point } : { ...entity, end: hit.point };
+}
+
 export function entityBounds(entity: CadEntity): { min: Point2D; max: Point2D } {
   if (entity.type === "circle" || entity.type === "arc") {
     const r = entity.radius;
