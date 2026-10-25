@@ -177,8 +177,8 @@ export default function ProfessionalCadWorkspace() {
         <Button size="sm" variant="outline" onClick={()=>exportFile("json")}>Save JSON</Button>
       </div>
     </div>
-    <div className="grid min-w-0 gap-3 xl:grid-cols-[220px_minmax(0,1fr)_240px]">
-      <aside className="hidden space-y-3 rounded-lg border p-3 xl:block xl:max-h-[76vh] xl:overflow-y-auto">{ToolPalette}</aside>
+    <div className="grid min-w-0 gap-3 md:grid-cols-[180px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_240px]">
+      <aside className="hidden space-y-3 rounded-lg border p-3 md:block xl:max-h-[76vh] xl:overflow-y-auto">{ToolPalette}</aside>
       <div className="min-w-0 overflow-hidden rounded-lg border bg-white xl:col-start-2">
         <svg ref={svgRef} viewBox="0 0 1000 640" className="h-[min(62dvh,640px)] min-h-[340px] w-full touch-none sm:h-[560px] xl:h-[min(76vh,760px)]" role="img" aria-label="2D CAD drafting canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
           <defs><pattern id="cad-grid-small" width={10*view.scale} height={10*view.scale} patternUnits="userSpaceOnUse" x={view.x% (10*view.scale)} y={view.y%(10*view.scale)}><path d={`M ${10*view.scale} 0 L 0 0 0 ${10*view.scale}`} fill="none" stroke="#e5e7eb" strokeWidth=".7"/></pattern></defs>
@@ -187,7 +187,7 @@ export default function ProfessionalCadWorkspace() {
         </svg>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>Tool: {tool.toUpperCase()} · Objects: {doc.entities.length} · Selected: {selected.length}</span><span>Cursor: {cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"}</span></div>
       </div>
-      <aside className="min-w-0 space-y-3 rounded-lg border p-3 xl:col-start-3 xl:row-start-1">
+      <aside className="min-w-0 space-y-3 rounded-lg border p-3 md:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1">
         <div><h3 className="mb-2 flex items-center gap-2 text-sm font-semibold"><Layers3 className="h-4 w-4"/>Layers</h3><div className="space-y-1">{doc.layers.map((l)=><div key={l.id} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={l.visible} onChange={(e)=>commit({...doc,layers:doc.layers.map((x)=>x.id===l.id?{...x,visible:e.target.checked}:x)})}/><span className="h-3 w-3 rounded-sm border" style={{background:l.color}}/><button className="truncate text-left" onClick={()=>setLayerName(l.name)}>{l.name}</button><span className="ml-auto text-muted-foreground">{doc.entities.filter((e)=>e.layerId===l.id).length}</span></div>)}</div><Button size="sm" variant="outline" className="mt-2 w-full" onClick={addLayer}>+ New layer</Button></div>
         <div><label className="mb-1 block text-xs font-medium">Active layer</label><select className="w-full rounded-md border bg-background p-2 text-sm" value={layerName} onChange={(e)=>setLayerName(e.target.value)}>{doc.layers.map((l)=><option key={l.id}>{l.name}</option>)}</select></div>
         <div><label className="mb-1 block text-xs font-medium">Grid / snap spacing</label><Input type="number" min=".01" step=".25" value={grid.snapSpacing} onChange={(e)=>setGrid((g)=>({...g,snapSpacing:Math.max(.01,Number(e.target.value)||1)}))}/><label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={grid.snapEnabled} onChange={(e)=>setGrid((g)=>({...g,snapEnabled:e.target.checked}))}/> Snap to grid</label><label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={grid.ortho} onChange={(e)=>setGrid((g)=>({...g,ortho:e.target.checked}))}/> Ortho mode (setting)</label></div>
