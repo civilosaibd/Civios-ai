@@ -1,3 +1,4 @@
+import { checkAiEndpointRateLimit } from "../_shared/aiRateLimit.ts";
 // viz-analyze — asynchronous drawing analysis job for the 3D Construction Visualization module.
 //
 //   POST { visualization_id }  →  202 { job_id }   (work continues in the background)
@@ -100,6 +101,9 @@ Deno.serve(async (req) => {
   // one running job per visualization
   const { data: running } = await db.from("visualization_jobs").select("id, created_at").eq("visualization_id", vizId).in("status", ["queued", "running"]).gte("created_at", new Date(Date.now() - 5 * 60_000).toISOString()).limit(1);
   if (running?.length) return json({ job_id: running[0].id, already_running: true }, 202);
+
+  const rateLimit = await checkAiEndpointRateLimit(user.id, "viz-analyze");
+  if (rateLimit) return json({ error: rateLimit.message }, rateLimit.status);
 
   const { count: prev } = await db.from("visualization_jobs").select("id", { count: "exact", head: true }).eq("visualization_id", vizId);
   const steps: Step[] = [
