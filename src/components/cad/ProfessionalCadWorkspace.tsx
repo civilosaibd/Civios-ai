@@ -198,6 +198,43 @@ export default function ProfessionalCadWorkspace() {
   };
   const undo = () => { if(!history.length)return; setFuture((f)=>[doc,...f]);setDoc(history[history.length-1]);setHistory(history.slice(0,-1)); };
   const redo = () => { if(!future.length)return; setHistory((h)=>[...h,doc]);setDoc(future[0]);setFuture(future.slice(1)); };
+
+  // Keyboard editing shortcuts mirror common desktop CAD conventions.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      const modifier = event.ctrlKey || event.metaKey;
+      if (modifier && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        if (event.shiftKey) redo(); else undo();
+        return;
+      }
+      if (modifier && event.key.toLowerCase() === "y") {
+        event.preventDefault();
+        redo();
+        return;
+      }
+      if (event.key === "Escape") {
+        setStart(null);
+        setPolylinePoints([]);
+        setCursor(null);
+        return;
+      }
+      if ((event.key === "Delete" || event.key === "Backspace") && selected.length > 0) {
+        event.preventDefault();
+        const selectedSet = new Set(selected);
+        const remaining = doc.entities.filter((entity) => !selectedSet.has(entity.id));
+        if (remaining.length !== doc.entities.length) {
+          commit({ ...doc, entities: remaining });
+          setSelected([]);
+          toast.success(`Deleted ${doc.entities.length - remaining.length} object(s).`);
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [doc, selected, history, future, commit]);
   const addLayer = () => {
     const name=window.prompt("New layer name"); if(!name?.trim())return;
     if(doc.layers.some((l)=>l.name.toLowerCase()===name.trim().toLowerCase())) {toast.error("Layer name already exists.");return;}
