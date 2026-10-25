@@ -145,10 +145,9 @@ export function offsetEntity(entity: CadEntity, amount: number): CadEntity {
     const { min, max } = entity;
     const width = max.x - min.x, height = max.y - min.y;
     if (width <= 0 || height <= 0) throw new Error("Cannot offset a degenerate rectangle.");
-    const signX = amount > 0 ? -1 : 1, signY = amount > 0 ? -1 : 1;
-    const inset = Math.abs(amount);
-    const nextMin = { x: min.x + signX * inset, y: min.y + signY * inset };
-    const nextMax = { x: max.x - signX * inset, y: max.y - signY * inset };
+    // Positive offsets inset the rectangle; negative offsets expand it outward.
+    const nextMin = { x: min.x + amount, y: min.y + amount };
+    const nextMax = { x: max.x - amount, y: max.y - amount };
     if (nextMin.x >= nextMax.x || nextMin.y >= nextMax.y) throw new Error("Offset is larger than the rectangle.");
     return { ...entity, min: nextMin, max: nextMax };
   }
