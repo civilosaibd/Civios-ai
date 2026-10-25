@@ -280,3 +280,61 @@ test("AI endpoint rate limiter: applies separate limits per endpoint and a daily
     q("SELECT * FROM public.consume_ai_endpoint_rate_limit($1, 'ai-structured')", [BOB]));
   assert.equal(otherEndpoint.allowed, true);
 });
+
+
+const AI_FREE = "00000000-0000-4000-8000-0000000000c1";
+const AI_STARTER = "00000000-0000-4000-8000-0000000000c2";
+
+test("AI credit quota RPC is server-only", async () => {
+  await alice(() => rejects(() => db.query("SELECT * FROM public.consume_ai_credit($1)", [ALICE]), /permission denied/));
+  await anon(() => rejects(() => db.query("SELECT * FROM public.consume_ai_credit($1)", [ALICE]), /permission denied/));
+});
+
+test("AI credit quota: Free plan caps monthly usage at 50", async () => {
+  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'ai-free@example.com')", [AI_FREE]);
+  const allowed = await as("service_role", AI_FREE, "ai-free@example.com", async () => {
+    const out = [];
+    for (let i = 0; i < 50; i++) {
+      out.push((await q("SELECT * FROM public.consume_ai_credit($1)", [AI_FREE]))[0]);
+    }
+    return out;
+  });
+  assert.ok(allowed.every((r) => r.allowed === true));
+  assert.equal(allowed[0].plan_code, "free");
+  assert.equal(allowed[49].used, 50);
+  assert.equal(allowed[49].quota, 50);
+  const [blocked] = await as("service_role", AI_FREE, "ai-free@example.com", () =>
+    q("SELECT * FROM public.consume_ai_credit($1)", [AI_FREE]));
+  assert.equal(blocked.allowed, false);
+  assert.equal(blocked.reason, "quota");
+  assert.equal(blocked.used, 50);
+});
+
+test("AI credit quota: active subscription uses plan quota and expires back to Free", async () => {
+  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'ai-starter@example.com')", [AI_STARTER]);
+  const [{ id: starter }] = await q("SELECT id FROM public.plans WHERE code='starter'");
+  await db.query(
+    "INSERT INTO public.subscriptions (user_id,plan_id,status,billing_cycle,renewal_date) VALUES ($1,$2,'active','yearly',now() + interval '1 year')",
+    [AI_STARTER, starter]
+  );
+  const [starterResult] = await as("service_role", AI_STARTER, "ai-starter@example.com", () =>
+    q("SELECT * FROM public.consume_ai_credit($1)", [AI_STARTER]));
+  assert.equal(starterResult.allowed, true);
+  assert.equal(starterResult.plan_code, "starter");
+  assert.equal(starterResult.quota, 1000);
+
+  await db.query("UPDATE public.subscriptions SET renewal_date=now() - interval '1 day' WHERE user_id=$1", [AI_STARTER]);
+  const [expiredResult] = await as("service_role", AI_STARTER, "ai-starter@example.com", () =>
+    q("SELECT * FROM public.consume_ai_credit($1)", [AI_STARTER]));
+  assert.equal(expiredResult.allowed, true);
+  assert.equal(expiredResult.plan_code, "free");
+  assert.equal(expiredResult.quota, 50);
+});
+
+test("AI credit quota: administrators remain operational without a subscription", async () => {
+  const [result] = await as("service_role", ADMIN, "zobaerio24@gmail.com", () =>
+    q("SELECT * FROM public.consume_ai_credit($1)", [ADMIN]));
+  assert.equal(result.allowed, true);
+  assert.equal(result.plan_code, "admin");
+  assert.equal(result.quota, -1);
+});
