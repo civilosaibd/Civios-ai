@@ -203,6 +203,48 @@ export function extendLineToBoundary<T extends Extract<CadEntity, { type: "line"
   return hit.t < 0 ? { ...entity, start: hit.point } : { ...entity, end: hit.point };
 }
 
+/** Create a straight chamfer between two finite line segments sharing an endpoint corner. */
+export function chamferLines(
+  first: Extract<CadEntity, { type: "line" }>,
+  second: Extract<CadEntity, { type: "line" }>,
+  distanceFromCorner: number,
+): { first: typeof first; second: typeof second; connector: Extract<CadEntity, { type: "line" }> } {
+  if (!Number.isFinite(distanceFromCorner) || distanceFromCorner <= 0) {
+    throw new Error("Chamfer distance must be a positive finite number.");
+  }
+  const hit = lineIntersection(first.start, first.end, second.start, second.end);
+  if (!hit || hit.t < -1e-8 || hit.t > 1 + 1e-8 || hit.u < -1e-8 || hit.u > 1 + 1e-8) {
+    throw new Error("Chamfer requires two finite line segments that intersect.");
+  }
+  const pointAwayFromCorner = (line: typeof first, parameter: number) => {
+    const atStart = distance(line.start, hit.point) < 1e-7;
+    const atEnd = distance(line.end, hit.point) < 1e-7;
+    if (atStart === atEnd) throw new Error("Chamfer currently requires the lines to share an endpoint corner.");
+    const far = atStart ? line.end : line.start;
+    const length = distance(far, hit.point);
+    if (length < 1e-9) throw new Error("Cannot chamfer a zero-length line.");
+    if (distanceFromCorner >= length - 1e-8) {
+      throw new Error("Chamfer distance must be shorter than both line segments.");
+    }
+    return {
+      point: {
+        x: hit.point.x + ((far.x - hit.point.x) / length) * distanceFromCorner,
+        y: hit.point.y + ((far.y - hit.point.y) / length) * distanceFromCorner,
+      },
+      trimStart: atStart,
+    };
+  };
+  const a = pointAwayFromCorner(first, hit.t);
+  const b = pointAwayFromCorner(second as typeof first, hit.u);
+  const trim = (line: typeof first, point: Point2D, trimStart: boolean) =>
+    trimStart ? { ...line, start: point } : { ...line, end: point };
+  return {
+    first: trim(first, a.point, a.trimStart),
+    second: trim(second as typeof first, b.point, b.trimStart) as typeof second,
+    connector: { id: "", layerId: first.layerId, type: "line", start: a.point, end: b.point },
+  };
+}
+
 export function entityBounds(entity: CadEntity): { min: Point2D; max: Point2D } {
   if (entity.type === "circle" || entity.type === "arc") {
     const r = entity.radius;
