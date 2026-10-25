@@ -1,4 +1,5 @@
 import { checkAiEndpointRateLimit } from "../_shared/aiRateLimit.ts";
+import { consumeAiCredit } from "../_shared/aiUsageQuota.ts";
 // AI Defect Detection — analyses a site photo for construction defects.
 import { createClient } from "npm:@supabase/supabase-js@2";
 const cors = {
@@ -68,6 +69,9 @@ Deno.serve(async (req) => {
 
     const rateLimit = await checkAiEndpointRateLimit(user.id, "defect-detect");
     if (rateLimit) return json({ error: rateLimit.message }, rateLimit.status);
+    const creditQuota = await consumeAiCredit(user.id);
+    if (creditQuota) return json({ error: creditQuota.message }, creditQuota.status);
+
 
     const resp = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
       method: "POST",
