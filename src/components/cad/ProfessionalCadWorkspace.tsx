@@ -125,11 +125,10 @@ export default function ProfessionalCadWorkspace() {
       if (tool === "mirror") {
         const entity = doc.entities.find((e) => e.id === id);
         if (entity) {
-          const bounds = entityBounds(entity);
-          const axisX = (bounds.min.x + bounds.max.x) / 2;
-          commit({ ...doc, entities: doc.entities.map((e) => e.id === id ? mirrorEntity(e, axisX) : e) });
+          // The clicked world X coordinate defines a vertical mirror axis.
+          commit({ ...doc, entities: doc.entities.map((e) => e.id === id ? mirrorEntity(e, p.x) : e) });
           setSelected([id]);
-          toast.success("Mirrored across the object's vertical centerline.");
+          toast.success("Mirrored across the clicked vertical axis.");
         }
         return;
       }
