@@ -57,19 +57,32 @@ export default function ProfessionalCadWorkspace() {
 
   const toWorld = (event: ReactPointerEvent<SVGSVGElement>): Point2D => {
     const rect = event.currentTarget.getBoundingClientRect();
-    const p = { x: (event.clientX - rect.left - view.x) / view.scale, y: (event.clientY - rect.top - view.y) / view.scale };
-    return grid.snapEnabled ? snapToGrid(p, grid.snapSpacing) : p;
+    let p = { x: (event.clientX - rect.left - view.x) / view.scale, y: (event.clientY - rect.top - view.y) / view.scale };
+    if (grid.snapEnabled) p = snapToGrid(p, grid.snapSpacing);
+    // Ortho constrains the second point to the dominant axis from the first point.
+    if (grid.ortho && start && tool !== "select" && tool !== "erase") {
+      const dx = p.x - start.x, dy = p.y - start.y;
+      p = Math.abs(dx) >= Math.abs(dy)
+        ? { ...p, y: start.y }
+        : { ...p, x: start.x };
+    }
+    return p;
+  };
+  const distanceToSegment = (p: Point2D, a: Point2D, b: Point2D) => {
+    const dx = b.x - a.x, dy = b.y - a.y, lengthSquared = dx * dx + dy * dy;
+    const t = lengthSquared ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared)) : 0;
+    return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
   };
   const findHit = (p: Point2D) => [...doc.entities].reverse().find((e) => {
-    if (e.type === "line" || e.type === "wall") {
-      const dx=e.end.x-e.start.x, dy=e.end.y-e.start.y, len=dx*dx+dy*dy;
-      const t=len ? Math.max(0,Math.min(1,((p.x-e.start.x)*dx+(p.y-e.start.y)*dy)/len)) : 0;
-      return Math.hypot(p.x-e.start.x-t*dx,p.y-e.start.y-t*dy) < 7/view.scale;
-    }
+    if (e.type === "line" || e.type === "wall") return distanceToSegment(p, e.start, e.end) < 7 / view.scale;
     if (e.type === "rectangle") return p.x>=e.min.x-4/view.scale && p.x<=e.max.x+4/view.scale && p.y>=e.min.y-4/view.scale && p.y<=e.max.y+4/view.scale && (Math.abs(p.x-e.min.x)<7/view.scale || Math.abs(p.x-e.max.x)<7/view.scale || Math.abs(p.y-e.min.y)<7/view.scale || Math.abs(p.y-e.max.y)<7/view.scale);
     if (e.type === "circle") return Math.abs(Math.hypot(p.x-e.center.x,p.y-e.center.y)-e.radius)<7/view.scale;
     if (e.type === "ellipse") { const t=Math.atan2((p.y-e.center.y)/Math.max(e.ry,.001),(p.x-e.center.x)/Math.max(e.rx,.001)); const q={x:e.center.x+e.rx*Math.cos(t),y:e.center.y+e.ry*Math.sin(t)}; return Math.hypot(p.x-q.x,p.y-q.y)<7/view.scale; }
-    if (e.type === "polyline") return e.points.some((q)=>Math.hypot(p.x-q.x,p.y-q.y)<7/view.scale);
+    if (e.type === "polyline") {
+      const segments = e.points.slice(1).map((point, index) => [e.points[index], point] as const);
+      if (e.closed && e.points.length > 2) segments.push([e.points[e.points.length - 1], e.points[0]]);
+      return segments.some(([a, b]) => distanceToSegment(p, a, b) < 7 / view.scale);
+    }
     return false;
   })?.id;
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
