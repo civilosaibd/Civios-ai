@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -33,7 +33,18 @@ const palette: { id: CadToolId; label: string; group: string }[] = [
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `cad-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export default function ProfessionalCadWorkspace() {
-  const [doc, setDoc] = useState<CadDocument>(() => createEmptyDocument("ft"));
+  const [doc, setDoc] = useState<CadDocument>(() => {
+    if (typeof window === "undefined") return createEmptyDocument("ft");
+    try {
+      const saved = window.localStorage.getItem("civilos-cad-document-v1");
+      if (!saved) return createEmptyDocument("ft");
+      const parsed = JSON.parse(saved) as CadDocument;
+      if (parsed?.version === 1 && Array.isArray(parsed.entities) && Array.isArray(parsed.layers) && parsed.layers.length > 0) return parsed;
+    } catch {
+      // Ignore invalid or unavailable local storage and start with an empty drawing.
+    }
+    return createEmptyDocument("ft");
+  });
   const [tool, setTool] = useState<CadToolId>("select");
   const [grid, setGrid] = useState<CadGridSettings>(DEFAULT_CAD_GRID);
   const [view, setView] = useState<View>({ x: 60, y: 50, scale: 1 });
@@ -48,6 +59,14 @@ export default function ProfessionalCadWorkspace() {
   const isMobile = useIsMobile();
   const svgRef = useRef<SVGSVGElement>(null);
   const activeLayer = doc.layers.find((layer) => layer.name === layerName) ?? doc.layers[0];
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("civilos-cad-document-v1", JSON.stringify(doc));
+    } catch {
+      toast.error("Could not auto-save this drawing locally. Please export a JSON backup.");
+    }
+  }, [doc]);
 
   const commit = useCallback((next: CadDocument) => {
     setHistory((h) => [...h.slice(-99), doc]);
@@ -178,7 +197,7 @@ export default function ProfessionalCadWorkspace() {
 
   return <section className="space-y-3 rounded-xl border bg-card p-3 md:p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <div><h2 className="text-lg font-semibold">CivilOS Professional 2D Drafting</h2><p className="text-xs text-muted-foreground">Interactive drafting workspace · drawing units: feet · local browser session</p></div>
+      <div><h2 className="text-lg font-semibold">CivilOS Professional 2D Drafting</h2><p className="text-xs text-muted-foreground">Interactive drafting workspace · drawing units: feet · local auto-save enabled</p></div>
       <div className="flex flex-wrap items-center gap-1">
         {isMobile && <Sheet open={toolsOpen} onOpenChange={setToolsOpen}><SheetTrigger asChild><Button size="sm" variant="default"><Wrench className="mr-1 h-4 w-4"/>Tools</Button></SheetTrigger><SheetContent side="bottom" className="max-h-[82dvh] overflow-y-auto"><SheetHeader><SheetTitle>2D Drafting Tools</SheetTitle></SheetHeader><div className="mt-4">{ToolPalette}</div></SheetContent></Sheet>}
         <Button size="sm" variant="outline" onClick={undo} disabled={!history.length}><Undo2 className="mr-1 h-4 w-4"/>Undo</Button>
