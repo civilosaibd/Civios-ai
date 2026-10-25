@@ -7,7 +7,7 @@ import {
   type CadToolId, type CadGridSettings,
 } from "@/lib/cad2d/professional-model";
 import {
-  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, type CadEntity, type CadDocument, type Point2D,
+  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -50,6 +50,7 @@ export default function ProfessionalCadWorkspace() {
   const [view, setView] = useState<View>({ x: 60, y: 50, scale: 1 });
   const [start, setStart] = useState<Point2D | null>(null);
   const [polylinePoints, setPolylinePoints] = useState<Point2D[]>([]);
+  const [modifyTargetId, setModifyTargetId] = useState<string | null>(null);
   const [cursor, setCursor] = useState<Point2D | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [command, setCommand] = useState("");
@@ -79,12 +80,15 @@ export default function ProfessionalCadWorkspace() {
     const rect = event.currentTarget.getBoundingClientRect();
     let p = { x: (event.clientX - rect.left - view.x) / view.scale, y: (event.clientY - rect.top - view.y) / view.scale };
     if (grid.snapEnabled) p = snapToGrid(p, grid.snapSpacing);
-    // Ortho constrains the second point to the dominant axis from the first point.
-    if (grid.ortho && start && tool !== "select" && tool !== "erase") {
-      const dx = p.x - start.x, dy = p.y - start.y;
+    // Ortho uses the previous polyline vertex, or the first point for other tools.
+    const orthoAnchor = tool === "polyline" && polylinePoints.length
+      ? polylinePoints[polylinePoints.length - 1]
+      : start;
+    if (grid.ortho && orthoAnchor && tool !== "select" && tool !== "erase") {
+      const dx = p.x - orthoAnchor.x, dy = p.y - orthoAnchor.y;
       p = Math.abs(dx) >= Math.abs(dy)
-        ? { ...p, y: start.y }
-        : { ...p, x: start.x };
+        ? { ...p, y: orthoAnchor.y }
+        : { ...p, x: orthoAnchor.x };
     }
     return p;
   };
@@ -116,6 +120,75 @@ export default function ProfessionalCadWorkspace() {
         setPolylinePoints((points) => [...points, p]);
       }
       setCursor(p);
+      return;
+    }
+    if (tool === "offset") {
+      const id = findHit(p);
+      const entity = doc.entities.find((item) => item.id === id);
+      if (!entity) { toast.info("Click the object you want to offset."); return; }
+      const raw = window.prompt("Offset distance (positive = inward for closed shapes; line side follows its direction):", "1");
+      if (raw === null) return;
+      const amount = Number(raw);
+      if (!Number.isFinite(amount) || amount === 0) { toast.error("Enter a finite, non-zero offset distance."); return; }
+      try {
+        const result = offsetEntity(entity, amount);
+        commit({ ...doc, entities: [...doc.entities, { ...result, id: makeId() }] });
+        toast.success("Offset object created.");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not offset this object.");
+      }
+      return;
+    }
+    if (tool === "trim") {
+      if (!modifyTargetId) {
+        const id = findHit(p);
+        const entity = doc.entities.find((item) => item.id === id);
+        if (!entity || (entity.type !== "line" && entity.type !== "wall")) { toast.info("TRIM currently supports straight lines and walls. Click one first."); return; }
+        setModifyTargetId(id);
+        toast.info("Click the point on the selected line where it should be trimmed.");
+        return;
+      }
+      const entity = doc.entities.find((item) => item.id === modifyTargetId);
+      if (!entity || (entity.type !== "line" && entity.type !== "wall")) { setModifyTargetId(null); return; }
+      const dx = entity.end.x - entity.start.x, dy = entity.end.y - entity.start.y;
+      const lengthSquared = dx * dx + dy * dy;
+      const t = lengthSquared ? Math.max(0, Math.min(1, ((p.x - entity.start.x) * dx + (p.y - entity.start.y) * dy) / lengthSquared)) : 0;
+      const projected = { x: entity.start.x + t * dx, y: entity.start.y + t * dy };
+      try {
+        const trimmed = trimLineAtPoint(entity, projected);
+        commit({ ...doc, entities: doc.entities.map((item) => item.id === entity.id ? trimmed : item) });
+        setSelected([entity.id]); setModifyTargetId(null);
+        toast.success("Line trimmed.");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not trim this line.");
+      }
+      return;
+    }
+    if (tool === "extend") {
+      if (!modifyTargetId) {
+        const id = findHit(p);
+        const entity = doc.entities.find((item) => item.id === id);
+        if (!entity || (entity.type !== "line" && entity.type !== "wall")) { toast.info("EXTEND currently supports straight lines and walls. Click the line to extend first."); return; }
+        setModifyTargetId(id);
+        toast.info("Now click a straight boundary line or wall.");
+        return;
+      }
+      const target = doc.entities.find((item) => item.id === modifyTargetId);
+      const boundaryId = findHit(p);
+      const boundary = doc.entities.find((item) => item.id === boundaryId);
+      if (!target || (target.type !== "line" && target.type !== "wall") || !boundary || (boundary.type !== "line" && boundary.type !== "wall")) {
+        toast.info("Click a straight boundary line or wall.");
+        return;
+      }
+      try {
+        const extended = extendLineToBoundary(target, boundary);
+        commit({ ...doc, entities: doc.entities.map((item) => item.id === target.id ? extended : item) });
+        setSelected([target.id]); setModifyTargetId(null);
+        toast.success("Line extended to boundary.");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not extend this line.");
+        setModifyTargetId(null);
+      }
       return;
     }
     if (tool === "select") { const id=findHit(p); setSelected(id ? [id] : []); return; }
@@ -216,6 +289,7 @@ export default function ProfessionalCadWorkspace() {
         return;
       }
       if (event.key === "Escape") {
+        setModifyTargetId(null);
         setStart(null);
         setPolylinePoints([]);
         setCursor(null);
@@ -247,7 +321,7 @@ export default function ProfessionalCadWorkspace() {
     const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`civilos-drawing.${kind}`;a.click();URL.revokeObjectURL(url);
   };
   const groups=useMemo(()=>Array.from(new Set(palette.map((p)=>p.group))),[]);
-  const selectTool = (id: CadToolId) => { setTool(id); setStart(null); setPolylinePoints([]); setCursor(null); setToolsOpen(false); };
+  const selectTool = (id: CadToolId) => { setTool(id); setStart(null); setPolylinePoints([]); setModifyTargetId(null); setCursor(null); setToolsOpen(false); };
   const finishPolyline = () => {
     if (polylinePoints.length < 2) { toast.info("Add at least two points before finishing the polyline."); return; }
     const entity: CadEntity = { id: makeId(), layerId: activeLayer.id, type: "polyline", points: polylinePoints, closed: false };
@@ -307,6 +381,6 @@ export default function ProfessionalCadWorkspace() {
         <div><p className="mb-1 text-xs font-medium">Command line</p><form className="flex gap-1" onSubmit={(e)=>{e.preventDefault();runCommand();}}><Input value={command} onChange={(e)=>setCommand(e.target.value)} placeholder="LINE / RECTANG / CIRCLE"/><Button size="sm" type="submit">Run</Button></form><p className="mt-1 text-[10px] text-muted-foreground">Command aliases select the corresponding tool; geometry handlers are enabled for the initial draw tools.</p></div>
       </aside>
     </div>
-    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, line, rectangle, circle, arc, wall, polygon, move, copy, rotate, mirror and erase. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings stay in this browser session unless exported as SVG or JSON.</p>
+    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, line, rectangle, circle, arc, wall, polygon, move, copy, rotate, mirror and erase. Offset supports current geometry entities; Trim and Extend currently support straight lines/walls with guided two-click workflows. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings stay in this browser session unless exported as SVG or JSON.</p>
   </section>;
 }
