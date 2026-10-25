@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS public.agent_automations (
 
 CREATE TABLE IF NOT EXISTS public.agent_cron_key (
   id integer PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-  key text NOT NULL DEFAULT encode(gen_random_bytes(32),'hex')
+  key text NOT NULL DEFAULT encode(extensions.gen_random_bytes(32),'hex')
 );
 INSERT INTO public.agent_cron_key (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 
