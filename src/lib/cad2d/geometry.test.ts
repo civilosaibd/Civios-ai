@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createEmptyDocument, deserializeCadDocument, distance, entityBounds,
-  extendLineToBoundary, normalizeRect, offsetEntity, parseCadCommand, rotateEntity, serializeCadDocument, snapToGrid,
+  chamferLines, extendLineToBoundary, normalizeRect, offsetEntity, parseCadCommand, rotateEntity, serializeCadDocument, snapToGrid,
   translateEntity, trimLineAtPoint, type CadEntity,
 } from "./geometry";
 
@@ -70,6 +70,19 @@ describe("2D CAD geometry foundation", () => {
     const boundary = { id: "x2", layerId: "layer-0", type: "line" as const, start: { x: 8, y: -2 }, end: { x: 8, y: 2 } };
     expect(extendLineToBoundary(line, boundary)).toMatchObject({ start: { x: 0, y: 0 }, end: { x: 8, y: 0 } });
     expect(() => extendLineToBoundary({ ...line, end: { x: 10, y: 0 } }, boundary)).toThrow(/No valid extension/);
+  });
+
+  it("chamfers intersecting finite line segments and rejects invalid distances", () => {
+    const first = { id: "c1", layerId: "layer-0", type: "line" as const, start: { x: 0, y: 0 }, end: { x: 10, y: 0 } };
+    const second = { id: "c2", layerId: "layer-0", type: "line" as const, start: { x: 10, y: 0 }, end: { x: 10, y: 10 } };
+    const result = chamferLines(first, second, 2);
+    expect(result.first.end).toEqual({ x: 8, y: 0 });
+    expect(result.second.start).toEqual({ x: 10, y: 2 });
+    expect(result.connector.start).toEqual({ x: 8, y: 0 });
+    expect(result.connector.end).toEqual({ x: 10, y: 2 });
+    expect(first.end).toEqual({ x: 10, y: 0 });
+    expect(() => chamferLines(first, second, 0)).toThrow(/positive finite/);
+    expect(() => chamferLines(first, second, 11)).toThrow(/shorter/);
   });
 
   it("round-trips versioned documents", () => {
