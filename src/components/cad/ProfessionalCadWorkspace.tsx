@@ -7,7 +7,7 @@ import {
   type CadToolId, type CadGridSettings,
 } from "@/lib/cad2d/professional-model";
 import {
-  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, type CadEntity, type CadDocument, type Point2D,
+  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, entityBounds, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -111,6 +111,17 @@ export default function ProfessionalCadWorkspace() {
     if (tool === "move" || tool === "copy" || tool === "erase" || tool === "rotate") {
       const id=findHit(p); if (!id) { toast.info("Click an existing object first."); return; }
       if (tool === "erase") { commit({ ...doc, entities: doc.entities.filter((e)=>e.id!==id) }); setSelected([]); return; }
+      if (tool === "rotate") {
+        const entity=doc.entities.find((e)=>e.id===id);
+        if (entity) {
+          const bounds=entityBounds(entity);
+          const pivot={x:(bounds.min.x+bounds.max.x)/2,y:(bounds.min.y+bounds.max.y)/2};
+          commit({...doc,entities:doc.entities.map((e)=>e.id===id?rotateEntity(e,Math.PI/2,pivot):e)});
+          setSelected([id]);
+          toast.success("Rotated 90°.");
+        }
+        return;
+      }
       setSelected([id]); setStart(p); setCursor(p); return;
     }
     if (!start) { setStart(p); setCursor(p); return; }
@@ -143,13 +154,11 @@ export default function ProfessionalCadWorkspace() {
     }
   };
   const handlePointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (!start || !selected.length || (tool!=="move" && tool!=="copy" && tool!=="rotate")) return;
+    if (!start || !selected.length || (tool!=="move" && tool!=="copy")) return;
     const end=toWorld(event), dx=end.x-start.x, dy=end.y-start.y;
     const id=selected[0], entity=doc.entities.find((e)=>e.id===id);
     if (entity && (dx!==0 || dy!==0)) {
-      const transformed = tool==="rotate"
-        ? rotateEntity(entity, Math.atan2(end.y-start.y,end.x-start.x), start)
-        : translateEntity(entity, dx, dy);
+      const transformed = translateEntity(entity, dx, dy);
       const entities=tool==="copy" ? [...doc.entities,{...transformed,id:makeId()} as CadEntity] : doc.entities.map((e)=>e.id===id?transformed as CadEntity:e);
       commit({...doc,entities});
     }
