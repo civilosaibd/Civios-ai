@@ -119,6 +119,12 @@ export function entityBounds(entity: CadEntity): { min: Point2D; max: Point2D } 
     const r = entity.radius;
     return { min: { x: entity.center.x - r, y: entity.center.y - r }, max: { x: entity.center.x + r, y: entity.center.y + r } };
   }
+  if (entity.type === "ellipse") {
+    return {
+      min: { x: entity.center.x - entity.rx, y: entity.center.y - entity.ry },
+      max: { x: entity.center.x + entity.rx, y: entity.center.y + entity.ry },
+    };
+  }
   const points = entity.type === "line" || entity.type === "wall" ? [entity.start, entity.end]
     : entity.type === "rectangle" ? [entity.min, entity.max]
     : entity.points;
