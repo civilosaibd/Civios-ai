@@ -244,3 +244,36 @@ test("new subscription/payment rows default to yearly", async () => {
   assert.equal(rows.length, 2);
   for (const r of rows) assert.match(r.column_default, /yearly/);
 });
+
+
+test("agent rate limiter: only service_role can invoke it", async () => {
+  await alice(() => rejects(() => db.query("SELECT * FROM public.consume_agent_rate_limit($1)", [ALICE]), /permission denied/));
+  await anon(() => rejects(() => db.query("SELECT * FROM public.consume_agent_rate_limit($1)", [ALICE]), /permission denied/));
+});
+
+test("agent rate limiter: caps requests at five per minute", async () => {
+  const results = [];
+  for (let i = 0; i < 5; i++) {
+    results.push(await as("service_role", ALICE, "alice@example.com", () =>
+      q("SELECT * FROM public.consume_agent_rate_limit($1)", [ALICE])));
+  }
+  assert.ok(results.every((r) => r[0].allowed === true));
+  const [blocked] = await as("service_role", ALICE, "alice@example.com", () =>
+    q("SELECT * FROM public.consume_agent_rate_limit($1)", [ALICE]));
+  assert.equal(blocked.allowed, false);
+  assert.equal(blocked.reason, "minute");
+  assert.equal(blocked.minute_count, 5);
+});
+
+test("agent rate limiter: enforces the 24-hour cap", async () => {
+  await db.query("DELETE FROM public.agent_rate_limit_events WHERE user_id=$1", [BOB]);
+  await db.query(
+    "INSERT INTO public.agent_rate_limit_events (user_id, created_at) SELECT $1, now() - (n || ' minutes')::interval FROM generate_series(2, 41) n",
+    [BOB]
+  );
+  const [limited] = await as("service_role", BOB, "bob@example.com", () =>
+    q("SELECT * FROM public.consume_agent_rate_limit($1)", [BOB]));
+  assert.equal(limited.allowed, false);
+  assert.equal(limited.reason, "day");
+  assert.equal(limited.day_count, 40);
+});
