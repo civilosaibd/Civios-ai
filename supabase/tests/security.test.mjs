@@ -280,3 +280,54 @@ test("AI endpoint rate limiter: applies separate limits per endpoint and a daily
     q("SELECT * FROM public.consume_ai_endpoint_rate_limit($1, 'ai-structured')", [BOB]));
   assert.equal(otherEndpoint.allowed, true);
 });
+
+
+test("agent core schema: client roles can read only their own task history", async () => {
+  const [{ id: aliceTask }] = await db.query(
+    "INSERT INTO public.agent_tasks (agent_type,user_id,objective,status) VALUES ('user',$1,'alice task','completed') RETURNING id",
+    [ALICE]
+  ).then(r => r.rows);
+  await db.query(
+    "INSERT INTO public.agent_tasks (agent_type,user_id,objective,status) VALUES ('user',$1,'bob task','completed')",
+    [BOB]
+  );
+  const aliceRows = await alice(() => q("SELECT objective FROM public.agent_tasks ORDER BY objective"));
+  assert.deepEqual(aliceRows.map((r) => r.objective), ["alice task"]);
+  await alice(() => rejects(
+    () => db.query("INSERT INTO public.agent_tasks (agent_type,user_id,objective) VALUES ('user',$1,'forged task')", [ALICE]),
+    /permission denied/
+  ));
+  assert.ok(aliceTask);
+});
+
+test("agent core schema: audit and approval rows are read-restricted", async () => {
+  const [{ id: taskId }] = (await db.query(
+    "INSERT INTO public.agent_tasks (agent_type,user_id,objective) VALUES ('user',$1,'approval fixture') RETURNING id",
+    [ALICE]
+  )).rows;
+  await db.query(
+    "INSERT INTO public.agent_steps (task_id,agent_type,actor_user_id,kind,status) VALUES ($1,'user',$2,'received','ok')",
+    [taskId, ALICE]
+  );
+  await db.query(
+    "INSERT INTO public.agent_approvals (task_id,requested_by,tool,tool_input,risk_level,status) VALUES ($1,$2,'dangerous_tool','{}','HIGH','pending')",
+    [taskId, ALICE]
+  );
+  const aliceSteps = await alice(() => q("SELECT count(*)::int n FROM public.agent_steps WHERE task_id=$1", [taskId]));
+  assert.equal(aliceSteps[0].n, 1);
+  await alice(() => rejects(
+    () => q("SELECT id FROM public.agent_approvals"),
+    /permission denied/
+  ));
+  const adminApprovals = await admin(() => q("SELECT count(*)::int n FROM public.agent_approvals"));
+  assert.equal(adminApprovals[0].n, 1);
+});
+
+test("agent core schema: cron key and automation mutations are server-only", async () => {
+  await alice(() => rejects(() => q("SELECT key FROM public.agent_cron_key"), /permission denied/));
+  await alice(() => rejects(
+    () => db.query("INSERT INTO public.agent_automations (owner_id,name,kind,frequency) VALUES ($1,'x','health_check','daily')", [ALICE]),
+    /permission denied/
+  ));
+  assert.equal((await q("SELECT count(*)::int n FROM public.agent_cron_key")).at(0).n, 1);
+});
