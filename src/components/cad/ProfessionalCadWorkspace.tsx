@@ -80,12 +80,15 @@ export default function ProfessionalCadWorkspace() {
     const rect = event.currentTarget.getBoundingClientRect();
     let p = { x: (event.clientX - rect.left - view.x) / view.scale, y: (event.clientY - rect.top - view.y) / view.scale };
     if (grid.snapEnabled) p = snapToGrid(p, grid.snapSpacing);
-    // Ortho constrains the second point to the dominant axis from the first point.
-    if (grid.ortho && start && tool !== "select" && tool !== "erase") {
-      const dx = p.x - start.x, dy = p.y - start.y;
+    // Ortho uses the previous polyline vertex, or the first point for other tools.
+    const orthoAnchor = tool === "polyline" && polylinePoints.length
+      ? polylinePoints[polylinePoints.length - 1]
+      : start;
+    if (grid.ortho && orthoAnchor && tool !== "select" && tool !== "erase") {
+      const dx = p.x - orthoAnchor.x, dy = p.y - orthoAnchor.y;
       p = Math.abs(dx) >= Math.abs(dy)
-        ? { ...p, y: start.y }
-        : { ...p, x: start.x };
+        ? { ...p, y: orthoAnchor.y }
+        : { ...p, x: orthoAnchor.x };
     }
     return p;
   };
