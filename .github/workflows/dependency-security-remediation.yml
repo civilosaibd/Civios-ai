@@ -1,0 +1,80 @@
+name: Dependency Security Remediation
+
+on:
+  push:
+    branches:
+      - security/dependency-remediation-2026-10-25
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dependency-security-remediation
+  cancel-in-progress: false
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@v4
+        with:
+          ref: security/dependency-remediation-2026-10-25
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Apply non-breaking npm security fixes
+        id: auditfix
+        continue-on-error: true
+        run: npm audit fix
+
+      - name: Capture remaining audit findings
+        id: audit
+        continue-on-error: true
+        run: |
+          npm audit --json > dependency-audit.json || true
+          node -e "const fs=require('fs');const a=JSON.parse(fs.readFileSync('dependency-audit.json','utf8'));console.log(JSON.stringify({metadata:a.metadata?.vulnerabilities,findings:Object.entries(a.vulnerabilities||{}).map(([name,v])=>({name,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable}))},null,2))"
+
+      - name: Run unit tests
+        id: tests
+        continue-on-error: true
+        run: npm test -- --run
+
+      - name: Run production build
+        id: build
+        continue-on-error: true
+        run: npm run build
+
+      - name: Commit lockfile changes and open review PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AUDIT_FIX_OUTCOME: ${{ steps.auditfix.outcome }}
+          TEST_OUTCOME: ${{ steps.tests.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "fix: remediate npm dependency vulnerabilities"
+            git push origin HEAD:security/dependency-remediation-2026-10-25
+          fi
+          gh pr create \
+            --repo zobaerio/CivilOS-AI \
+            --base main \
+            --head security/dependency-remediation-2026-10-25 \
+            --title "Security: remediate vulnerable npm dependencies" \
+            --body "Automated non-breaking dependency remediation for the 2026-10-24 security scan. The workflow runs npm audit fix without --force, records remaining audit findings, and runs tests/build. Review the CI results and dependency-audit.json before merging. Test outcome: ${TEST_OUTCOME}; build outcome: ${BUILD_OUTCOME}; npm audit fix outcome: ${AUDIT_FIX_OUTCOME}. Breaking upgrades are intentionally not forced."
+          
