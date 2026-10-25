@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   createEmptyDocument, deserializeCadDocument, distance, entityBounds,
-  normalizeRect, parseCadCommand, rotateEntity, serializeCadDocument, snapToGrid,
-  translateEntity, type CadEntity,
+  extendLineToBoundary, normalizeRect, offsetEntity, parseCadCommand, rotateEntity, serializeCadDocument, snapToGrid,
+  translateEntity, trimLineAtPoint, type CadEntity,
 } from "./geometry";
 
 describe("2D CAD geometry foundation", () => {
@@ -41,6 +41,35 @@ describe("2D CAD geometry foundation", () => {
     const circle: CadEntity = { id: "e2", layerId: "layer-0", type: "circle", center: { x: 5, y: 6 }, radius: 2 };
     expect(entityBounds(circle)).toEqual({ min: { x: 3, y: 4 }, max: { x: 7, y: 8 } });
     expect(distance({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(5);
+  });
+
+  it("offsets lines without mutating the source and rejects invalid distances", () => {
+    const line: CadEntity = { id: "o1", layerId: "layer-0", type: "line", start: { x: 0, y: 0 }, end: { x: 10, y: 0 } };
+    expect(offsetEntity(line, 2)).toMatchObject({ start: { x: 0, y: 2 }, end: { x: 10, y: 2 } });
+    expect(line).toMatchObject({ start: { x: 0, y: 0 }, end: { x: 10, y: 0 } });
+    expect(() => offsetEntity(line, 0)).toThrow(/non-zero/);
+  });
+
+  it("offsets circles and closed rectangles with radius and size validation", () => {
+    const circle: CadEntity = { id: "o2", layerId: "layer-0", type: "circle", center: { x: 0, y: 0 }, radius: 5 };
+    expect(offsetEntity(circle, 2)).toMatchObject({ radius: 7 });
+    const rect: CadEntity = { id: "o3", layerId: "layer-0", type: "rectangle", min: { x: 0, y: 0 }, max: { x: 10, y: 8 } };
+    expect(offsetEntity(rect, 1)).toMatchObject({ min: { x: 1, y: 1 }, max: { x: 9, y: 7 } });
+    expect(() => offsetEntity(circle, -5)).toThrow(/radius/);
+  });
+
+  it("trims the nearest end of a line at an on-segment point", () => {
+    const line = { id: "t1", layerId: "layer-0", type: "line" as const, start: { x: 0, y: 0 }, end: { x: 10, y: 0 } };
+    expect(trimLineAtPoint(line, { x: 3, y: 0 })).toMatchObject({ start: { x: 3, y: 0 }, end: { x: 10, y: 0 } });
+    expect(trimLineAtPoint(line, { x: 7, y: 0 })).toMatchObject({ start: { x: 0, y: 0 }, end: { x: 7, y: 0 } });
+    expect(() => trimLineAtPoint(line, { x: 3, y: 2 })).toThrow(/lie on the line/);
+  });
+
+  it("extends a line to a finite boundary only when intersection is beyond an endpoint", () => {
+    const line = { id: "x1", layerId: "layer-0", type: "line" as const, start: { x: 0, y: 0 }, end: { x: 5, y: 0 } };
+    const boundary = { id: "x2", layerId: "layer-0", type: "line" as const, start: { x: 8, y: -2 }, end: { x: 8, y: 2 } };
+    expect(extendLineToBoundary(line, boundary)).toMatchObject({ start: { x: 0, y: 0 }, end: { x: 8, y: 0 } });
+    expect(() => extendLineToBoundary({ ...line, end: { x: 10, y: 0 } }, boundary)).toThrow(/No valid extension/);
   });
 
   it("round-trips versioned documents", () => {
