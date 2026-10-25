@@ -1,8 +1,10 @@
 // AI Defect Detection — analyses a site photo for construction defects.
+import { createClient } from "npm:@supabase/supabase-js@2";
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { ...cors, "Content-Type": "application/json" } });
@@ -41,10 +43,25 @@ const SCHEMA = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   try {
+    const authorization = req.headers.get("Authorization") || "";
+    if (!authorization.startsWith("Bearer ")) return json({ error: "Authentication required" }, 401);
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!supabaseUrl || !anonKey) {
+      console.error("Supabase auth configuration missing");
+      return json({ error: "AI service is temporarily unavailable" }, 503);
+    }
+    const authClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } } });
+    const { data: { user }, error: authError } = await authClient.auth.getUser(authorization.slice(7));
+    if (authError || !user) return json({ error: "Authentication required" }, 401);
+
     const { dataUrl, note, lang } = await req.json();
     if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) return json({ error: "Image required" }, 400);
     if (dataUrl.length > 8_000_000) return json({ error: "Image too large (max ~6MB)" }, 400);
+    if (note !== undefined && (typeof note !== "string" || note.length > 500)) return json({ error: "Inspector note is too long" }, 400);
+    if (lang !== undefined && lang !== "bn" && lang !== "en") return json({ error: "Unsupported language" }, 400);
     const key = Deno.env.get("LOVABLE_API_KEY");
     if (!key) return json({ error: "AI not configured" }, 500);
 
@@ -95,7 +112,7 @@ Deno.serve(async (req) => {
     if (!out) return json({ error: "AI returned no result" }, 502);
     return json(JSON.parse(out));
   } catch (e) {
-    console.error(e);
-    return json({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
+    console.error("defect-detect request failed", e instanceof Error ? e.message : "unknown error");
+    return json({ error: "Unable to process this request. Please try again." }, 500);
   }
 });
