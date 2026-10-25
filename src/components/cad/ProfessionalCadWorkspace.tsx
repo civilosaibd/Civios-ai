@@ -7,7 +7,7 @@ import {
   type CadToolId, type CadGridSettings,
 } from "@/lib/cad2d/professional-model";
 import {
-  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, type CadEntity, type CadDocument, type Point2D,
+  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -108,9 +108,30 @@ export default function ProfessionalCadWorkspace() {
     if (event.button !== 0) return;
     const p = toWorld(event);
     if (tool === "select") { const id=findHit(p); setSelected(id ? [id] : []); return; }
-    if (tool === "move" || tool === "copy" || tool === "erase") {
-      const id=findHit(p); if (!id) { toast.info("Select an object first."); return; }
+    if (tool === "move" || tool === "copy" || tool === "erase" || tool === "rotate" || tool === "mirror") {
+      const id=findHit(p); if (!id) { toast.info("Click an existing object first."); return; }
       if (tool === "erase") { commit({ ...doc, entities: doc.entities.filter((e)=>e.id!==id) }); setSelected([]); return; }
+      if (tool === "rotate") {
+        const entity=doc.entities.find((e)=>e.id===id);
+        if (entity) {
+          const bounds=entityBounds(entity);
+          const pivot={x:(bounds.min.x+bounds.max.x)/2,y:(bounds.min.y+bounds.max.y)/2};
+          commit({...doc,entities:doc.entities.map((e)=>e.id===id?rotateEntity(e,Math.PI/2,pivot):e)});
+          setSelected([id]);
+          toast.success("Rotated 90°.");
+        }
+        return;
+      }
+      if (tool === "mirror") {
+        const entity = doc.entities.find((e) => e.id === id);
+        if (entity) {
+          // The clicked world X coordinate defines a vertical mirror axis.
+          commit({ ...doc, entities: doc.entities.map((e) => e.id === id ? mirrorEntity(e, p.x) : e) });
+          setSelected([id]);
+          toast.success("Mirrored across the clicked vertical axis.");
+        }
+        return;
+      }
       setSelected([id]); setStart(p); return;
     }
     if (!start) { setStart(p); setCursor(p); return; }
@@ -123,6 +144,14 @@ export default function ProfessionalCadWorkspace() {
       entity=tool==="wall" ? {...base,type:"wall",start:a,end:b,thickness:0.5} : {...base,type:"rectangle",...r};
     } else if (tool==="circle") entity={...base,type:"circle",center:a,radius:Math.hypot(b.x-a.x,b.y-a.y)};
     else if (tool==="polyline") entity={...base,type:"polyline",points:[a,b],closed:false};
+    else if (tool==="polygon") {
+      const radius=Math.hypot(b.x-a.x,b.y-a.y);
+      if (radius > 0) {
+        const sides=6, angle=Math.atan2(b.y-a.y,b.x-a.x);
+        const points=Array.from({length:sides},(_,i)=>({x:a.x+radius*Math.cos(angle+i*2*Math.PI/sides),y:a.y+radius*Math.sin(angle+i*2*Math.PI/sides)}));
+        entity={...base,type:"polyline",points,closed:true};
+      }
+    }
     else if (tool==="arc") entity={...base,type:"arc",center:a,radius:Math.hypot(b.x-a.x,b.y-a.y),startAngle:0,endAngle:Math.PI*1.5};
     else if (tool==="ellipse") entity={...base,type:"ellipse",center:a,rx:Math.abs(b.x-a.x),ry:Math.abs(b.y-a.y)};
     if (entity) commit({...doc,entities:[...doc.entities,entity]});
@@ -139,12 +168,7 @@ export default function ProfessionalCadWorkspace() {
     const end=toWorld(event), dx=end.x-start.x, dy=end.y-start.y;
     const id=selected[0], entity=doc.entities.find((e)=>e.id===id);
     if (entity && (dx!==0 || dy!==0)) {
-      const moved = entity.type==="line" || entity.type==="wall"
-        ? {...entity,start:{x:entity.start.x+dx,y:entity.start.y+dy},end:{x:entity.end.x+dx,y:entity.end.y+dy}}
-        : entity.type==="rectangle" ? {...entity,min:{x:entity.min.x+dx,y:entity.min.y+dy},max:{x:entity.max.x+dx,y:entity.max.y+dy}}
-        : entity.type==="circle" ? {...entity,center:{x:entity.center.x+dx,y:entity.center.y+dy}}
-        : entity.type==="polyline" ? {...entity,points:entity.points.map((p)=>({x:p.x+dx,y:p.y+dy}))}
-        : {...entity};
+      const moved = translateEntity(entity, dx, dy);
       const entities=tool==="copy" ? [...doc.entities,{...moved,id:makeId()} as CadEntity] : doc.entities.map((e)=>e.id===id?moved as CadEntity:e);
       commit({...doc,entities});
     }
@@ -227,6 +251,6 @@ export default function ProfessionalCadWorkspace() {
         <div><p className="mb-1 text-xs font-medium">Command line</p><form className="flex gap-1" onSubmit={(e)=>{e.preventDefault();runCommand();}}><Input value={command} onChange={(e)=>setCommand(e.target.value)} placeholder="LINE / RECTANG / CIRCLE"/><Button size="sm" type="submit">Run</Button></form><p className="mt-1 text-[10px] text-muted-foreground">Command aliases select the corresponding tool; geometry handlers are enabled for the initial draw tools.</p></div>
       </aside>
     </div>
-    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, line, rectangle, circle, arc, wall, move, copy and erase. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings stay in this browser session unless exported as SVG or JSON.</p>
+    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, line, rectangle, circle, arc, wall, polygon, move, copy, rotate, mirror and erase. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings stay in this browser session unless exported as SVG or JSON.</p>
   </section>;
 }
