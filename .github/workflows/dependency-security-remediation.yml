@@ -21,6 +21,10 @@ jobs:
   remediate:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      # Safe public test values only; never use production secrets in CI.
+      VITE_SUPABASE_URL: https://example.supabase.co
+      VITE_SUPABASE_ANON_KEY: ci-test-anon-key
     steps:
       - name: Checkout remediation branch
         uses: actions/checkout@v4
@@ -53,7 +57,7 @@ jobs:
           const fs = require('fs');
           let audit = {};
           try { audit = JSON.parse(fs.readFileSync('dependency-audit.json', 'utf8')); }
-          catch (e) { console.error('Could not parse npm audit output:', e.message); process.exit(0); }
+          catch (e) { console.error('Could not parse npm audit output:', e.message); process.exit(1); }
           const meta = audit.metadata?.vulnerabilities || {};
           const findings = Object.entries(audit.vulnerabilities || {}).map(([name, v]) => ({
             name, severity: v.severity, range: v.range, isDirect: v.isDirect,
@@ -87,8 +91,6 @@ jobs:
 
       - name: Commit compatible dependency changes
         if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -108,10 +110,10 @@ jobs:
           {
             echo "## Dependency security remediation"
             echo ""
-            echo "- `npm audit fix` (without `--force`): ${AUDIT_FIX_OUTCOME:-not run}"
+            echo "- npm audit fix (without force): ${AUDIT_FIX_OUTCOME:-not run}"
             echo "- Unit tests: ${TEST_OUTCOME:-not run}"
             echo "- Production build: ${BUILD_OUTCOME:-not run}"
-            echo "- Full audit evidence: see the `dependency-security-audit` workflow artifact."
+            echo "- Full audit evidence: see the dependency-security-audit workflow artifact."
             echo ""
-            echo "A green build does not by itself mean all vulnerabilities are resolved. Review the audit counts and any findings requiring breaking upgrades."
+            echo "A successful workflow is not a guarantee of zero vulnerabilities; inspect the audit counts and all unresolved findings."
           } >> "$GITHUB_STEP_SUMMARY"
