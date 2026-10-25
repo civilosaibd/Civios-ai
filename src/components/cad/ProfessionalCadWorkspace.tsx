@@ -49,6 +49,7 @@ export default function ProfessionalCadWorkspace() {
   const [grid, setGrid] = useState<CadGridSettings>(DEFAULT_CAD_GRID);
   const [view, setView] = useState<View>({ x: 60, y: 50, scale: 1 });
   const [start, setStart] = useState<Point2D | null>(null);
+  const [polylinePoints, setPolylinePoints] = useState<Point2D[]>([]);
   const [cursor, setCursor] = useState<Point2D | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [command, setCommand] = useState("");
@@ -107,6 +108,28 @@ export default function ProfessionalCadWorkspace() {
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
     const p = toWorld(event);
+    if (tool === "polyline") {
+      if (!start) {
+        setStart(p);
+        setPolylinePoints([p]);
+        setCursor(p);
+        return;
+      }
+      const points = [...polylinePoints, p];
+      if (event.detail >= 2) {
+        if (points.length >= 2) {
+          const entity: CadEntity = { id: makeId(), layerId: activeLayer.id, type: "polyline", points, closed: false };
+          commit({ ...doc, entities: [...doc.entities, entity] });
+        }
+        setStart(null);
+        setPolylinePoints([]);
+        setCursor(null);
+      } else {
+        setPolylinePoints(points);
+        setCursor(p);
+      }
+      return;
+    }
     if (tool === "select") { const id=findHit(p); setSelected(id ? [id] : []); return; }
     if (tool === "move" || tool === "copy" || tool === "erase" || tool === "rotate" || tool === "mirror") {
       const id=findHit(p); if (!id) { toast.info("Click an existing object first."); return; }
@@ -155,7 +178,7 @@ export default function ProfessionalCadWorkspace() {
     else if (tool==="arc") entity={...base,type:"arc",center:a,radius:Math.hypot(b.x-a.x,b.y-a.y),startAngle:0,endAngle:Math.PI*1.5};
     else if (tool==="ellipse") entity={...base,type:"ellipse",center:a,rx:Math.abs(b.x-a.x),ry:Math.abs(b.y-a.y)};
     if (entity) commit({...doc,entities:[...doc.entities,entity]});
-    setStart(null); setCursor(null);
+    setStart(null); setPolylinePoints([]); setCursor(null);
   };
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     const p=toWorld(event); setCursor(p);
@@ -202,7 +225,7 @@ export default function ProfessionalCadWorkspace() {
   const selectTool = (id: CadToolId) => { setTool(id); setStart(null); setCursor(null); setToolsOpen(false); };
   const ToolPalette = (
     <div className="space-y-3">
-      <div><div className="mb-2 flex items-center gap-2"><Wrench className="h-4 w-4 text-primary"/><h3 className="text-sm font-semibold">Tools</h3></div><p className="mb-2 text-[11px] text-muted-foreground">Choose a tool, then click points on the drawing canvas.</p></div>
+      <div><div className="mb-2 flex items-center gap-2"><Wrench className="h-4 w-4 text-primary"/><h3 className="text-sm font-semibold">Tools</h3></div><p className="mb-2 text-[11px] text-muted-foreground">Choose a tool, then click points on the drawing canvas. For Polyline, click multiple vertices and double-click to finish.</p></div>
       {groups.map((group)=><div key={group}><p className="mb-1 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{group === "Common" ? "Common tools" : group}</p><div className="grid grid-cols-2 gap-1">{palette.filter((p)=>p.group===group).map((p)=><Button key={p.id} size="sm" variant={tool===p.id?"default":"outline"} className="h-9 min-w-0 justify-start px-2 text-xs" onClick={()=>selectTool(p.id)} title={p.label} aria-pressed={tool===p.id}><MousePointer2 className="mr-1 h-3 w-3 shrink-0"/><span className="truncate">{p.label}</span></Button>)}</div></div>)}
     </div>
   );
@@ -251,6 +274,6 @@ export default function ProfessionalCadWorkspace() {
         <div><p className="mb-1 text-xs font-medium">Command line</p><form className="flex gap-1" onSubmit={(e)=>{e.preventDefault();runCommand();}}><Input value={command} onChange={(e)=>setCommand(e.target.value)} placeholder="LINE / RECTANG / CIRCLE"/><Button size="sm" type="submit">Run</Button></form><p className="mt-1 text-[10px] text-muted-foreground">Command aliases select the corresponding tool; geometry handlers are enabled for the initial draw tools.</p></div>
       </aside>
     </div>
-    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, line, rectangle, circle, arc, wall, polygon, move, copy, rotate, mirror and erase. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings stay in this browser session unless exported as SVG or JSON.</p>
+    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, line, multi-point polyline, rectangle, circle, arc, wall, polygon, move, copy, rotate, mirror and erase. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings stay in this browser session unless exported as SVG or JSON.</p>
   </section>;
 }
