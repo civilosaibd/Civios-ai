@@ -9,7 +9,7 @@ RETURNS TABLE (
   used integer,
   quota integer,
   plan_code text,
-  period text
+  usage_period text
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
