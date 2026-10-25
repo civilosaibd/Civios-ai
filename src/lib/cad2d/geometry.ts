@@ -203,7 +203,7 @@ export function extendLineToBoundary<T extends Extract<CadEntity, { type: "line"
   return hit.t < 0 ? { ...entity, start: hit.point } : { ...entity, end: hit.point };
 }
 
-/** Create a straight chamfer between two finite line segments that meet at a corner. */
+/** Create a straight chamfer between two finite line segments sharing an endpoint corner. */
 export function chamferLines(
   first: Extract<CadEntity, { type: "line" }>,
   second: Extract<CadEntity, { type: "line" }>,
@@ -216,30 +216,31 @@ export function chamferLines(
   if (!hit || hit.t < -1e-8 || hit.t > 1 + 1e-8 || hit.u < -1e-8 || hit.u > 1 + 1e-8) {
     throw new Error("Chamfer requires two finite line segments that intersect.");
   }
-  const pointAtDistance = (line: typeof first) => {
-    const startDistance = distance(line.start, hit.point);
-    const endDistance = distance(line.end, hit.point);
-    const from = startDistance < endDistance ? line.start : line.end;
-    const available = Math.min(startDistance, endDistance);
-    if (available < 1e-9) throw new Error("Cannot chamfer a zero-length corner segment.");
-    if (distanceFromCorner >= available - 1e-8) {
-      throw new Error("Chamfer distance must be shorter than the distance from the corner to each nearest endpoint.");
+  const pointAwayFromCorner = (line: typeof first, parameter: number) => {
+    const atStart = distance(line.start, hit.point) < 1e-7;
+    const atEnd = distance(line.end, hit.point) < 1e-7;
+    if (atStart === atEnd) throw new Error("Chamfer currently requires the lines to share an endpoint corner.");
+    const far = atStart ? line.end : line.start;
+    const length = distance(far, hit.point);
+    if (length < 1e-9) throw new Error("Cannot chamfer a zero-length line.");
+    if (distanceFromCorner >= length - 1e-8) {
+      throw new Error("Chamfer distance must be shorter than both line segments.");
     }
     return {
       point: {
-        x: hit.point.x + ((from.x - hit.point.x) / available) * distanceFromCorner,
-        y: hit.point.y + ((from.y - hit.point.y) / available) * distanceFromCorner,
+        x: hit.point.x + ((far.x - hit.point.x) / length) * distanceFromCorner,
+        y: hit.point.y + ((far.y - hit.point.y) / length) * distanceFromCorner,
       },
-      fromStart: startDistance < endDistance,
+      trimStart: atStart,
     };
   };
-  const a = pointAtDistance(first);
-  const b = pointAtDistance(second as typeof first);
-  const trim = (line: typeof first, point: Point2D, fromStart: boolean) =>
-    fromStart ? { ...line, start: point } : { ...line, end: point };
+  const a = pointAwayFromCorner(first, hit.t);
+  const b = pointAwayFromCorner(second as typeof first, hit.u);
+  const trim = (line: typeof first, point: Point2D, trimStart: boolean) =>
+    trimStart ? { ...line, start: point } : { ...line, end: point };
   return {
-    first: trim(first, a.point, a.fromStart),
-    second: trim(second as typeof first, b.point, b.fromStart) as typeof second,
+    first: trim(first, a.point, a.trimStart),
+    second: trim(second as typeof first, b.point, b.trimStart) as typeof second,
     connector: { id: "", layerId: first.layerId, type: "line", start: a.point, end: b.point },
   };
 }
