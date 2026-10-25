@@ -1,4 +1,5 @@
 import { checkAiEndpointRateLimit } from "../_shared/aiRateLimit.ts";
+import { consumeAiCredit } from "../_shared/aiUsageQuota.ts";
 // CivilOS AI — conversational engineering assistant (Lovable AI / Gemini)
 import { createClient } from "npm:@supabase/supabase-js@2";
 const corsHeaders = {
@@ -77,6 +78,9 @@ Deno.serve(async (req) => {
 
     const rateLimit = await checkAiEndpointRateLimit(user.id, "ai-chat");
     if (rateLimit) return new Response(JSON.stringify({ error: rateLimit.message }), { status: rateLimit.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const creditQuota = await consumeAiCredit(user.id);
+    if (creditQuota) return new Response(JSON.stringify({ error: creditQuota.message }), { status: creditQuota.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
 
     const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
