@@ -113,12 +113,12 @@ ALTER TABLE public.agent_memory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.agent_automations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.agent_cron_key ENABLE ROW LEVEL SECURITY;
 
-REVOKE ALL PRIVILEGES ON TABLE public.agent_tasks FROM PUBLIC, anon;
-REVOKE ALL PRIVILEGES ON TABLE public.agent_steps FROM PUBLIC, anon;
-REVOKE ALL PRIVILEGES ON TABLE public.agent_approvals FROM PUBLIC, anon;
-REVOKE ALL PRIVILEGES ON TABLE public.user_feature_settings FROM PUBLIC, anon;
-REVOKE ALL PRIVILEGES ON TABLE public.agent_memory FROM PUBLIC, anon;
-REVOKE ALL PRIVILEGES ON TABLE public.agent_automations FROM PUBLIC, anon;
+REVOKE ALL PRIVILEGES ON TABLE public.agent_tasks FROM PUBLIC, anon, authenticated;
+REVOKE ALL PRIVILEGES ON TABLE public.agent_steps FROM PUBLIC, anon, authenticated;
+REVOKE ALL PRIVILEGES ON TABLE public.agent_approvals FROM PUBLIC, anon, authenticated;
+REVOKE ALL PRIVILEGES ON TABLE public.user_feature_settings FROM PUBLIC, anon, authenticated;
+REVOKE ALL PRIVILEGES ON TABLE public.agent_memory FROM PUBLIC, anon, authenticated;
+REVOKE ALL PRIVILEGES ON TABLE public.agent_automations FROM PUBLIC, anon, authenticated;
 REVOKE ALL PRIVILEGES ON TABLE public.agent_cron_key FROM PUBLIC, anon, authenticated;
 
 GRANT SELECT ON TABLE public.agent_tasks TO authenticated;
@@ -139,7 +139,7 @@ GRANT ALL PRIVILEGES ON TABLE public.agent_cron_key TO service_role;
 DROP POLICY IF EXISTS "Own agent tasks" ON public.agent_tasks;
 CREATE POLICY "Own agent tasks" ON public.agent_tasks
   FOR SELECT TO authenticated
-  USING (auth.uid() = user_id OR (agent_type = 'admin' AND public.has_role(auth.uid(),'admin')));
+  USING (auth.uid() = user_id OR public.has_role(auth.uid(),'admin'));
 
 DROP POLICY IF EXISTS "Own agent steps" ON public.agent_steps;
 CREATE POLICY "Own agent steps" ON public.agent_steps
