@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -33,7 +33,18 @@ const palette: { id: CadToolId; label: string; group: string }[] = [
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `cad-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export default function ProfessionalCadWorkspace() {
-  const [doc, setDoc] = useState<CadDocument>(() => createEmptyDocument("ft"));
+  const [doc, setDoc] = useState<CadDocument>(() => {
+    if (typeof window === "undefined") return createEmptyDocument("ft");
+    try {
+      const saved = window.localStorage.getItem("civilos-cad-document-v1");
+      if (!saved) return createEmptyDocument("ft");
+      const parsed = JSON.parse(saved) as CadDocument;
+      if (parsed?.version === 1 && Array.isArray(parsed.entities) && Array.isArray(parsed.layers) && parsed.layers.length > 0) return parsed;
+    } catch {
+      // Ignore invalid or unavailable local storage and start with an empty drawing.
+    }
+    return createEmptyDocument("ft");
+  });
   const [tool, setTool] = useState<CadToolId>("select");
   const [grid, setGrid] = useState<CadGridSettings>(DEFAULT_CAD_GRID);
   const [view, setView] = useState<View>({ x: 60, y: 50, scale: 1 });
@@ -49,6 +60,14 @@ export default function ProfessionalCadWorkspace() {
   const svgRef = useRef<SVGSVGElement>(null);
   const activeLayer = doc.layers.find((layer) => layer.name === layerName) ?? doc.layers[0];
 
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("civilos-cad-document-v1", JSON.stringify(doc));
+    } catch {
+      toast.error("Could not auto-save this drawing locally. Please export a JSON backup.");
+    }
+  }, [doc]);
+
   const commit = useCallback((next: CadDocument) => {
     setHistory((h) => [...h.slice(-99), doc]);
     setFuture([]);
@@ -57,19 +76,32 @@ export default function ProfessionalCadWorkspace() {
 
   const toWorld = (event: ReactPointerEvent<SVGSVGElement>): Point2D => {
     const rect = event.currentTarget.getBoundingClientRect();
-    const p = { x: (event.clientX - rect.left - view.x) / view.scale, y: (event.clientY - rect.top - view.y) / view.scale };
-    return grid.snapEnabled ? snapToGrid(p, grid.snapSpacing) : p;
+    let p = { x: (event.clientX - rect.left - view.x) / view.scale, y: (event.clientY - rect.top - view.y) / view.scale };
+    if (grid.snapEnabled) p = snapToGrid(p, grid.snapSpacing);
+    // Ortho constrains the second point to the dominant axis from the first point.
+    if (grid.ortho && start && tool !== "select" && tool !== "erase") {
+      const dx = p.x - start.x, dy = p.y - start.y;
+      p = Math.abs(dx) >= Math.abs(dy)
+        ? { ...p, y: start.y }
+        : { ...p, x: start.x };
+    }
+    return p;
+  };
+  const distanceToSegment = (p: Point2D, a: Point2D, b: Point2D) => {
+    const dx = b.x - a.x, dy = b.y - a.y, lengthSquared = dx * dx + dy * dy;
+    const t = lengthSquared ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared)) : 0;
+    return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
   };
   const findHit = (p: Point2D) => [...doc.entities].reverse().find((e) => {
-    if (e.type === "line" || e.type === "wall") {
-      const dx=e.end.x-e.start.x, dy=e.end.y-e.start.y, len=dx*dx+dy*dy;
-      const t=len ? Math.max(0,Math.min(1,((p.x-e.start.x)*dx+(p.y-e.start.y)*dy)/len)) : 0;
-      return Math.hypot(p.x-e.start.x-t*dx,p.y-e.start.y-t*dy) < 7/view.scale;
-    }
+    if (e.type === "line" || e.type === "wall") return distanceToSegment(p, e.start, e.end) < 7 / view.scale;
     if (e.type === "rectangle") return p.x>=e.min.x-4/view.scale && p.x<=e.max.x+4/view.scale && p.y>=e.min.y-4/view.scale && p.y<=e.max.y+4/view.scale && (Math.abs(p.x-e.min.x)<7/view.scale || Math.abs(p.x-e.max.x)<7/view.scale || Math.abs(p.y-e.min.y)<7/view.scale || Math.abs(p.y-e.max.y)<7/view.scale);
     if (e.type === "circle") return Math.abs(Math.hypot(p.x-e.center.x,p.y-e.center.y)-e.radius)<7/view.scale;
     if (e.type === "ellipse") { const t=Math.atan2((p.y-e.center.y)/Math.max(e.ry,.001),(p.x-e.center.x)/Math.max(e.rx,.001)); const q={x:e.center.x+e.rx*Math.cos(t),y:e.center.y+e.ry*Math.sin(t)}; return Math.hypot(p.x-q.x,p.y-q.y)<7/view.scale; }
-    if (e.type === "polyline") return e.points.some((q)=>Math.hypot(p.x-q.x,p.y-q.y)<7/view.scale);
+    if (e.type === "polyline") {
+      const segments = e.points.slice(1).map((point, index) => [e.points[index], point] as const);
+      if (e.closed && e.points.length > 2) segments.push([e.points[e.points.length - 1], e.points[0]]);
+      return segments.some(([a, b]) => distanceToSegment(p, a, b) < 7 / view.scale);
+    }
     return false;
   })?.id;
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -165,7 +197,7 @@ export default function ProfessionalCadWorkspace() {
 
   return <section className="space-y-3 rounded-xl border bg-card p-3 md:p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <div><h2 className="text-lg font-semibold">CivilOS Professional 2D Drafting</h2><p className="text-xs text-muted-foreground">Interactive drafting workspace · drawing units: feet · local browser session</p></div>
+      <div><h2 className="text-lg font-semibold">CivilOS Professional 2D Drafting</h2><p className="text-xs text-muted-foreground">Interactive drafting workspace · drawing units: feet · local auto-save enabled</p></div>
       <div className="flex flex-wrap items-center gap-1">
         {isMobile && <Sheet open={toolsOpen} onOpenChange={setToolsOpen}><SheetTrigger asChild><Button size="sm" variant="default"><Wrench className="mr-1 h-4 w-4"/>Tools</Button></SheetTrigger><SheetContent side="bottom" className="max-h-[82dvh] overflow-y-auto"><SheetHeader><SheetTitle>2D Drafting Tools</SheetTitle></SheetHeader><div className="mt-4">{ToolPalette}</div></SheetContent></Sheet>}
         <Button size="sm" variant="outline" onClick={undo} disabled={!history.length}><Undo2 className="mr-1 h-4 w-4"/>Undo</Button>
