@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { checkAiEndpointRateLimit } from "../_shared/aiRateLimit.ts";
+import { consumeAiCredit } from "../_shared/aiUsageQuota.ts";
 // AI Thinking — authenticated multimodal analyzer for uploaded files/images.
 // Uses Lovable AI (Gemini 2.5 Pro) for visual + textual reasoning.
 const corsHeaders = {
@@ -108,6 +109,9 @@ Deno.serve(async (req) => {
 
     const rateLimit = await checkAiEndpointRateLimit(userId, "ai-analyze");
     if (rateLimit) return jsonResponse({ error: rateLimit.message }, rateLimit.status);
+    const creditQuota = await consumeAiCredit(userId);
+    if (creditQuota) return jsonResponse({ error: creditQuota.message }, creditQuota.status);
+
 
     const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
