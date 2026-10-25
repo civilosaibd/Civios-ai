@@ -7,7 +7,7 @@ import {
   type CadToolId, type CadGridSettings,
 } from "@/lib/cad2d/professional-model";
 import {
-  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, type CadEntity, type CadDocument, type Point2D,
+  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, entityBounds, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -108,9 +108,20 @@ export default function ProfessionalCadWorkspace() {
     if (event.button !== 0) return;
     const p = toWorld(event);
     if (tool === "select") { const id=findHit(p); setSelected(id ? [id] : []); return; }
-    if (tool === "move" || tool === "copy" || tool === "erase") {
-      const id=findHit(p); if (!id) { toast.info("Select an object first."); return; }
+    if (tool === "move" || tool === "copy" || tool === "erase" || tool === "rotate") {
+      const id=findHit(p); if (!id) { toast.info("Click an existing object first."); return; }
       if (tool === "erase") { commit({ ...doc, entities: doc.entities.filter((e)=>e.id!==id) }); setSelected([]); return; }
+      if (tool === "rotate") {
+        const entity=doc.entities.find((e)=>e.id===id);
+        if (entity) {
+          const bounds=entityBounds(entity);
+          const pivot={x:(bounds.min.x+bounds.max.x)/2,y:(bounds.min.y+bounds.max.y)/2};
+          commit({...doc,entities:doc.entities.map((e)=>e.id===id?rotateEntity(e,Math.PI/2,pivot):e)});
+          setSelected([id]);
+          toast.success("Rotated 90°.");
+        }
+        return;
+      }
       setSelected([id]); setStart(p); return;
     }
     if (!start) { setStart(p); setCursor(p); return; }
@@ -123,6 +134,14 @@ export default function ProfessionalCadWorkspace() {
       entity=tool==="wall" ? {...base,type:"wall",start:a,end:b,thickness:0.5} : {...base,type:"rectangle",...r};
     } else if (tool==="circle") entity={...base,type:"circle",center:a,radius:Math.hypot(b.x-a.x,b.y-a.y)};
     else if (tool==="polyline") entity={...base,type:"polyline",points:[a,b],closed:false};
+    else if (tool==="polygon") {
+      const radius=Math.hypot(b.x-a.x,b.y-a.y);
+      if (radius > 0) {
+        const sides=6, angle=Math.atan2(b.y-a.y,b.x-a.x);
+        const points=Array.from({length:sides},(_,i)=>({x:a.x+radius*Math.cos(angle+i*2*Math.PI/sides),y:a.y+radius*Math.sin(angle+i*2*Math.PI/sides)}));
+        entity={...base,type:"polyline",points,closed:true};
+      }
+    }
     else if (tool==="arc") entity={...base,type:"arc",center:a,radius:Math.hypot(b.x-a.x,b.y-a.y),startAngle:0,endAngle:Math.PI*1.5};
     else if (tool==="ellipse") entity={...base,type:"ellipse",center:a,rx:Math.abs(b.x-a.x),ry:Math.abs(b.y-a.y)};
     if (entity) commit({...doc,entities:[...doc.entities,entity]});
