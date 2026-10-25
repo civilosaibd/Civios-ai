@@ -37,6 +37,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: https://unit-test.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: unit-test-publishable-key
+          VITE_SUPABASE_PROJECT_ID: unit-test
         run: npm test
 
       - name: Install ephemeral Postgres migration-test dependency
@@ -46,4 +47,9 @@ jobs:
         run: node --test supabase/tests/security.test.mjs supabase/tests/affiliate.test.mjs
 
       - name: Build production bundle
+        # Build with isolated placeholder config; never embed a production project in CI.
+        env:
+          VITE_SUPABASE_URL: https://unit-test.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: unit-test-publishable-key
+          VITE_SUPABASE_PROJECT_ID: unit-test
         run: npm run build
