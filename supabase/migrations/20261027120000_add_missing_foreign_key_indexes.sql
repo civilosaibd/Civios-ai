@@ -6,8 +6,22 @@ CREATE INDEX IF NOT EXISTS idx_agent_approvals_requested_by
   ON public.agent_approvals (requested_by);
 CREATE INDEX IF NOT EXISTS idx_agent_automations_owner_id
   ON public.agent_automations (owner_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_resources_created_by
-  ON public.knowledge_resources (created_by);
+-- Some migration-test fixtures predate the optional created_by column.
+-- Create this index only when the column exists; production has it as an FK.
+DO $
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'knowledge_resources'
+      AND column_name = 'created_by'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS idx_knowledge_resources_created_by
+      ON public.knowledge_resources (created_by);
+  END IF;
+END
+$;
 CREATE INDEX IF NOT EXISTS idx_notifications_project_id
   ON public.notifications (project_id);
 CREATE INDEX IF NOT EXISTS idx_payments_plan_id
