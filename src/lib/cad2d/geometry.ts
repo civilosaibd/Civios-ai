@@ -122,7 +122,7 @@ export function mirrorEntity(entity: CadEntity, axisX: number): CadEntity {
     case "text":
       return { ...entity, at: mirror(entity.at), rotation: -entity.rotation };
     case "arc":
-      return { ...entity, center: mirror(entity.center), startAngle: Math.PI - entity.startAngle, endAngle: Math.PI - entity.endAngle };
+      return { ...entity, center: mirror(entity.center), startAngle: Math.PI - entity.endAngle, endAngle: Math.PI - entity.startAngle };
   }
 }
 /**
