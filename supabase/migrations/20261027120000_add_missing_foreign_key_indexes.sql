@@ -8,7 +8,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_automations_owner_id
   ON public.agent_automations (owner_id);
 -- Some migration-test fixtures predate the optional created_by column.
 -- Create this index only when the column exists; production has it as an FK.
-DO $
+DO $$
 BEGIN
   IF EXISTS (
     SELECT 1
@@ -21,7 +21,7 @@ BEGIN
       ON public.knowledge_resources (created_by);
   END IF;
 END
-$;
+$$;
 CREATE INDEX IF NOT EXISTS idx_notifications_project_id
   ON public.notifications (project_id);
 CREATE INDEX IF NOT EXISTS idx_payments_plan_id
