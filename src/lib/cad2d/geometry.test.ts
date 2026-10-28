@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createEmptyDocument, deserializeCadDocument, distance, entityBounds,
   chamferLines, extendLineToBoundary, normalizeRect, offsetEntity, parseCadCommand, rotateEntity, serializeCadDocument, snapToGrid,
-  translateEntity, trimLineAtPoint, nearestEndpoint, type CadEntity,
+  translateEntity, trimLineAtPoint, nearestEndpoint, mirrorEntity, type CadEntity,
 } from "./geometry";
 
 describe("2D CAD geometry foundation", () => {
@@ -108,6 +108,25 @@ describe("2D CAD geometry foundation", () => {
       locked: true,
       closed: true,
     });
+  });
+
+  it("preserves the mirrored arc sweep and endpoints", () => {
+    const arc: CadEntity = {
+      id: "mirror-arc", layerId: "0", type: "arc",
+      center: { x: 5, y: 5 }, radius: 2,
+      startAngle: 0, endAngle: Math.PI / 2,
+    };
+    const mirrored = mirrorEntity(arc, 5);
+    expect(mirrored).toMatchObject({
+      type: "arc", center: { x: 5, y: 5 },
+      startAngle: Math.PI / 2, endAngle: Math.PI,
+    });
+    if (mirrored.type !== "arc") throw new Error("Expected mirrored arc.");
+    expect(mirrored.endAngle - mirrored.startAngle).toBeCloseTo(Math.PI / 2);
+    expect(mirrored.center.x + mirrored.radius * Math.cos(mirrored.startAngle)).toBeCloseTo(5);
+    expect(mirrored.center.y + mirrored.radius * Math.sin(mirrored.startAngle)).toBeCloseTo(7);
+    expect(mirrored.center.x + mirrored.radius * Math.cos(mirrored.endAngle)).toBeCloseTo(3);
+    expect(mirrored.center.y + mirrored.radius * Math.sin(mirrored.endAngle)).toBeCloseTo(5);
   });
 
   it("snaps to both geometric endpoints of an arc, not an arbitrary circle point", () => {
