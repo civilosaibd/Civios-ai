@@ -448,6 +448,23 @@ export default function ProfessionalCadWorkspace() {
     const scale = Math.max(0.2, Math.min(8, 900 / width, 540 / height));
     setView({ x: (1000 - width * scale) / 2 - minX * scale, y: (640 - height * scale) / 2 - minY * scale, scale });
   };
+  const zoomToSelection = () => {
+    const selectedEntities = doc.entities.filter((entity) => selected.includes(entity.id) &&
+      doc.layers.find((layer) => layer.id === entity.layerId)?.visible !== false);
+    if (!selectedEntities.length) {
+      toast.info("Select one or more visible objects first.");
+      return;
+    }
+    const bounds = selectedEntities.map(entityBounds);
+    const minX = Math.min(...bounds.map((item) => item.min.x));
+    const minY = Math.min(...bounds.map((item) => item.min.y));
+    const maxX = Math.max(...bounds.map((item) => item.max.x));
+    const maxY = Math.max(...bounds.map((item) => item.max.y));
+    const width = Math.max(maxX - minX, 1);
+    const height = Math.max(maxY - minY, 1);
+    const scale = Math.max(0.2, Math.min(8, 820 / width, 460 / height));
+    setView({ x: (1000 - width * scale) / 2 - minX * scale, y: (640 - height * scale) / 2 - minY * scale, scale });
+  };
   const handleWheel = (event: React.WheelEvent<SVGSVGElement>) => {
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
@@ -571,6 +588,7 @@ export default function ProfessionalCadWorkspace() {
         <Button size="sm" variant="outline" className="rounded-lg" onClick={undo} disabled={!history.length} title="Undo (Ctrl+Z)"><Undo2 className="mr-1.5 h-4 w-4"/>Undo</Button>
         <Button size="sm" variant="outline" className="rounded-lg" onClick={redo} disabled={!future.length} title="Redo (Ctrl+Y)"><Redo2 className="mr-1.5 h-4 w-4"/>Redo</Button>
         <Button size="sm" variant={grid.enabled?"secondary":"outline"} className="rounded-lg" onClick={()=>setGrid((g)=>({...g,enabled:!g.enabled}))}><Grid3X3 className="mr-1.5 h-4 w-4"/>{grid.enabled?"Grid on":"Grid off"}</Button>
+        <Button size="sm" variant="outline" className="rounded-lg" onClick={zoomToSelection} title="Zoom to the selected objects"><ZoomIn className="mr-1.5 h-4 w-4"/>Zoom selection</Button>
         <Button size="sm" variant="outline" className="rounded-lg" onClick={fitToDrawing} title="Fit all drawing objects into the canvas"><Maximize2 className="mr-1.5 h-4 w-4"/>Fit drawing</Button>
         <Button size="icon" variant="outline" className="rounded-lg" onClick={()=>setView((v)=>({...v,scale:Math.min(8,v.scale*1.25)}))} title="Zoom in"><ZoomIn className="h-4 w-4"/></Button>
         <Button size="icon" variant="outline" className="rounded-lg" onClick={()=>setView((v)=>({...v,scale:Math.max(.2,v.scale/1.25)}))} title="Zoom out"><ZoomOut className="h-4 w-4"/></Button>
