@@ -910,7 +910,7 @@ export default function ProfessionalCadWorkspace() {
     if(e.type==="line"||e.type==="wall")return <line key={e.id} x1={e.start.x} y1={e.start.y} x2={e.end.x} y2={e.end.y} {...common} strokeWidth={e.type==="wall"?Math.max(2,e.thickness):common.strokeWidth}/>;
     if(e.type==="rectangle")return <rect key={e.id} x={e.min.x} y={e.min.y} width={e.max.x-e.min.x} height={e.max.y-e.min.y} {...common}/>;
     if(e.type==="circle")return <circle key={e.id} cx={e.center.x} cy={e.center.y} r={e.radius} {...common}/>
-    if(e.type==="text")return <text key={e.id} x={e.at.x} y={e.at.y} fontSize={e.height} transform={`rotate(${e.rotation * 180 / Math.PI} ${e.at.x} ${e.at.y})`} fill={color} stroke="none" style={{userSelect:"none"}}>{e.text}</text>;;
+    if(e.type==="text")return <text key={e.id} x={e.at.x} y={e.at.y} fontSize={e.height} transform={`rotate(${e.rotation * 180 / Math.PI} ${e.at.x} ${e.at.y})`} fill={color} stroke="none" style={{userSelect:"none"}} data-cad-entity-id={e.id} data-cad-layer-color={layer?.color ?? "#111827"}>{e.text}</text>;
     if(e.type==="ellipse")return <ellipse key={e.id} cx={e.center.x} cy={e.center.y} rx={e.rx} ry={e.ry} {...common}/>;
     if(e.type==="polyline")return <polyline key={e.id} points={e.points.map((p)=>`${p.x},${p.y}`).join(" ")} {...common}/>;
     if(e.type==="arc"){const sweep=e.endAngle-e.startAngle;const largeArc=Math.abs(sweep) > Math.PI ? 1 : 0;const sweepFlag=sweep >= 0 ? 1 : 0;return <path key={e.id} d={`M ${e.center.x+e.radius*Math.cos(e.startAngle)} ${e.center.y+e.radius*Math.sin(e.startAngle)} A ${e.radius} ${e.radius} 0 ${largeArc} ${sweepFlag} ${e.center.x+e.radius*Math.cos(e.endAngle)} ${e.center.y+e.radius*Math.sin(e.endAngle)}`} {...common}/>;}
