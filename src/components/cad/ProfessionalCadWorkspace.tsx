@@ -7,7 +7,7 @@ import {
   type CadToolId, type CadGridSettings,
 } from "@/lib/cad2d/professional-model";
 import {
-  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, parseCadCommand, type CadEntity, type CadDocument, type Point2D,
+  createEmptyDocument, deserializeCadDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, parseCadCommand, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand, Upload } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -38,8 +38,7 @@ export default function ProfessionalCadWorkspace() {
     try {
       const saved = window.localStorage.getItem("civilos-cad-document-v1");
       if (!saved) return createEmptyDocument("ft");
-      const parsed = JSON.parse(saved) as CadDocument;
-      if (parsed?.version === 1 && Array.isArray(parsed.entities) && Array.isArray(parsed.layers) && parsed.layers.length > 0) return parsed;
+      return deserializeCadDocument(saved);
     } catch {
       // Ignore invalid or unavailable local storage and start with an empty drawing.
     }
@@ -833,65 +832,7 @@ export default function ProfessionalCadWorkspace() {
         if (!proceed) return;
       }
       try {
-        const parsed: unknown = JSON.parse(await file.text());
-        if (!parsed || typeof parsed !== "object") throw new Error("The file is not a valid drawing document.");
-        const candidate = parsed as Partial<CadDocument>;
-        if (candidate.version !== 1 || !Array.isArray(candidate.entities) || !Array.isArray(candidate.layers) || candidate.layers.length === 0) {
-          throw new Error("Unsupported drawing format. Choose a CivilOS AI JSON drawing backup.");
-        }
-        const validLayers = candidate.layers.every((layer) =>
-          layer && typeof layer.id === "string" && typeof layer.name === "string" &&
-          typeof layer.visible === "boolean" && typeof layer.color === "string"
-        );
-        const isFinitePoint = (point: unknown): point is Point2D =>
-          !!point && typeof point === "object" &&
-          Number.isFinite((point as Point2D).x) && Number.isFinite((point as Point2D).y);
-        const validEntities = candidate.entities.every((rawEntity) => {
-          if (!rawEntity || typeof rawEntity !== "object" ||
-              typeof rawEntity.id !== "string" || typeof rawEntity.layerId !== "string") return false;
-          const entity = rawEntity as CadEntity;
-          switch (entity.type) {
-            case "line": return isFinitePoint(entity.start) && isFinitePoint(entity.end) &&
-              Math.hypot(entity.end.x - entity.start.x, entity.end.y - entity.start.y) > 1e-8;
-            case "wall": return isFinitePoint(entity.start) && isFinitePoint(entity.end) &&
-              Number.isFinite(entity.thickness) && entity.thickness > 0 &&
-              Math.hypot(entity.end.x - entity.start.x, entity.end.y - entity.start.y) > 1e-8;
-            case "polyline": return Array.isArray(entity.points) && entity.points.length >= 2 &&
-              entity.points.every(isFinitePoint);
-            case "rectangle": return isFinitePoint(entity.min) && isFinitePoint(entity.max) &&
-              entity.max.x > entity.min.x && entity.max.y > entity.min.y;
-            case "circle": return isFinitePoint(entity.center) && Number.isFinite(entity.radius) && entity.radius > 0;
-            case "ellipse": return isFinitePoint(entity.center) && Number.isFinite(entity.rx) && entity.rx > 0 &&
-              Number.isFinite(entity.ry) && entity.ry > 0;
-            case "arc": return isFinitePoint(entity.center) && Number.isFinite(entity.radius) && entity.radius > 0 &&
-              Number.isFinite(entity.startAngle) && Number.isFinite(entity.endAngle);
-            case "text": return isFinitePoint(entity.at) && typeof entity.text === "string" && entity.text.trim().length > 0 && Number.isFinite(entity.height) && entity.height > 0 && Number.isFinite(entity.rotation);
-            default: return false;
-          }
-        });
-        const validUnits = candidate.units === "mm" || candidate.units === "cm" ||
-          candidate.units === "m" || candidate.units === "in" || candidate.units === "ft";
-        const layerIdsForValidation = candidate.layers.map((layer) => layer.id);
-        const layerNamesForValidation = candidate.layers.map((layer) => layer.name.trim().toLowerCase());
-        const entityIdsForValidation = candidate.entities.map((entity) =>
-          entity && typeof entity === "object" && "id" in entity ? (entity as { id?: unknown }).id : undefined
-        );
-        const uniqueValues = (values: unknown[]) => new Set(values).size === values.length;
-        if (!validUnits) throw new Error("Unsupported drawing units. Use mm, cm, m, in, or ft.");
-        if (!validLayers || !validEntities) throw new Error("The drawing contains invalid layer or object data.");
-        if (!uniqueValues(layerIdsForValidation) || layerNamesForValidation.some((name) => !name) ||
-            !uniqueValues(layerNamesForValidation)) {
-          throw new Error("Layer IDs and names must be present and unique.");
-        }
-        if (entityIdsForValidation.some((id) => typeof id !== "string" || !id.trim()) ||
-            !uniqueValues(entityIdsForValidation)) {
-          throw new Error("Every drawing object must have a unique, non-empty ID.");
-        }
-        const layerIds = new Set(candidate.layers.map((layer) => layer.id));
-        if (candidate.entities.some((entity) => !layerIds.has(entity.layerId))) {
-          throw new Error("Some objects refer to layers that are missing from this file.");
-        }
-        const imported = candidate as CadDocument;
+        const imported = deserializeCadDocument(await file.text());
         if (doc.entities.length > 0 && !window.confirm(
           `Replace the current drawing (${doc.entities.length} object(s)) with this imported drawing (${imported.entities.length} object(s))? Export a JSON backup first if you need to keep the current drawing.`
         )) return;
@@ -924,8 +865,69 @@ export default function ProfessionalCadWorkspace() {
   };
   const ToolPalette = (
     <div className="space-y-4">
-      <div className="rounded-xl bg-slate-950 p-3 text-white shadow-sm"><div className="mb-2 flex items-center gap-2"><div className="rounded-lg bg-orange-500/20 p-2 text-orange-300"><DraftingCompass className="h-4 w-4"/></div><div><h3 className="text-sm font-semibold">Drafting tools</h3><p className="text-[10px] text-slate-400">Choose a tool to begin</p></div></div><p className="text-[11px] leading-relaxed text-slate-300">Click points on the canvas. Shift-click adds/removes objects from the selection; Ctrl/Cmd+Shift+D duplicates the selection. Polyline supports multiple vertices; press Enter, double-click, or use Finish Polyline when done.</p><div className="mt-3 flex items-center justify-between rounded-lg bg-white/10 px-2 py-1.5 text-[11px]"><span className="text-slate-300">Active tool</span><span className="font-semibold text-orange-300">{tool.toUpperCase()}</span></div></div>
-      {groups.map((group)=>{const GroupIcon = group === "Draw" ? Shapes : group === "Modify" ? Move : group === "Annotate" ? Ruler : group === "Architecture" ? House : MousePointer2; return <div key={group} className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm"><p className="mb-2 flex items-center gap-2 px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500"><GroupIcon className="h-3.5 w-3.5 text-orange-500"/>{group === "Common" ? "Essentials" : group === "Architecture" ? "Architecture" : group === "Draw" ? "Draw objects" : group === "Modify" ? "Edit objects" : group}</p><div className="grid grid-cols-2 gap-1.5">{palette.filter((p)=>p.group===group).map((p)=>{const active=tool===p.id;return <Button key={p.id} size="sm" variant="outline" className={`h-10 min-w-0 justify-start rounded-lg border px-2 text-xs transition-all ${active?"border-orange-400 bg-orange-50 text-orange-800 shadow-sm ring-1 ring-orange-200 hover:bg-orange-50":"border-slate-200 bg-slate-50/60 text-slate-700 hover:border-slate-300 hover:bg-white"}`} onClick={()=>selectTool(p.id)} title={p.label} aria-pressed={active}><span className={`mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${active?"bg-orange-500 text-white":"bg-white text-slate-500 shadow-sm"}`}><MousePointer2 className="h-3 w-3"/></span><span className="truncate">{p.label}</span></Button>})}</div></div>})
+      <div className="rounded-xl bg-slate-950 p-3 text-white shadow-sm">
+        <div className="mb-2 flex items-center gap-2">
+          <div className="rounded-lg bg-orange-500/20 p-2 text-orange-300">
+            <DraftingCompass className="h-4 w-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">Drafting tools</h3>
+            <p className="text-[10px] text-slate-400">Choose a tool to begin</p>
+          </div>
+        </div>
+        <p className="text-[11px] leading-relaxed text-slate-300">
+          Click points on the canvas. Shift-click adds/removes objects from the selection; Ctrl/Cmd+Shift+D duplicates the selection. Polyline supports multiple vertices; press Enter, double-click, or use Finish Polyline when done.
+        </p>
+        <div className="mt-3 flex items-center justify-between rounded-lg bg-white/10 px-2 py-1.5 text-[11px]">
+          <span className="text-slate-300">Active tool</span>
+          <span className="font-semibold text-orange-300">{tool.toUpperCase()}</span>
+        </div>
+      </div>
+      {groups.map((group) => {
+        const GroupIcon = group === "Draw" ? Shapes
+          : group === "Modify" ? Move
+          : group === "Annotate" ? Ruler
+          : group === "Architecture" ? House
+          : MousePointer2;
+        const groupLabel = group === "Common" ? "Essentials"
+          : group === "Architecture" ? "Architecture"
+          : group === "Draw" ? "Draw objects"
+          : group === "Modify" ? "Edit objects"
+          : group;
+        return (
+          <div key={group} className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+            <p className="mb-2 flex items-center gap-2 px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              <GroupIcon className="h-3.5 w-3.5 text-orange-500" />
+              {groupLabel}
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {palette.filter((item) => item.group === group).map((item) => {
+                const active = tool === item.id;
+                return (
+                  <Button
+                    key={item.id}
+                    size="sm"
+                    variant="outline"
+                    className={`h-10 min-w-0 justify-start rounded-lg border px-2 text-xs transition-all ${active
+                      ? "border-orange-400 bg-orange-50 text-orange-800 shadow-sm ring-1 ring-orange-200 hover:bg-orange-50"
+                      : "border-slate-200 bg-slate-50/60 text-slate-700 hover:border-slate-300 hover:bg-white"}`}
+                    onClick={() => selectTool(item.id)}
+                    title={item.label}
+                    aria-pressed={active}
+                  >
+                    <span className={`mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${active
+                      ? "bg-orange-500 text-white"
+                      : "bg-white text-slate-500 shadow-sm"}`}>
+                      <MousePointer2 className="h-3 w-3" />
+                    </span>
+                    <span className="truncate">{item.label}</span>
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
   const renderEntity = (e: CadEntity) => {
