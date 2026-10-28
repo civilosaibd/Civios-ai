@@ -604,6 +604,7 @@ export default function ProfessionalCadWorkspace() {
           event.preventDefault();
           setTool(shortcutTool);
           setStart(null);
+          setArcStart(null);
           setPolylinePoints([]);
           setModifyTargetId(null);
           setSelectionWindow(null);
