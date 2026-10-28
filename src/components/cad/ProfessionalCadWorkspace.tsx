@@ -9,14 +9,14 @@ import {
 import {
   createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
-import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench } from "lucide-react";
+import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand, Upload } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 type DraftEntity = CadEntity & { id: string; layerId: string };
 type View = { x: number; y: number; scale: number };
 const palette: { id: CadToolId; label: string; group: string }[] = [
-  { id: "select", label: "Select", group: "Common" },
+  { id: "select", label: "Select", group: "Common" }, { id: "measure", label: "Measure", group: "Common" },
   { id: "line", label: "Line", group: "Draw" }, { id: "polyline", label: "Polyline", group: "Draw" },
   { id: "rectangle", label: "Rectangle", group: "Draw" }, { id: "circle", label: "Circle", group: "Draw" },
   { id: "arc", label: "Arc", group: "Draw" }, { id: "ellipse", label: "Ellipse", group: "Draw" },
@@ -53,6 +53,7 @@ export default function ProfessionalCadWorkspace() {
   const [modifyTargetId, setModifyTargetId] = useState<string | null>(null);
   const [cursor, setCursor] = useState<Point2D | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  const [selectionWindow, setSelectionWindow] = useState<{ start: Point2D; end: Point2D } | null>(null);
   const [command, setCommand] = useState("");
   const [history, setHistory] = useState<CadDocument[]>([]);
   const [future, setFuture] = useState<CadDocument[]>([]);
@@ -101,10 +102,18 @@ export default function ProfessionalCadWorkspace() {
     const t = lengthSquared ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared)) : 0;
     return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
   };
-  const findHit = (p: Point2D) => [...doc.entities].reverse().find((e) => {
+  const findHit = (p: Point2D) => [...doc.entities].reverse().filter((e) => doc.layers.find((layer) => layer.id === e.layerId)?.visible !== false).find((e) => {
     if (e.type === "line" || e.type === "wall") return distanceToSegment(p, e.start, e.end) < 7 / view.scale;
     if (e.type === "rectangle") return p.x>=e.min.x-4/view.scale && p.x<=e.max.x+4/view.scale && p.y>=e.min.y-4/view.scale && p.y<=e.max.y+4/view.scale && (Math.abs(p.x-e.min.x)<7/view.scale || Math.abs(p.x-e.max.x)<7/view.scale || Math.abs(p.y-e.min.y)<7/view.scale || Math.abs(p.y-e.max.y)<7/view.scale);
     if (e.type === "circle") return Math.abs(Math.hypot(p.x-e.center.x,p.y-e.center.y)-e.radius)<7/view.scale;
+    if (e.type === "arc") {
+      const radius = Math.hypot(p.x - e.center.x, p.y - e.center.y);
+      if (Math.abs(radius - e.radius) >= 7 / view.scale) return false;
+      const normalizeAngle = (angle: number) => ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      const angle = normalizeAngle(Math.atan2(p.y - e.center.y, p.x - e.center.x));
+      const startAngle = normalizeAngle(e.startAngle), endAngle = normalizeAngle(e.endAngle);
+      return startAngle <= endAngle ? angle >= startAngle && angle <= endAngle : angle >= startAngle || angle <= endAngle;
+    }
     if (e.type === "ellipse") { const t=Math.atan2((p.y-e.center.y)/Math.max(e.ry,.001),(p.x-e.center.x)/Math.max(e.rx,.001)); const q={x:e.center.x+e.rx*Math.cos(t),y:e.center.y+e.ry*Math.sin(t)}; return Math.hypot(p.x-q.x,p.y-q.y)<7/view.scale; }
     if (e.type === "polyline") {
       const segments = e.points.slice(1).map((point, index) => [e.points[index], point] as const);
@@ -202,35 +211,74 @@ export default function ProfessionalCadWorkspace() {
       }
       return;
     }
-    if (tool === "select") { const id=findHit(p); setSelected(id ? [id] : []); return; }
+    if (tool === "measure") {
+      if (!start) {
+        setStart(p);
+        setCursor(p);
+        toast.info("Choose the second point to measure the distance.");
+      } else {
+        const length = Math.hypot(p.x - start.x, p.y - start.y);
+        toast.success(`Distance: ${length.toFixed(3)} ${doc.units}`);
+        setStart(null);
+        setCursor(p);
+      }
+      return;
+    }
+    if (tool === "select") { const id=findHit(p); if (event.shiftKey && id) setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]); else setSelected(id ? [id] : []); setStart(p); setCursor(p); setSelectionWindow(null); return; }
     if (tool === "move" || tool === "copy" || tool === "erase" || tool === "rotate" || tool === "mirror") {
       const id=findHit(p); if (!id) { toast.info("Click an existing object first."); return; }
-      if (tool === "erase") { commit({ ...doc, entities: doc.entities.filter((e)=>e.id!==id) }); setSelected([]); return; }
+      if (tool === "erase") { const idsToErase = selected.includes(id) ? new Set(selected) : new Set([id]); const remaining = doc.entities.filter((entity) => !idsToErase.has(entity.id)); commit({ ...doc, entities: remaining }); setSelected([]); toast.success(`Erased ${doc.entities.length - remaining.length} object(s).`); return; }
       if (tool === "rotate") {
-        const entity=doc.entities.find((e)=>e.id===id);
-        if (entity) {
-          const bounds=entityBounds(entity);
-          const pivot={x:(bounds.min.x+bounds.max.x)/2,y:(bounds.min.y+bounds.max.y)/2};
-          commit({...doc,entities:doc.entities.map((e)=>e.id===id?rotateEntity(e,Math.PI/2,pivot):e)});
-          setSelected([id]);
-          toast.success("Rotated 90°.");
+        const targets = selected.includes(id) ? selected : [id];
+        const targetEntities = doc.entities.filter((entity) => targets.includes(entity.id));
+        if (targetEntities.length) {
+          const bounds = targetEntities.map(entityBounds);
+          const minX = Math.min(...bounds.map((item) => item.min.x));
+          const minY = Math.min(...bounds.map((item) => item.min.y));
+          const maxX = Math.max(...bounds.map((item) => item.max.x));
+          const maxY = Math.max(...bounds.map((item) => item.max.y));
+          const pivot = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+          const targetSet = new Set(targets);
+          commit({ ...doc, entities: doc.entities.map((entity) => targetSet.has(entity.id) ? rotateEntity(entity, Math.PI / 2, pivot) : entity) });
+          setSelected(targets);
+          toast.success(`Rotated ${targets.length} object(s) 90° around the selection center.`);
         }
         return;
       }
       if (tool === "mirror") {
-        const entity = doc.entities.find((e) => e.id === id);
-        if (entity) {
-          // The clicked world X coordinate defines a vertical mirror axis.
-          commit({ ...doc, entities: doc.entities.map((e) => e.id === id ? mirrorEntity(e, p.x) : e) });
-          setSelected([id]);
-          toast.success("Mirrored across the clicked vertical axis.");
-        }
+        const targets = selected.includes(id) ? selected : [id];
+        const targetSet = new Set(targets);
+        // The clicked world X coordinate defines the vertical mirror axis.
+        commit({ ...doc, entities: doc.entities.map((entity) => targetSet.has(entity.id) ? mirrorEntity(entity, p.x) : entity) });
+        setSelected(targets);
+        toast.success(`Mirrored ${targets.length} object(s) across the clicked vertical axis.`);
         return;
       }
-      setSelected([id]); setStart(p); return;
+      setSelected((current) => current.includes(id) ? current : [id]); setStart(p); return;
     }
     if (!start) { setStart(p); setCursor(p); return; }
     const a=start, b=p;
+    const deltaX = Math.abs(b.x - a.x), deltaY = Math.abs(b.y - a.y);
+    if ((tool === "line" || tool === "wall") && Math.hypot(deltaX, deltaY) < 1e-8) {
+      toast.info("Choose two different points to create a line or wall.");
+      setStart(null); setCursor(null);
+      return;
+    }
+    if (tool === "rectangle" && (deltaX < 1e-8 || deltaY < 1e-8)) {
+      toast.info("A rectangle needs both a width and a height.");
+      setStart(null); setCursor(null);
+      return;
+    }
+    if (tool === "circle" && Math.hypot(deltaX, deltaY) < 1e-8) {
+      toast.info("Move from the center point to set a circle radius.");
+      setStart(null); setCursor(null);
+      return;
+    }
+    if (tool === "ellipse" && (deltaX < 1e-8 || deltaY < 1e-8)) {
+      toast.info("An ellipse needs a non-zero horizontal and vertical radius.");
+      setStart(null); setCursor(null);
+      return;
+    }
     let entity: CadEntity | null = null;
     const base={ id:makeId(), layerId:activeLayer.id };
     if (tool==="line") entity={...base,type:"line",start:a,end:b};
@@ -260,6 +308,7 @@ export default function ProfessionalCadWorkspace() {
       return;
     }
     const p=toWorld(event); setCursor(p);
+    if (tool === "select" && start) setSelectionWindow({ start, end: p });
     if (start && (tool==="move" || tool==="copy") && selected.length) {
       // Preview is shown by cursor; commit on pointer-up to keep history deterministic.
     }
@@ -270,13 +319,32 @@ export default function ProfessionalCadWorkspace() {
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       return;
     }
+    if (tool === "select" && start) {
+      const end = toWorld(event);
+      const width = Math.abs(end.x - start.x), height = Math.abs(end.y - start.y);
+      if (Math.hypot(width, height) > 4 / view.scale) {
+        const minX = Math.min(start.x, end.x), maxX = Math.max(start.x, end.x);
+        const minY = Math.min(start.y, end.y), maxY = Math.max(start.y, end.y);
+        const ids = doc.entities.filter((entity) => {
+          if (doc.layers.find((layer) => layer.id === entity.layerId)?.visible === false) return false;
+          const bounds = entityBounds(entity);
+          return bounds.max.x >= minX && bounds.min.x <= maxX && bounds.max.y >= minY && bounds.min.y <= maxY;
+        }).map((entity) => entity.id);
+        setSelected(ids);
+        setSelectionWindow({ start, end });
+        window.setTimeout(() => setSelectionWindow(null), 180);
+      }
+      setStart(null);
+      return;
+    }
     if (!start || !selected.length || (tool!=="move" && tool!=="copy")) return;
     const end=toWorld(event), dx=end.x-start.x, dy=end.y-start.y;
-    const id=selected[0], entity=doc.entities.find((e)=>e.id===id);
-    if (entity && (dx!==0 || dy!==0)) {
-      const moved = translateEntity(entity, dx, dy);
-      const entities=tool==="copy" ? [...doc.entities,{...moved,id:makeId()} as CadEntity] : doc.entities.map((e)=>e.id===id?moved as CadEntity:e);
-      commit({...doc,entities});
+    if (selected.length && (dx!==0 || dy!==0)) {
+      const selectedSet = new Set(selected);
+      const entities = tool === "copy"
+        ? [...doc.entities, ...doc.entities.filter((entity) => selectedSet.has(entity.id)).map((entity) => ({ ...translateEntity(entity, dx, dy), id: makeId() } as CadEntity))]
+        : doc.entities.map((entity) => selectedSet.has(entity.id) ? translateEntity(entity, dx, dy) : entity);
+      commit({ ...doc, entities });
     }
     setStart(null);
   };
@@ -287,7 +355,7 @@ export default function ProfessionalCadWorkspace() {
     if (/^(REDO|RE)$/i.test(raw)) { redo(); setCommand(""); return; }
     if (/^(ERASE|DELETE|E)$/i.test(raw)) { setTool("erase"); setCommand(""); return; }
     const def=normalizeCommand(raw);
-    if (!def) { toast.error(`Unknown command: ${raw.split(/\\s+/)[0]}`); return; }
+    if (!def) { toast.error(`Unknown command: ${raw.split(/\s+/)[0]}`); return; }
     setTool(def.id);
     setCommand("");
   };
@@ -300,6 +368,40 @@ export default function ProfessionalCadWorkspace() {
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
       const modifier = event.ctrlKey || event.metaKey;
+      if (modifier && event.shiftKey && event.key.toLowerCase() === "d" && selected.length > 0) {
+        event.preventDefault();
+        const selectedSet = new Set(selected);
+        const originals = doc.entities.filter((entity) => selectedSet.has(entity.id));
+        const offset = Math.max(grid.snapSpacing, 1);
+        const duplicates = originals.map((entity) => ({ ...translateEntity(entity, offset, offset), id: makeId() } as CadEntity));
+        commit({ ...doc, entities: [...doc.entities, ...duplicates] });
+        setSelected(duplicates.map((entity) => entity.id));
+        toast.success(`Duplicated ${duplicates.length} object(s).`);
+        return;
+      }
+      if (!modifier && !event.altKey) {
+        const toolShortcuts: Record<string, CadToolId> = {
+          s: "select", l: "line", c: "circle", r: "rectangle", p: "polyline",
+          w: "wall", m: "move", o: "offset", t: "trim", x: "extend",
+          e: "erase", g: "measure", i: "mirror", q: "rotate",
+        };
+        const shortcutTool = toolShortcuts[event.key.toLowerCase()];
+        if (shortcutTool) {
+          event.preventDefault();
+          setTool(shortcutTool);
+          setStart(null);
+          setPolylinePoints([]);
+          setModifyTargetId(null);
+          setSelectionWindow(null);
+          setCursor(null);
+          return;
+        }
+      }
+      if (modifier && event.key.toLowerCase() === "a") {
+        event.preventDefault();
+        setSelected(doc.entities.filter((entity) => doc.layers.find((layer) => layer.id === entity.layerId)?.visible !== false).map((entity) => entity.id));
+        return;
+      }
       if (modifier && event.key.toLowerCase() === "z") {
         event.preventDefault();
         if (event.shiftKey) redo(); else undo();
@@ -310,8 +412,21 @@ export default function ProfessionalCadWorkspace() {
         redo();
         return;
       }
+      if (event.key === "Enter" && tool === "polyline" && polylinePoints.length >= 2) {
+        event.preventDefault();
+        const points = polylinePoints.filter((point, index) => index === 0 ||
+          Math.hypot(point.x - polylinePoints[index - 1].x, point.y - polylinePoints[index - 1].y) > 1e-8);
+        if (points.length >= 2) {
+          const entity: CadEntity = { id: makeId(), layerId: activeLayer.id, type: "polyline", points, closed: false };
+          commit({ ...doc, entities: [...doc.entities, entity] });
+          toast.success("Polyline created.");
+        }
+        setStart(null); setPolylinePoints([]); setCursor(null);
+        return;
+      }
       if (event.key === "Escape") {
         setModifyTargetId(null);
+        setSelectionWindow(null);
         setStart(null);
         setPolylinePoints([]);
         setCursor(null);
@@ -330,12 +445,35 @@ export default function ProfessionalCadWorkspace() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [doc, selected, history, future, commit]);
+  }, [doc, selected, history, future, commit, tool, polylinePoints, activeLayer.id]);
   const addLayer = () => {
     const name=window.prompt("New layer name"); if(!name?.trim())return;
     if(doc.layers.some((l)=>l.name.toLowerCase()===name.trim().toLowerCase())) {toast.error("Layer name already exists.");return;}
     const layer={id:makeId(),name:name.trim(),visible:true,color:["#2563eb","#dc2626","#059669","#9333ea"][doc.layers.length%4],lineWeight:1};
     commit({...doc,layers:[...doc.layers,layer]});setLayerName(layer.name);
+  };
+  const renameActiveLayer = () => {
+    const layer = activeLayer;
+    const nextName = window.prompt("Rename active layer", layer.name)?.trim();
+    if (!nextName || nextName === layer.name) return;
+    if (doc.layers.some((item) => item.id !== layer.id && item.name.toLowerCase() === nextName.toLowerCase())) {
+      toast.error("A layer with that name already exists.");
+      return;
+    }
+    commit({ ...doc, layers: doc.layers.map((item) => item.id === layer.id ? { ...item, name: nextName } : item) });
+    setLayerName(nextName);
+    toast.success("Layer renamed.");
+  };
+  const deleteActiveLayer = () => {
+    const layer = activeLayer;
+    if (doc.layers.length <= 1) { toast.error("A drawing must keep at least one layer."); return; }
+    const objectCount = doc.entities.filter((entity) => entity.layerId === layer.id).length;
+    if (objectCount > 0) { toast.error("This layer contains drawing objects. Move or delete them before removing the layer."); return; }
+    if (!window.confirm(`Delete empty layer "${layer.name}"?`)) return;
+    const remaining = doc.layers.filter((item) => item.id !== layer.id);
+    commit({ ...doc, layers: remaining });
+    setLayerName(remaining[0].name);
+    toast.success("Empty layer deleted.");
   };
   const fitToDrawing = () => {
     if (!doc.entities.length) { setView({ x: 60, y: 50, scale: 1 }); return; }
@@ -347,6 +485,23 @@ export default function ProfessionalCadWorkspace() {
     const width = Math.max(maxX - minX, 1);
     const height = Math.max(maxY - minY, 1);
     const scale = Math.max(0.2, Math.min(8, 900 / width, 540 / height));
+    setView({ x: (1000 - width * scale) / 2 - minX * scale, y: (640 - height * scale) / 2 - minY * scale, scale });
+  };
+  const zoomToSelection = () => {
+    const selectedEntities = doc.entities.filter((entity) => selected.includes(entity.id) &&
+      doc.layers.find((layer) => layer.id === entity.layerId)?.visible !== false);
+    if (!selectedEntities.length) {
+      toast.info("Select one or more visible objects first.");
+      return;
+    }
+    const bounds = selectedEntities.map(entityBounds);
+    const minX = Math.min(...bounds.map((item) => item.min.x));
+    const minY = Math.min(...bounds.map((item) => item.min.y));
+    const maxX = Math.max(...bounds.map((item) => item.max.x));
+    const maxY = Math.max(...bounds.map((item) => item.max.y));
+    const width = Math.max(maxX - minX, 1);
+    const height = Math.max(maxY - minY, 1);
+    const scale = Math.max(0.2, Math.min(8, 820 / width, 460 / height));
     setView({ x: (1000 - width * scale) / 2 - minX * scale, y: (640 - height * scale) / 2 - minY * scale, scale });
   };
   const handleWheel = (event: React.WheelEvent<SVGSVGElement>) => {
@@ -367,19 +522,83 @@ export default function ProfessionalCadWorkspace() {
     const blob=new Blob([content],{type:kind==="json"?"application/json":"image/svg+xml"});
     const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`civilos-drawing.${kind}`;a.click();URL.revokeObjectURL(url);
   };
+  const importJson = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,application/json";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const parsed: unknown = JSON.parse(await file.text());
+        if (!parsed || typeof parsed !== "object") throw new Error("The file is not a valid drawing document.");
+        const candidate = parsed as Partial<CadDocument>;
+        if (candidate.version !== 1 || !Array.isArray(candidate.entities) || !Array.isArray(candidate.layers) || candidate.layers.length === 0) {
+          throw new Error("Unsupported drawing format. Choose a CivilOS AI JSON drawing backup.");
+        }
+        const validLayers = candidate.layers.every((layer) =>
+          layer && typeof layer.id === "string" && typeof layer.name === "string" &&
+          typeof layer.visible === "boolean" && typeof layer.color === "string"
+        );
+        const isFinitePoint = (point: unknown): point is Point2D =>
+          !!point && typeof point === "object" &&
+          Number.isFinite((point as Point2D).x) && Number.isFinite((point as Point2D).y);
+        const validEntities = candidate.entities.every((rawEntity) => {
+          if (!rawEntity || typeof rawEntity !== "object" ||
+              typeof rawEntity.id !== "string" || typeof rawEntity.layerId !== "string") return false;
+          const entity = rawEntity as CadEntity;
+          switch (entity.type) {
+            case "line": return isFinitePoint(entity.start) && isFinitePoint(entity.end) &&
+              Math.hypot(entity.end.x - entity.start.x, entity.end.y - entity.start.y) > 1e-8;
+            case "wall": return isFinitePoint(entity.start) && isFinitePoint(entity.end) &&
+              Number.isFinite(entity.thickness) && entity.thickness > 0 &&
+              Math.hypot(entity.end.x - entity.start.x, entity.end.y - entity.start.y) > 1e-8;
+            case "polyline": return Array.isArray(entity.points) && entity.points.length >= 2 &&
+              entity.points.every(isFinitePoint);
+            case "rectangle": return isFinitePoint(entity.min) && isFinitePoint(entity.max) &&
+              entity.max.x > entity.min.x && entity.max.y > entity.min.y;
+            case "circle": return isFinitePoint(entity.center) && Number.isFinite(entity.radius) && entity.radius > 0;
+            case "ellipse": return isFinitePoint(entity.center) && Number.isFinite(entity.rx) && entity.rx > 0 &&
+              Number.isFinite(entity.ry) && entity.ry > 0;
+            case "arc": return isFinitePoint(entity.center) && Number.isFinite(entity.radius) && entity.radius > 0 &&
+              Number.isFinite(entity.startAngle) && Number.isFinite(entity.endAngle);
+            default: return false;
+          }
+        });
+        if (!validLayers || !validEntities) throw new Error("The drawing contains invalid layer or object data.");
+        const layerIds = new Set(candidate.layers.map((layer) => layer.id));
+        if (candidate.entities.some((entity) => !layerIds.has(entity.layerId))) {
+          throw new Error("Some objects refer to layers that are missing from this file.");
+        }
+        const imported = candidate as CadDocument;
+        commit(imported);
+        setLayerName(imported.layers[0].name);
+        setSelected([]);
+        setStart(null);
+        setPolylinePoints([]);
+        setModifyTargetId(null);
+        toast.success(`Imported ${imported.entities.length} drawing object(s).`);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not import this JSON drawing.");
+      }
+    };
+    input.click();
+  };
   const groups=useMemo(()=>Array.from(new Set(palette.map((p)=>p.group))),[]);
   const selectTool = (id: CadToolId) => { setTool(id); setStart(null); setPolylinePoints([]); setModifyTargetId(null); setCursor(null); setToolsOpen(false); };
   const finishPolyline = () => {
-    if (polylinePoints.length < 2) { toast.info("Add at least two points before finishing the polyline."); return; }
-    const entity: CadEntity = { id: makeId(), layerId: activeLayer.id, type: "polyline", points: polylinePoints, closed: false };
+    const points = polylinePoints.filter((point, index) => index === 0 ||
+      Math.hypot(point.x - polylinePoints[index - 1].x, point.y - polylinePoints[index - 1].y) > 1e-8);
+    if (points.length < 2) { toast.info("Add at least two distinct points before finishing the polyline."); return; }
+    const entity: CadEntity = { id: makeId(), layerId: activeLayer.id, type: "polyline", points, closed: false };
     commit({ ...doc, entities: [...doc.entities, entity] });
     setStart(null); setPolylinePoints([]); setCursor(null);
     toast.success("Polyline created.");
   };
   const ToolPalette = (
-    <div className="space-y-3">
-      <div><div className="mb-2 flex items-center gap-2"><Wrench className="h-4 w-4 text-primary"/><h3 className="text-sm font-semibold">Tools</h3></div><p className="mb-2 text-[11px] text-muted-foreground">Choose a tool, then click points on the drawing canvas. For Polyline, add multiple vertices and use Finish Polyline.</p></div>
-      {groups.map((group)=><div key={group}><p className="mb-1 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{group === "Common" ? "Common tools" : group}</p><div className="grid grid-cols-2 gap-1">{palette.filter((p)=>p.group===group).map((p)=><Button key={p.id} size="sm" variant={tool===p.id?"default":"outline"} className="h-9 min-w-0 justify-start px-2 text-xs" onClick={()=>selectTool(p.id)} title={p.label} aria-pressed={tool===p.id}><MousePointer2 className="mr-1 h-3 w-3 shrink-0"/><span className="truncate">{p.label}</span></Button>)}</div></div>)}
+    <div className="space-y-4">
+      <div className="rounded-xl bg-slate-950 p-3 text-white shadow-sm"><div className="mb-2 flex items-center gap-2"><div className="rounded-lg bg-orange-500/20 p-2 text-orange-300"><DraftingCompass className="h-4 w-4"/></div><div><h3 className="text-sm font-semibold">Drafting tools</h3><p className="text-[10px] text-slate-400">Choose a tool to begin</p></div></div><p className="text-[11px] leading-relaxed text-slate-300">Click points on the canvas. Shift-click adds/removes objects from the selection; Ctrl/Cmd+Shift+D duplicates the selection. Polyline supports multiple vertices; press Enter, double-click, or use Finish Polyline when done.</p><div className="mt-3 flex items-center justify-between rounded-lg bg-white/10 px-2 py-1.5 text-[11px]"><span className="text-slate-300">Active tool</span><span className="font-semibold text-orange-300">{tool.toUpperCase()}</span></div></div>
+      {groups.map((group)=>{const GroupIcon = group === "Draw" ? Shapes : group === "Modify" ? Move : group === "Annotate" ? Ruler : group === "Architecture" ? House : MousePointer2; return <div key={group} className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm"><p className="mb-2 flex items-center gap-2 px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500"><GroupIcon className="h-3.5 w-3.5 text-orange-500"/>{group === "Common" ? "Essentials" : group === "Architecture" ? "Architecture" : group === "Draw" ? "Draw objects" : group === "Modify" ? "Edit objects" : group}</p><div className="grid grid-cols-2 gap-1.5">{palette.filter((p)=>p.group===group).map((p)=>{const active=tool===p.id;return <Button key={p.id} size="sm" variant="outline" className={`h-10 min-w-0 justify-start rounded-lg border px-2 text-xs transition-all ${active?"border-orange-400 bg-orange-50 text-orange-800 shadow-sm ring-1 ring-orange-200 hover:bg-orange-50":"border-slate-200 bg-slate-50/60 text-slate-700 hover:border-slate-300 hover:bg-white"}`} onClick={()=>selectTool(p.id)} title={p.label} aria-pressed={active}><span className={`mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${active?"bg-orange-500 text-white":"bg-white text-slate-500 shadow-sm"}`}><MousePointer2 className="h-3 w-3"/></span><span className="truncate">{p.label}</span></Button>})}</div></div>})
     </div>
   );
   const renderEntity = (e: CadEntity) => {
@@ -395,39 +614,47 @@ export default function ProfessionalCadWorkspace() {
     return null;
   };
 
-  return <section className="space-y-3 rounded-xl border bg-card p-3 md:p-4">
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div><h2 className="text-lg font-semibold">CivilOS Professional 2D Drafting</h2><p className="text-xs text-muted-foreground">Interactive drafting workspace · local auto-save enabled</p></div>
+  return <section className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm md:p-5">
+    <div className="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-lg">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-5"><div className="flex min-w-0 items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500 shadow-md shadow-orange-950/30"><DraftingCompass className="h-6 w-6 text-white"/></div><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-2"><h2 className="text-lg font-bold tracking-tight md:text-xl">Professional 2D Studio</h2><span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300"><CheckCircle2 className="mr-1 inline h-3 w-3"/>Workspace ready</span></div><p className="text-xs text-slate-400">CivilOS AI · precision drafting workspace</p></div></div><div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs"><span className="h-2 w-2 rounded-full bg-emerald-400"/><span className="text-slate-300">Auto-save</span><span className="font-semibold text-white">On this device</span></div></div>
+      <div className="flex flex-wrap items-center gap-2 border-t border-white/10 bg-white/[0.03] px-4 py-2.5 text-[11px] text-slate-400 md:px-5"><span className="inline-flex items-center gap-1.5"><Command className="h-3.5 w-3.5"/>Shortcuts: L line · C circle · R rectangle · P polyline · S select · E erase</span><span className="hidden text-slate-600 sm:inline">•</span><span className="inline-flex items-center gap-1.5"><Hand className="h-3.5 w-3.5"/>Wheel zoom · middle/right drag pan</span></div>
+    </div>
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+      <div className="flex items-center gap-2 px-1"><div className="rounded-lg bg-orange-50 p-2 text-orange-600"><Wrench className="h-4 w-4"/></div><div><p className="text-xs font-semibold text-slate-800">Quick controls</p><p className="text-[10px] text-slate-500">Manage your drawing</p></div></div>
       <div className="flex flex-wrap items-center gap-1">
         {tool === "polyline" && polylinePoints.length >= 2 && <Button size="sm" onClick={finishPolyline}>Finish Polyline</Button>}
         {isMobile && <Sheet open={toolsOpen} onOpenChange={setToolsOpen}><SheetTrigger asChild><Button size="sm" variant="default"><Wrench className="mr-1 h-4 w-4"/>Tools</Button></SheetTrigger><SheetContent side="bottom" className="max-h-[82dvh] overflow-y-auto"><SheetHeader><SheetTitle>2D Drafting Tools</SheetTitle></SheetHeader><div className="mt-4">{ToolPalette}</div></SheetContent></Sheet>}
-        <Button size="sm" variant="outline" onClick={undo} disabled={!history.length}><Undo2 className="mr-1 h-4 w-4"/>Undo</Button>
-        <Button size="sm" variant="outline" onClick={redo} disabled={!future.length}><Redo2 className="mr-1 h-4 w-4"/>Redo</Button>
-        <Button size="sm" variant="outline" onClick={()=>setGrid((g)=>({...g,enabled:!g.enabled}))}><Grid3X3 className="mr-1 h-4 w-4"/>{grid.enabled?"Grid on":"Grid off"}</Button>
-        <Button size="sm" variant="outline" onClick={fitToDrawing} title="Fit all drawing objects into the canvas"><Maximize2 className="mr-1 h-4 w-4"/>Fit drawing</Button>
-        <Button size="sm" variant="outline" onClick={()=>setView((v)=>({...v,scale:Math.min(8,v.scale*1.25)}))}><ZoomIn className="h-4 w-4"/></Button>
-        <Button size="sm" variant="outline" onClick={()=>setView((v)=>({...v,scale:Math.max(.2,v.scale/1.25)}))}><ZoomOut className="h-4 w-4"/></Button>
-        <Button size="sm" variant="outline" onClick={()=>exportFile("svg")}><Download className="mr-1 h-4 w-4"/>SVG</Button>
-        <Button size="sm" variant="outline" onClick={()=>exportFile("json")}>Save JSON</Button>
+        <Button size="sm" variant="outline" className="rounded-lg" onClick={undo} disabled={!history.length} title="Undo (Ctrl+Z)"><Undo2 className="mr-1.5 h-4 w-4"/>Undo</Button>
+        <Button size="sm" variant="outline" className="rounded-lg" onClick={redo} disabled={!future.length} title="Redo (Ctrl+Y)"><Redo2 className="mr-1.5 h-4 w-4"/>Redo</Button>
+        <Button size="sm" variant={grid.enabled?"secondary":"outline"} className="rounded-lg" onClick={()=>setGrid((g)=>({...g,enabled:!g.enabled}))}><Grid3X3 className="mr-1.5 h-4 w-4"/>{grid.enabled?"Grid on":"Grid off"}</Button>
+        <Button size="sm" variant="outline" className="rounded-lg" onClick={zoomToSelection} title="Zoom to the selected objects"><ZoomIn className="mr-1.5 h-4 w-4"/>Zoom selection</Button>
+        <Button size="sm" variant="outline" className="rounded-lg" onClick={fitToDrawing} title="Fit all drawing objects into the canvas"><Maximize2 className="mr-1.5 h-4 w-4"/>Fit drawing</Button>
+        <Button size="icon" variant="outline" className="rounded-lg" onClick={()=>setView((v)=>({...v,scale:Math.min(8,v.scale*1.25)}))} title="Zoom in"><ZoomIn className="h-4 w-4"/></Button>
+        <Button size="icon" variant="outline" className="rounded-lg" onClick={()=>setView((v)=>({...v,scale:Math.max(.2,v.scale/1.25)}))} title="Zoom out"><ZoomOut className="h-4 w-4"/></Button>
+        <Button size="sm" variant="outline" className="rounded-lg" onClick={importJson} title="Open a CivilOS AI JSON drawing backup"><Upload className="mr-1.5 h-4 w-4"/>Import JSON</Button>
+        <Button size="sm" variant="outline" className="rounded-lg" onClick={()=>exportFile("svg")}><Download className="mr-1.5 h-4 w-4"/>Export SVG</Button>
+        <Button size="sm" className="rounded-lg bg-orange-500 text-white hover:bg-orange-600" onClick={()=>exportFile("json")}><FileJson className="mr-1.5 h-4 w-4"/>Backup JSON</Button>
       </div>
     </div>
-    <div className="grid min-w-0 gap-3 md:grid-cols-[180px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_240px]">
-      <aside className="hidden space-y-3 rounded-lg border p-3 md:block xl:max-h-[76vh] xl:overflow-y-auto">{ToolPalette}</aside>
-      <div className="min-w-0 overflow-hidden rounded-lg border bg-white xl:col-start-2">
-        <svg ref={svgRef} viewBox="0 0 1000 640" className="h-[min(62dvh,640px)] min-h-[340px] w-full touch-none sm:h-[560px] xl:h-[min(76vh,760px)]" role="img" aria-label="2D CAD drafting canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onWheel={handleWheel} onContextMenu={(event)=>event.preventDefault()}>
-          <defs><pattern id="cad-grid-small" width={10*view.scale} height={10*view.scale} patternUnits="userSpaceOnUse" x={view.x% (10*view.scale)} y={view.y%(10*view.scale)}><path d={`M ${10*view.scale} 0 L 0 0 0 ${10*view.scale}`} fill="none" stroke="#e5e7eb" strokeWidth=".7"/></pattern></defs>
+    <div className="grid min-w-0 gap-4 md:grid-cols-[190px_minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)_250px]">
+      <aside className="hidden space-y-3 rounded-2xl border border-slate-200 bg-slate-100/80 p-3 md:block xl:max-h-[76vh] xl:overflow-y-auto">{ToolPalette}</aside>
+      <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md xl:col-start-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5"><div className="flex items-center gap-2"><div className="rounded-md bg-orange-50 p-1.5 text-orange-600"><Ruler className="h-4 w-4"/></div><div><p className="text-xs font-semibold text-slate-800">Drawing canvas</p><p className="text-[10px] text-slate-500">Infinite-feel workspace · grid & precision controls</p></div></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-600">{doc.entities.length} objects</span></div>
+        <svg ref={svgRef} viewBox="0 0 1000 640" className="h-[min(62dvh,640px)] min-h-[340px] w-full touch-none bg-slate-50 sm:h-[560px] xl:h-[min(76vh,760px)]" role="img" aria-label="2D CAD drafting canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onDoubleClick={(event)=>{if(tool==="polyline"){event.preventDefault();finishPolyline();}}} onWheel={handleWheel} onContextMenu={(event)=>event.preventDefault()}>
+          <defs><pattern id="cad-grid-small" width={Math.max(2,grid.gridSpacing*view.scale)} height={Math.max(2,grid.gridSpacing*view.scale)} patternUnits="userSpaceOnUse" x={view.x%Math.max(2,grid.gridSpacing*view.scale)} y={view.y%Math.max(2,grid.gridSpacing*view.scale)}><path d={`M ${Math.max(2,grid.gridSpacing*view.scale)} 0 L 0 0 0 ${Math.max(2,grid.gridSpacing*view.scale)}`} fill="none" stroke="#e5e7eb" strokeWidth=".7"/></pattern></defs>
           {grid.enabled&&<rect width="1000" height="640" fill="url(#cad-grid-small)"/>}
+          {selectionWindow && tool === "select" && <rect x={Math.min(selectionWindow.start.x, selectionWindow.end.x)} y={Math.min(selectionWindow.start.y, selectionWindow.end.y)} width={Math.abs(selectionWindow.end.x - selectionWindow.start.x)} height={Math.abs(selectionWindow.end.y - selectionWindow.start.y)} fill="#2563eb" fillOpacity={0.08} stroke="#2563eb" strokeDasharray="5 3" strokeWidth={1 / view.scale} pointerEvents="none" transform={`translate(${view.x},${view.y}) scale(${view.scale})`} />}
           <g transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>{doc.entities.map(renderEntity)}{tool==="polyline"&&polylinePoints.length>0&&<polyline points={[...polylinePoints,...(cursor?[cursor]:[])].map((p)=>`${p.x},${p.y}`).join(" ")} fill="none" stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}{start&&cursor&&tool!=="select"&&tool!=="move"&&tool!=="copy"&&tool!=="polyline"&&<line x1={start.x} y1={start.y} x2={cursor.x} y2={cursor.y} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}</g>
         </svg>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>Tool: {tool.toUpperCase()} · Objects: {doc.entities.length} · Selected: {selected.length}</span><span>Cursor: {cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"} · Wheel: zoom · Middle/right drag: pan</span></div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>Tool: {tool.toUpperCase()} · Objects: {doc.entities.length} · Selected: {selected.length} · Units: {doc.units}</span><span>Cursor: {cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"} · Wheel: zoom · Middle/right drag: pan</span></div>
       </div>
-      <aside className="min-w-0 space-y-3 rounded-lg border p-3 md:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1">
-        <div><h3 className="mb-2 flex items-center gap-2 text-sm font-semibold"><Layers3 className="h-4 w-4"/>Layers</h3><div className="space-y-1">{doc.layers.map((l)=><div key={l.id} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={l.visible} onChange={(e)=>commit({...doc,layers:doc.layers.map((x)=>x.id===l.id?{...x,visible:e.target.checked}:x)})}/><span className="h-3 w-3 rounded-sm border" style={{background:l.color}}/><button className="truncate text-left" onClick={()=>setLayerName(l.name)}>{l.name}</button><span className="ml-auto text-muted-foreground">{doc.entities.filter((e)=>e.layerId===l.id).length}</span></div>)}</div><Button size="sm" variant="outline" className="mt-2 w-full" onClick={addLayer}>+ New layer</Button></div>
-        <div><label className="mb-1 block text-xs font-medium">Active layer</label><select className="w-full rounded-md border bg-background p-2 text-sm" value={layerName} onChange={(e)=>setLayerName(e.target.value)}>{doc.layers.map((l)=><option key={l.id}>{l.name}</option>)}</select></div>
-        <div><label className="mb-1 block text-xs font-medium">Grid / snap spacing</label><Input type="number" min=".01" step=".25" value={grid.snapSpacing} onChange={(e)=>setGrid((g)=>({...g,snapSpacing:Math.max(.01,Number(e.target.value)||1)}))}/><label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={grid.snapEnabled} onChange={(e)=>setGrid((g)=>({...g,snapEnabled:e.target.checked}))}/> Snap to grid</label><label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={grid.ortho} onChange={(e)=>setGrid((g)=>({...g,ortho:e.target.checked}))}/> Ortho mode (setting)</label></div>
+      <aside className="min-w-0 space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1">
+        <div><h3 className="mb-2 flex items-center gap-2 text-sm font-semibold"><Layers3 className="h-4 w-4"/>Layers</h3><div className="space-y-1">{doc.layers.map((l)=><div key={l.id} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={l.visible} onChange={(e)=>commit({...doc,layers:doc.layers.map((x)=>x.id===l.id?{...x,visible:e.target.checked}:x)})}/><span className="h-3 w-3 rounded-sm border" style={{background:l.color}}/><button className="truncate text-left" onClick={()=>setLayerName(l.name)}>{l.name}</button><span className="ml-auto text-muted-foreground">{doc.entities.filter((e)=>e.layerId===l.id).length}</span></div>)}</div><div className="mt-2 grid grid-cols-2 gap-1.5"><Button size="sm" variant="outline" onClick={addLayer}>+ New layer</Button><Button size="sm" variant="outline" onClick={renameActiveLayer}>Rename</Button><Button size="sm" variant="outline" className="col-span-2" onClick={deleteActiveLayer} disabled={doc.layers.length <= 1 || doc.entities.some((entity) => entity.layerId === activeLayer.id)}>Delete empty active layer</Button></div></div>
+        <div><label className="mb-1 block text-xs font-medium">Active layer</label><select className="w-full rounded-md border bg-background p-2 text-sm" value={layerName} onChange={(e)=>setLayerName(e.target.value)}>{doc.layers.map((l)=><option key={l.id}>{l.name}</option>)}</select></div><div><label className="mb-1 block text-xs font-medium">Drawing units</label><select aria-label="Drawing units" className="w-full rounded-md border bg-background p-2 text-sm" value={doc.units} onChange={(e)=>commit({...doc,units:e.target.value as CadDocument["units"]})}><option value="mm">Millimeters (mm)</option><option value="cm">Centimeters (cm)</option><option value="m">Meters (m)</option><option value="in">Inches (in)</option><option value="ft">Feet (ft)</option></select><p className="mt-1 text-[10px] text-muted-foreground">Changes the unit label/interpretation; existing coordinates are not converted.</p></div>
+        <div><label className="mb-1 block text-xs font-medium">Grid spacing (visual)</label><Input aria-label="Visual grid spacing" type="number" min=".01" step=".25" value={grid.gridSpacing} onChange={(e)=>setGrid((g)=>({...g,gridSpacing:Math.max(.01,Number(e.target.value)||1)}))}/><label className="mb-1 mt-2 block text-xs font-medium">Snap spacing (drawing units)</label><Input aria-label="Snap spacing" type="number" min=".01" step=".25" value={grid.snapSpacing} onChange={(e)=>setGrid((g)=>({...g,snapSpacing:Math.max(.01,Number(e.target.value)||1)}))}/><label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={grid.snapEnabled} onChange={(e)=>setGrid((g)=>({...g,snapEnabled:e.target.checked}))}/> Snap to grid</label><label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={grid.ortho} onChange={(e)=>setGrid((g)=>({...g,ortho:e.target.checked}))}/> Ortho mode (horizontal/vertical lock)</label><p className="mt-1 text-[10px] text-muted-foreground">Visual grid and snap spacing can be adjusted independently.</p></div>
         <div><p className="mb-1 text-xs font-medium">Command line</p><form className="flex gap-1" onSubmit={(e)=>{e.preventDefault();runCommand();}}><Input value={command} onChange={(e)=>setCommand(e.target.value)} placeholder="LINE / RECTANG / CIRCLE"/><Button size="sm" type="submit">Run</Button></form><p className="mt-1 text-[10px] text-muted-foreground">Command aliases select the corresponding tool; geometry handlers are enabled for the initial draw tools.</p></div>
       </aside>
     </div>
-    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, line, rectangle, circle, arc, wall, polygon, move, copy, rotate, mirror and erase. Offset supports current geometry entities; Trim and Extend currently support straight lines/walls with guided two-click workflows. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings auto-save in this browser on this device. Export JSON for a portable editable backup; SVG is for sharing/printing.</p>
+    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, measure, line, rectangle, circle, arc, wall, polygon, move, copy, rotate, mirror and erase. Offset supports current geometry entities; Trim and Extend currently support straight lines/walls with guided two-click workflows. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings auto-save in this browser on this device. Export JSON for a portable editable backup; SVG is for sharing/printing.</p>
   </section>;
 }
