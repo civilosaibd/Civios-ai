@@ -90,7 +90,8 @@ export function rotateEntity(entity: CadEntity, angleRadians: number, origin: Po
     case "rectangle": {
       // A rotated axis-aligned rectangle is represented as a closed polyline to preserve geometry.
       const pts = [entity.min, { x: entity.max.x, y: entity.min.y }, entity.max, { x: entity.min.x, y: entity.max.y }].map(rotate);
-      return { id: entity.id, layerId: entity.layerId, type: "polyline", points: pts, closed: true };
+      // Preserve entity metadata (notably locked state) when the rectangle becomes a polyline.
+      return { id: entity.id, layerId: entity.layerId, locked: entity.locked, type: "polyline", points: pts, closed: true };
     }
     case "circle": case "ellipse": return { ...entity, center: rotate(entity.center) };
     case "text": return { ...entity, at: rotate(entity.at), rotation: entity.rotation + angleRadians };
