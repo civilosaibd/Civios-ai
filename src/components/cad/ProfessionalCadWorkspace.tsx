@@ -333,6 +333,23 @@ export default function ProfessionalCadWorkspace() {
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       return;
     }
+    const pendingStart = transformStartRef.current;
+    const targetIds = transformTargetIdsRef.current;
+    const transformTool = transformToolRef.current;
+    transformStartRef.current = null;
+    transformTargetIdsRef.current = [];
+    transformToolRef.current = null;
+    if (pendingStart && targetIds.length && transformTool) {
+      const end = toWorld(event, pendingStart), dx = end.x - pendingStart.x, dy = end.y - pendingStart.y;
+      if (dx !== 0 || dy !== 0) {
+        const targetSet = new Set(targetIds);
+        const entities = transformTool === "copy"
+          ? [...doc.entities, ...doc.entities.filter((entity) => targetSet.has(entity.id)).map((entity) => ({ ...translateEntity(entity, dx, dy), id: makeId() } as CadEntity))]
+          : doc.entities.map((entity) => targetSet.has(entity.id) ? translateEntity(entity, dx, dy) : entity);
+        commit({ ...doc, entities });
+      }
+      return;
+    }
     if (tool === "select" && start) {
       const end = toWorld(event);
       const width = Math.abs(end.x - start.x), height = Math.abs(end.y - start.y);
@@ -351,21 +368,7 @@ export default function ProfessionalCadWorkspace() {
       setStart(null);
       return;
     }
-    const start = transformStartRef.current;
-    const targetIds = transformTargetIdsRef.current;
-    const transformTool = transformToolRef.current;
-    transformStartRef.current = null;
-    transformTargetIdsRef.current = [];
-    transformToolRef.current = null;
-    if (!start || !targetIds.length || !transformTool) return;
-    const end = toWorld(event, start), dx = end.x - start.x, dy = end.y - start.y;
-    if (dx !== 0 || dy !== 0) {
-      const targetSet = new Set(targetIds);
-      const entities = transformTool === "copy"
-        ? [...doc.entities, ...doc.entities.filter((entity) => targetSet.has(entity.id)).map((entity) => ({ ...translateEntity(entity, dx, dy), id: makeId() } as CadEntity))]
-        : doc.entities.map((entity) => targetSet.has(entity.id) ? translateEntity(entity, dx, dy) : entity);
-      commit({ ...doc, entities });
-    }
+
   };
 
   const handlePointerCancel = (event: ReactPointerEvent<SVGSVGElement>) => {
