@@ -7,7 +7,7 @@ import {
   type CadToolId, type CadGridSettings,
 } from "@/lib/cad2d/professional-model";
 import {
-  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, type CadEntity, type CadDocument, type Point2D,
+  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, parseCadCommand, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand, Upload } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -26,8 +26,8 @@ const palette: { id: CadToolId; label: string; group: string }[] = [
   { id: "offset", label: "Offset", group: "Modify" }, { id: "trim", label: "Trim", group: "Modify" },
   { id: "extend", label: "Extend", group: "Modify" }, { id: "fillet", label: "Fillet", group: "Modify" },
   { id: "dimension", label: "Dimension", group: "Annotate" }, { id: "text", label: "Text", group: "Annotate" },
-  { id: "wall", label: "Wall", group: "Architecture" }, { id: "door", label: "Door", group: "Architecture" },
-  { id: "window", label: "Window", group: "Architecture" }, { id: "column", label: "Column", group: "Architecture" },
+  { id: "wall", label: "Wall", group: "Architecture" }, { id: "beam", label: "Beam", group: "Architecture" }, { id: "door", label: "Door", group: "Architecture" },
+  { id: "window", label: "Window", group: "Architecture" }, { id: "column", label: "Column", group: "Architecture" }, { id: "stair", label: "Stair", group: "Architecture" },
 ];
 
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `cad-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -49,6 +49,7 @@ export default function ProfessionalCadWorkspace() {
   const [grid, setGrid] = useState<CadGridSettings>(DEFAULT_CAD_GRID);
   const [view, setView] = useState<View>({ x: 60, y: 50, scale: 1 });
   const [start, setStart] = useState<Point2D | null>(null);
+  const [arcStart, setArcStart] = useState<{ center: Point2D; radius: number; startAngle: number } | null>(null);
   const [polylinePoints, setPolylinePoints] = useState<Point2D[]>([]);
   const [modifyTargetId, setModifyTargetId] = useState<string | null>(null);
   const [cursor, setCursor] = useState<Point2D | null>(null);
@@ -57,6 +58,7 @@ export default function ProfessionalCadWorkspace() {
   const [command, setCommand] = useState("");
   const [history, setHistory] = useState<CadDocument[]>([]);
   const [future, setFuture] = useState<CadDocument[]>([]);
+  const [saveStatus, setSaveStatus] = useState<"saved" | "error">("saved");
   const [layerName, setLayerName] = useState("0");
   const [toolsOpen, setToolsOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -67,8 +69,9 @@ export default function ProfessionalCadWorkspace() {
   useEffect(() => {
     try {
       window.localStorage.setItem("civilos-cad-document-v1", JSON.stringify(doc));
+      setSaveStatus("saved");
     } catch {
-      toast.error("Could not auto-save this drawing locally. Please export a JSON backup.");
+      setSaveStatus("error");
     }
   }, [doc]);
 
@@ -114,6 +117,7 @@ export default function ProfessionalCadWorkspace() {
       const startAngle = normalizeAngle(e.startAngle), endAngle = normalizeAngle(e.endAngle);
       return startAngle <= endAngle ? angle >= startAngle && angle <= endAngle : angle >= startAngle || angle <= endAngle;
     }
+    if (e.type === "text") { const bounds = entityBounds(e); return p.x >= bounds.min.x && p.x <= bounds.max.x && p.y >= bounds.min.y && p.y <= bounds.max.y; }
     if (e.type === "ellipse") { const t=Math.atan2((p.y-e.center.y)/Math.max(e.ry,.001),(p.x-e.center.x)/Math.max(e.rx,.001)); const q={x:e.center.x+e.rx*Math.cos(t),y:e.center.y+e.ry*Math.sin(t)}; return Math.hypot(p.x-q.x,p.y-q.y)<7/view.scale; }
     if (e.type === "polyline") {
       const segments = e.points.slice(1).map((point, index) => [e.points[index], point] as const);
@@ -211,6 +215,57 @@ export default function ProfessionalCadWorkspace() {
       }
       return;
     }
+    if (tool === "arc") {
+      if (!start) {
+        setStart(p);
+        setCursor(p);
+        setArcStart(null);
+        toast.info("Choose the arc start point.");
+        return;
+      }
+      if (!arcStart) {
+        const radius = Math.hypot(p.x - start.x, p.y - start.y);
+        if (radius <= 1e-8) {
+          toast.info("Arc radius must be greater than zero.");
+          setStart(null); setCursor(null);
+          return;
+        }
+        setArcStart({ center: start, radius, startAngle: Math.atan2(p.y - start.y, p.x - start.x) });
+        setCursor(p);
+        toast.info("Choose the arc end point.");
+        return;
+      }
+      const endAngle = Math.atan2(p.y - arcStart.center.y, p.x - arcStart.center.x);
+      let sweep = endAngle - arcStart.startAngle;
+      while (sweep <= 0) sweep += Math.PI * 2;
+      if (sweep < 1e-6 || Math.abs(sweep - Math.PI * 2) < 1e-6) {
+        toast.info("Choose a different arc end point.");
+        return;
+      }
+      const entity: CadEntity = { id: makeId(), layerId: activeLayer.id, type: "arc", center: arcStart.center, radius: arcStart.radius, startAngle: arcStart.startAngle, endAngle: arcStart.startAngle + sweep };
+      commit({ ...doc, entities: [...doc.entities, entity] });
+      setSelected([entity.id]);
+      setStart(null); setArcStart(null); setCursor(null);
+      toast.success("Arc created from center, start, and end points.");
+      return;
+    }
+    if (tool === "text") {
+      const value = window.prompt("Text to place in the drawing:");
+      if (value === null || !value.trim()) return;
+      const rawHeight = window.prompt(`Text height in ${doc.units}:`, "2.5");
+      if (rawHeight === null) return;
+      const height = Number(rawHeight);
+      if (!Number.isFinite(height) || height <= 0) {
+        toast.error("Text height must be a positive finite number.");
+        return;
+      }
+      const entity: CadEntity = { id: makeId(), layerId: activeLayer.id, type: "text", at: p, text: value.trim(), height, rotation: 0 };
+      commit({ ...doc, entities: [...doc.entities, entity] });
+      setSelected([entity.id]);
+      setTool("select");
+      toast.success("Text annotation added.");
+      return;
+    }
     if (tool === "measure") {
       if (!start) {
         setStart(p);
@@ -259,13 +314,13 @@ export default function ProfessionalCadWorkspace() {
     if (!start) { setStart(p); setCursor(p); return; }
     const a=start, b=p;
     const deltaX = Math.abs(b.x - a.x), deltaY = Math.abs(b.y - a.y);
-    if ((tool === "line" || tool === "wall") && Math.hypot(deltaX, deltaY) < 1e-8) {
+    if ((tool === "line" || tool === "wall" || tool === "beam") && Math.hypot(deltaX, deltaY) < 1e-8) {
       toast.info("Choose two different points to create a line or wall.");
       setStart(null); setCursor(null);
       return;
     }
-    if (tool === "rectangle" && (deltaX < 1e-8 || deltaY < 1e-8)) {
-      toast.info("A rectangle needs both a width and a height.");
+    if ((tool === "rectangle" || tool === "column") && (deltaX < 1e-8 || deltaY < 1e-8)) {
+      toast.info("This shape needs both a width and a height.");
       setStart(null); setCursor(null);
       return;
     }
@@ -281,10 +336,89 @@ export default function ProfessionalCadWorkspace() {
     }
     let entity: CadEntity | null = null;
     const base={ id:makeId(), layerId:activeLayer.id };
+    if (tool === "dimension") {
+      const length = Math.hypot(b.x - a.x, b.y - a.y);
+      if (length <= 1e-8) {
+        toast.info("Choose two different points to create a dimension.");
+        setStart(null); setCursor(null);
+        return;
+      }
+      const offset = Math.max(1.5, length * 0.08);
+      const normal = { x: -(b.y - a.y) / length, y: (b.x - a.x) / length };
+      const da = { x: a.x + normal.x * offset, y: a.y + normal.y * offset };
+      const db = { x: b.x + normal.x * offset, y: b.y + normal.y * offset };
+      const mid = { x: (da.x + db.x) / 2, y: (da.y + db.y) / 2 };
+      const dimensionEntities: CadEntity[] = [
+        { ...base, id: makeId(), type: "line", start: a, end: da },
+        { ...base, id: makeId(), type: "line", start: b, end: db },
+        { ...base, id: makeId(), type: "line", start: da, end: db },
+        { ...base, id: makeId(), type: "text", at: { x: mid.x, y: mid.y - 0.2 }, text: `${length.toFixed(2)} ${doc.units}`, height: Math.max(0.8, offset * 0.45), rotation: Math.atan2(db.y - da.y, db.x - da.x) },
+      ];
+      commit({ ...doc, entities: [...doc.entities, ...dimensionEntities] });
+      setSelected(dimensionEntities.map((item) => item.id));
+      toast.success(`Dimension added: ${length.toFixed(2)} ${doc.units}`);
+      setStart(null); setPolylinePoints([]); setCursor(null);
+      return;
+    }
+    if (tool === "stair") {
+      const width = Math.abs(b.x - a.x), depth = Math.abs(b.y - a.y);
+      if (width <= 1e-8 || depth <= 1e-8) {
+        toast.info("A stair footprint needs both a width and a depth.");
+        setStart(null); setCursor(null);
+        return;
+      }
+      const left = Math.min(a.x, b.x), right = Math.max(a.x, b.x);
+      const top = Math.min(a.y, b.y), bottom = Math.max(a.y, b.y);
+      const stepCount = Math.max(3, Math.min(16, Math.round(Math.max(width, depth) / Math.max(Math.min(width, depth) / 5, 1))));
+      const stairEntities: CadEntity[] = [
+        { ...base, id: makeId(), type: "line", start: { x: left, y: top }, end: { x: right, y: top } },
+        { ...base, id: makeId(), type: "line", start: { x: right, y: top }, end: { x: right, y: bottom } },
+        { ...base, id: makeId(), type: "line", start: { x: right, y: bottom }, end: { x: left, y: bottom } },
+        { ...base, id: makeId(), type: "line", start: { x: left, y: bottom }, end: { x: left, y: top } },
+      ];
+      for (let index = 1; index < stepCount; index += 1) {
+        const ratio = index / stepCount;
+        stairEntities.push({
+          ...base, id: makeId(), type: "line",
+          start: { x: left + width * ratio, y: top },
+          end: { x: left + width * ratio, y: bottom },
+        });
+      }
+      commit({ ...doc, entities: [...doc.entities, ...stairEntities] });
+      setSelected(stairEntities.map((item) => item.id));
+      toast.success(`Stair footprint added with ${stepCount} tread divisions.`);
+      setStart(null); setPolylinePoints([]); setCursor(null);
+      return;
+    }
+    if (tool === "door" || tool === "window") {
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const length = Math.hypot(dx, dy);
+      if (length <= 1e-8) {
+        toast.info("Choose two different points to set the opening width.");
+        setStart(null); setCursor(null);
+        return;
+      }
+      const normal = { x: -dy / length, y: dx / length };
+      const openingEntities: CadEntity[] = tool === "door"
+        ? [
+            { ...base, id: makeId(), type: "line", start: a, end: b },
+            { ...base, id: makeId(), type: "arc", center: a, radius: length, startAngle: Math.atan2(dy, dx), endAngle: Math.atan2(dy, dx) + Math.PI / 2 },
+          ]
+        : [
+            { ...base, id: makeId(), type: "line", start: { x: a.x + normal.x * 0.12 * length, y: a.y + normal.y * 0.12 * length }, end: { x: b.x + normal.x * 0.12 * length, y: b.y + normal.y * 0.12 * length } },
+            { ...base, id: makeId(), type: "line", start: { x: a.x + normal.x * 0.32 * length, y: a.y + normal.y * 0.32 * length }, end: { x: b.x + normal.x * 0.32 * length, y: b.y + normal.y * 0.32 * length } },
+            { ...base, id: makeId(), type: "line", start: { x: a.x + normal.x * 0.52 * length, y: a.y + normal.y * 0.52 * length }, end: { x: b.x + normal.x * 0.52 * length, y: b.y + normal.y * 0.52 * length } },
+          ];
+      commit({ ...doc, entities: [...doc.entities, ...openingEntities] });
+      setSelected(openingEntities.map((item) => item.id));
+      toast.success(tool === "door" ? "Basic door swing symbol added." : "Basic window symbol added.");
+      setStart(null); setPolylinePoints([]); setCursor(null);
+      return;
+    }
     if (tool==="line") entity={...base,type:"line",start:a,end:b};
-    else if (tool==="rectangle" || tool==="wall") {
+    else if (tool==="rectangle" || tool==="column" || tool==="wall" || tool==="beam") {
       const r=normalizeRect(a,b);
-      entity=tool==="wall" ? {...base,type:"wall",start:a,end:b,thickness:0.5} : {...base,type:"rectangle",...r};
+      entity=(tool==="wall" || tool==="beam") ? {...base,type:"wall",start:a,end:b,thickness:tool==="beam"?0.75:0.5} : {...base,type:"rectangle",...r};
     } else if (tool==="circle") entity={...base,type:"circle",center:a,radius:Math.hypot(b.x-a.x,b.y-a.y)};
     else if (tool==="polyline") entity={...base,type:"polyline",points:[a,b],closed:false};
     else if (tool==="polygon") {
@@ -350,14 +484,51 @@ export default function ProfessionalCadWorkspace() {
   };
 
   const runCommand = () => {
-    const raw=command.trim(); if(!raw) return;
-    if (/^(UNDO|U)$/i.test(raw)) { undo(); setCommand(""); return; }
-    if (/^(REDO|RE)$/i.test(raw)) { redo(); setCommand(""); return; }
-    if (/^(ERASE|DELETE|E)$/i.test(raw)) { setTool("erase"); setCommand(""); return; }
-    const def=normalizeCommand(raw);
-    if (!def) { toast.error(`Unknown command: ${raw.split(/\\s+/)[0]}`); return; }
-    setTool(def.id);
-    setCommand("");
+    const raw = command.trim();
+    if (!raw) return;
+    try {
+      const parsed = parseCadCommand(raw);
+      if (parsed.name === "UNDO") { undo(); setCommand(""); return; }
+      if (parsed.name === "REDO") { redo(); setCommand(""); return; }
+      if (parsed.name === "ERASE" || parsed.name === "DELETE") { setTool("erase"); setCommand(""); return; }
+      if (parsed.name === "ZOOMFIT") { fitToDrawing(); setCommand(""); return; }
+      const base = { id: makeId(), layerId: activeLayer.id };
+      let entity: CadEntity;
+      if (parsed.name === "LINE") {
+        const [startPoint, endPoint] = parsed.args;
+        if (Math.hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y) <= 1e-8) {
+          throw new Error("Line endpoints must be different.");
+        }
+        entity = { ...base, type: "line", start: startPoint, end: endPoint };
+      } else if (parsed.name === "RECTANGLE") {
+        const [first, second] = parsed.args;
+        const rect = normalizeRect(first, second);
+        if (rect.max.x <= rect.min.x || rect.max.y <= rect.min.y) throw new Error("Rectangle width and height must be positive.");
+        entity = { ...base, type: "rectangle", ...rect };
+      } else if (parsed.name === "CIRCLE") {
+        const [center, radius] = parsed.args;
+        entity = { ...base, type: "circle", center, radius };
+      } else {
+        const [startPoint, endPoint, thickness] = parsed.args;
+        if (Math.hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y) <= 1e-8) {
+          throw new Error("Wall endpoints must be different.");
+        }
+        entity = { ...base, type: "wall", start: startPoint, end: endPoint, thickness };
+      }
+      commit({ ...doc, entities: [...doc.entities, entity] });
+      setSelected([entity.id]);
+      setTool("select");
+      setCommand("");
+      toast.success(`${parsed.name} created from command coordinates.`);
+    } catch (error) {
+      const def = normalizeCommand(raw);
+      if (def) {
+        setTool(def.id);
+        setCommand("");
+        return;
+      }
+      toast.error(error instanceof Error ? error.message : "Could not run this CAD command.");
+    }
   };
   const undo = () => { if(!history.length)return; setFuture((f)=>[doc,...f]);setDoc(history[history.length-1]);setHistory(history.slice(0,-1)); };
   const redo = () => { if(!future.length)return; setHistory((h)=>[...h,doc]);setDoc(future[0]);setFuture(future.slice(1)); };
@@ -476,8 +647,11 @@ export default function ProfessionalCadWorkspace() {
     toast.success("Empty layer deleted.");
   };
   const fitToDrawing = () => {
-    if (!doc.entities.length) { setView({ x: 60, y: 50, scale: 1 }); return; }
-    const bounds = doc.entities.map(entityBounds);
+    const visibleEntities = doc.entities.filter((entity) =>
+      doc.layers.find((layer) => layer.id === entity.layerId)?.visible !== false
+    );
+    if (!visibleEntities.length) { setView({ x: 60, y: 50, scale: 1 }); return; }
+    const bounds = visibleEntities.map(entityBounds);
     const minX = Math.min(...bounds.map((b) => b.min.x));
     const minY = Math.min(...bounds.map((b) => b.min.y));
     const maxX = Math.max(...bounds.map((b) => b.max.x));
@@ -562,6 +736,7 @@ export default function ProfessionalCadWorkspace() {
               Number.isFinite(entity.ry) && entity.ry > 0;
             case "arc": return isFinitePoint(entity.center) && Number.isFinite(entity.radius) && entity.radius > 0 &&
               Number.isFinite(entity.startAngle) && Number.isFinite(entity.endAngle);
+            case "text": return isFinitePoint(entity.at) && typeof entity.text === "string" && entity.text.trim().length > 0 && Number.isFinite(entity.height) && entity.height > 0 && Number.isFinite(entity.rotation);
             default: return false;
           }
         });
@@ -588,6 +763,9 @@ export default function ProfessionalCadWorkspace() {
           throw new Error("Some objects refer to layers that are missing from this file.");
         }
         const imported = candidate as CadDocument;
+        if (doc.entities.length > 0 && !window.confirm(
+          `Replace the current drawing (${doc.entities.length} object(s)) with this imported drawing (${imported.entities.length} object(s))? Export a JSON backup first if you need to keep the current drawing.`
+        )) return;
         commit(imported);
         setLayerName(imported.layers[0].name);
         setSelected([]);
@@ -624,7 +802,8 @@ export default function ProfessionalCadWorkspace() {
     const common={stroke:color,strokeWidth:selected.includes(e.id)?2.5:1.6,fill:"none" as const,vectorEffect:"non-scaling-stroke" as const};
     if(e.type==="line"||e.type==="wall")return <line key={e.id} x1={e.start.x} y1={e.start.y} x2={e.end.x} y2={e.end.y} {...common} strokeWidth={e.type==="wall"?Math.max(2,e.thickness):common.strokeWidth}/>;
     if(e.type==="rectangle")return <rect key={e.id} x={e.min.x} y={e.min.y} width={e.max.x-e.min.x} height={e.max.y-e.min.y} {...common}/>;
-    if(e.type==="circle")return <circle key={e.id} cx={e.center.x} cy={e.center.y} r={e.radius} {...common}/>;
+    if(e.type==="circle")return <circle key={e.id} cx={e.center.x} cy={e.center.y} r={e.radius} {...common}/>
+    if(e.type==="text")return <text key={e.id} x={e.at.x} y={e.at.y} fontSize={e.height} transform={`rotate(${e.rotation * 180 / Math.PI} ${e.at.x} ${e.at.y})`} fill={color} stroke="none" style={{userSelect:"none"}}>{e.text}</text>;;
     if(e.type==="ellipse")return <ellipse key={e.id} cx={e.center.x} cy={e.center.y} rx={e.rx} ry={e.ry} {...common}/>;
     if(e.type==="polyline")return <polyline key={e.id} points={e.points.map((p)=>`${p.x},${p.y}`).join(" ")} {...common}/>;
     if(e.type==="arc")return <path key={e.id} d={`M ${e.center.x+e.radius*Math.cos(e.startAngle)} ${e.center.y+e.radius*Math.sin(e.startAngle)} A ${e.radius} ${e.radius} 0 1 1 ${e.center.x+e.radius*Math.cos(e.endAngle)} ${e.center.y+e.radius*Math.sin(e.endAngle)}`} {...common}/>;
@@ -633,7 +812,7 @@ export default function ProfessionalCadWorkspace() {
 
   return <section className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm md:p-5">
     <div className="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-lg">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-5"><div className="flex min-w-0 items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500 shadow-md shadow-orange-950/30"><DraftingCompass className="h-6 w-6 text-white"/></div><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-2"><h2 className="text-lg font-bold tracking-tight md:text-xl">Professional 2D Studio</h2><span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300"><CheckCircle2 className="mr-1 inline h-3 w-3"/>Workspace ready</span></div><p className="text-xs text-slate-400">CivilOS AI · precision drafting workspace</p></div></div><div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs"><span className="h-2 w-2 rounded-full bg-emerald-400"/><span className="text-slate-300">Auto-save</span><span className="font-semibold text-white">On this device</span></div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-5"><div className="flex min-w-0 items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500 shadow-md shadow-orange-950/30"><DraftingCompass className="h-6 w-6 text-white"/></div><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-2"><h2 className="text-lg font-bold tracking-tight md:text-xl">Professional 2D Studio</h2><span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300"><CheckCircle2 className="mr-1 inline h-3 w-3"/>Workspace ready</span></div><p className="text-xs text-slate-400">CivilOS AI · precision drafting workspace</p></div></div><div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs"><span className={`h-2 w-2 rounded-full ${saveStatus === "saved" ? "bg-emerald-400" : "bg-rose-400"}`}/><span className="text-slate-300">Auto-save</span><span className="font-semibold text-white">{saveStatus === "saved" ? "Saved on this device" : "Save failed — export backup"}</span></div></div>
       <div className="flex flex-wrap items-center gap-2 border-t border-white/10 bg-white/[0.03] px-4 py-2.5 text-[11px] text-slate-400 md:px-5"><span className="inline-flex items-center gap-1.5"><Command className="h-3.5 w-3.5"/>Shortcuts: L line · C circle · R rectangle · P polyline · S select · E erase</span><span className="hidden text-slate-600 sm:inline">•</span><span className="inline-flex items-center gap-1.5"><Hand className="h-3.5 w-3.5"/>Wheel zoom · middle/right drag pan</span></div>
     </div>
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
