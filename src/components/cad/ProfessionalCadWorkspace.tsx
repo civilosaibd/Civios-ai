@@ -240,7 +240,7 @@ export default function ProfessionalCadWorkspace() {
         }
         return;
       }
-      setSelected([id]); setStart(p); return;
+      setSelected((current) => current.includes(id) ? current : [id]); setStart(p); return;
     }
     if (!start) { setStart(p); setCursor(p); return; }
     const a=start, b=p;
@@ -306,11 +306,12 @@ export default function ProfessionalCadWorkspace() {
     }
     if (!start || !selected.length || (tool!=="move" && tool!=="copy")) return;
     const end=toWorld(event), dx=end.x-start.x, dy=end.y-start.y;
-    const id=selected[0], entity=doc.entities.find((e)=>e.id===id);
-    if (entity && (dx!==0 || dy!==0)) {
-      const moved = translateEntity(entity, dx, dy);
-      const entities=tool==="copy" ? [...doc.entities,{...moved,id:makeId()} as CadEntity] : doc.entities.map((e)=>e.id===id?moved as CadEntity:e);
-      commit({...doc,entities});
+    if (selected.length && (dx!==0 || dy!==0)) {
+      const selectedSet = new Set(selected);
+      const entities = tool === "copy"
+        ? [...doc.entities, ...doc.entities.filter((entity) => selectedSet.has(entity.id)).map((entity) => ({ ...translateEntity(entity, dx, dy), id: makeId() } as CadEntity))]
+        : doc.entities.map((entity) => selectedSet.has(entity.id) ? translateEntity(entity, dx, dy) : entity);
+      commit({ ...doc, entities });
     }
     setStart(null);
   };
