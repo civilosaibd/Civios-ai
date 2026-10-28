@@ -476,8 +476,11 @@ export default function ProfessionalCadWorkspace() {
     toast.success("Empty layer deleted.");
   };
   const fitToDrawing = () => {
-    if (!doc.entities.length) { setView({ x: 60, y: 50, scale: 1 }); return; }
-    const bounds = doc.entities.map(entityBounds);
+    const visibleEntities = doc.entities.filter((entity) =>
+      doc.layers.find((layer) => layer.id === entity.layerId)?.visible !== false
+    );
+    if (!visibleEntities.length) { setView({ x: 60, y: 50, scale: 1 }); return; }
+    const bounds = visibleEntities.map(entityBounds);
     const minX = Math.min(...bounds.map((b) => b.min.x));
     const minY = Math.min(...bounds.map((b) => b.min.y));
     const maxX = Math.max(...bounds.map((b) => b.max.x));
