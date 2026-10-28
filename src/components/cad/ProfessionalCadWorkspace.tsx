@@ -752,6 +752,8 @@ export default function ProfessionalCadWorkspace() {
       clone.setAttribute("width", "1000");
       clone.setAttribute("height", "640");
       clone.setAttribute("viewBox", "0 0 1000 640");
+      // Preserve the visual canvas background when opening the SVG outside the app.
+      if (!clone.getAttribute("style")) clone.setAttribute("style", "background-color: #f8fafc");
       content = new XMLSerializer().serializeToString(clone);
     }
     const blob = new Blob([content], { type: kind === "json" ? "application/json;charset=utf-8" : "image/svg+xml;charset=utf-8" });
