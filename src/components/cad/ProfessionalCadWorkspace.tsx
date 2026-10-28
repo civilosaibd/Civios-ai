@@ -748,8 +748,8 @@ export default function ProfessionalCadWorkspace() {
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error("Drawing backup is too large. Choose a JSON file smaller than 10 MB.");
+      if (file.size > 200 * 1024 * 1024) {
+        toast.error("Drawing backup is too large. Choose a JSON file no larger than 200 MB.");
         return;
       }
       try {
