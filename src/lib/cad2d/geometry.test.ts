@@ -129,6 +129,17 @@ describe("2D CAD geometry foundation", () => {
     expect(mirrored.center.y + mirrored.radius * Math.sin(mirrored.endAngle)).toBeCloseTo(5);
   });
 
+  it("snaps to the four quadrant points of an ellipse", () => {
+    const ellipse: CadEntity = {
+      id: "ellipse-snap", layerId: "0", type: "ellipse",
+      center: { x: 5, y: 5 }, rx: 3, ry: 2,
+    };
+    expect(nearestEndpoint({ x: 8.02, y: 5 }, [ellipse], 0.1)).toEqual({ x: 8, y: 5 });
+    expect(nearestEndpoint({ x: 5, y: 7.02 }, [ellipse], 0.1)).toEqual({ x: 5, y: 7 });
+    expect(nearestEndpoint({ x: 1.98, y: 5 }, [ellipse], 0.1)).toEqual({ x: 2, y: 5 });
+    expect(nearestEndpoint({ x: 5, y: 2.02 }, [ellipse], 0.1)).toEqual({ x: 5, y: 3 });
+  });
+
   it("snaps to both geometric endpoints of an arc, not an arbitrary circle point", () => {
     const arc: CadEntity = {
       id: "arc-snap", layerId: "0", type: "arc",
