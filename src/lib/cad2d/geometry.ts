@@ -60,7 +60,18 @@ export function nearestEndpoint(p: Point2D, entities: CadEntity[], tolerance: nu
     if (e.type === "line" || e.type === "wall") candidates.push(e.start, e.end);
     else if (e.type === "polyline") candidates.push(...e.points);
     else if (e.type === "rectangle") candidates.push(e.min, { x: e.max.x, y: e.min.y }, e.max, { x: e.min.x, y: e.max.y });
-    else if (e.type === "circle") candidates.push({ x: e.center.x + e.radius, y: e.center.y });
+    else if (e.type === "ellipse") candidates.push(
+      { x: e.center.x + e.rx, y: e.center.y },
+      { x: e.center.x, y: e.center.y + e.ry },
+      { x: e.center.x - e.rx, y: e.center.y },
+      { x: e.center.x, y: e.center.y - e.ry },
+    );
+    else if (e.type === "arc") {
+      candidates.push(
+        { x: e.center.x + e.radius * Math.cos(e.startAngle), y: e.center.y + e.radius * Math.sin(e.startAngle) },
+        { x: e.center.x + e.radius * Math.cos(e.endAngle), y: e.center.y + e.radius * Math.sin(e.endAngle) },
+      );
+    }
   }
   for (const candidate of candidates) {
     const d = distance(p, candidate);
@@ -90,7 +101,8 @@ export function rotateEntity(entity: CadEntity, angleRadians: number, origin: Po
     case "rectangle": {
       // A rotated axis-aligned rectangle is represented as a closed polyline to preserve geometry.
       const pts = [entity.min, { x: entity.max.x, y: entity.min.y }, entity.max, { x: entity.min.x, y: entity.max.y }].map(rotate);
-      return { id: entity.id, layerId: entity.layerId, type: "polyline", points: pts, closed: true };
+      // Preserve entity metadata (notably locked state) when the rectangle becomes a polyline.
+      return { id: entity.id, layerId: entity.layerId, locked: entity.locked, type: "polyline", points: pts, closed: true };
     }
     case "circle": case "ellipse": return { ...entity, center: rotate(entity.center) };
     case "text": return { ...entity, at: rotate(entity.at), rotation: entity.rotation + angleRadians };
@@ -116,7 +128,7 @@ export function mirrorEntity(entity: CadEntity, axisX: number): CadEntity {
     case "text":
       return { ...entity, at: mirror(entity.at), rotation: -entity.rotation };
     case "arc":
-      return { ...entity, center: mirror(entity.center), startAngle: Math.PI - entity.startAngle, endAngle: Math.PI - entity.endAngle };
+      return { ...entity, center: mirror(entity.center), startAngle: Math.PI - entity.endAngle, endAngle: Math.PI - entity.startAngle };
   }
 }
 /**
@@ -345,8 +357,88 @@ export function serializeCadDocument(document: CadDocument): string {
 }
 export function deserializeCadDocument(serialized: string): CadDocument {
   const value: unknown = JSON.parse(serialized);
-  if (!value || typeof value !== "object") throw new Error("Invalid CAD document.");
-  const doc = value as CadDocument;
-  if (doc.version !== 1 || !Array.isArray(doc.entities) || !Array.isArray(doc.layers)) throw new Error("Unsupported or invalid CAD document format.");
-  return doc;
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid CAD document.");
+  const doc = value as Partial<CadDocument>;
+  const supportedUnits = ["mm", "cm", "m", "in", "ft"];
+  if (doc.version !== 1 || !supportedUnits.includes(String(doc.units)) || !Array.isArray(doc.entities) || !Array.isArray(doc.layers)) {
+    throw new Error("Unsupported or invalid CAD document format.");
+  }
+
+  const layerIds = new Set<string>();
+  const layerNames = new Set<string>();
+  for (const rawLayer of doc.layers as unknown[]) {
+    if (!rawLayer || typeof rawLayer !== "object" || Array.isArray(rawLayer)) throw new Error("Invalid CAD layer.");
+    const layer = rawLayer as Partial<CadLayer>;
+    if (typeof layer.id !== "string" || !layer.id.trim() || typeof layer.name !== "string" || !layer.name.trim()
+      || typeof layer.visible !== "boolean" || typeof layer.color !== "string"
+      || !/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(layer.color)
+      || typeof layer.lineWeight !== "number" || !Number.isFinite(layer.lineWeight) || layer.lineWeight <= 0) {
+      throw new Error("Invalid CAD layer properties.");
+    }
+    if (layerIds.has(layer.id) || layerNames.has(layer.name.trim().toLowerCase())) throw new Error("CAD layer IDs and names must be unique.");
+    layerIds.add(layer.id);
+    layerNames.add(layer.name.trim().toLowerCase());
+  }
+  if (layerIds.size === 0) throw new Error("A CAD document must contain at least one layer.");
+
+  const entityIds = new Set<string>();
+  const finitePoint = (point: unknown): point is Point2D => !!point && typeof point === "object"
+    && Number.isFinite((point as Point2D).x) && Number.isFinite((point as Point2D).y);
+  for (const rawEntity of doc.entities as unknown[]) {
+    if (!rawEntity || typeof rawEntity !== "object" || Array.isArray(rawEntity)) throw new Error("Invalid CAD entity.");
+    const entity = rawEntity as Partial<CadEntity> & { id?: unknown; layerId?: unknown; type?: unknown };
+    if (typeof entity.id !== "string" || !entity.id.trim() || entityIds.has(entity.id)
+      || typeof entity.layerId !== "string" || !layerIds.has(entity.layerId)) throw new Error("Invalid or duplicate CAD entity ID/layer.");
+    entityIds.add(entity.id);
+    if (entity.locked !== undefined && typeof entity.locked !== "boolean") throw new Error("Invalid CAD entity lock state.");
+
+    const validPositive = (n: unknown) => typeof n === "number" && Number.isFinite(n) && n > 0;
+    const validAngle = (n: unknown) => typeof n === "number" && Number.isFinite(n);
+    let valid = false;
+    switch (entity.type) {
+      case "line": case "wall":
+        valid = finitePoint((entity as Extract<CadEntity, { type: "line" }>).start)
+          && finitePoint((entity as Extract<CadEntity, { type: "line" }>).end)
+          && distance((entity as Extract<CadEntity, { type: "line" }>).start, (entity as Extract<CadEntity, { type: "line" }>).end) > 1e-9;
+        if (entity.type === "wall") valid = valid && validPositive((entity as Extract<CadEntity, { type: "wall" }>).thickness);
+        break;
+      case "polyline": {
+        const polyline = entity as Extract<CadEntity, { type: "polyline" }>;
+        valid = Array.isArray(polyline.points) && polyline.points.length >= 2
+          && polyline.points.every(finitePoint) && typeof polyline.closed === "boolean"
+          && polyline.points.some((p, i) => distance(p, polyline.points[(i + 1) % polyline.points.length]) > 1e-9);
+        break;
+      }
+      case "rectangle": {
+        const rectangle = entity as Extract<CadEntity, { type: "rectangle" }>;
+        valid = finitePoint(rectangle.min) && finitePoint(rectangle.max)
+          && rectangle.max.x > rectangle.min.x && rectangle.max.y > rectangle.min.y;
+        break;
+      }
+      case "circle":
+        valid = finitePoint((entity as Extract<CadEntity, { type: "circle" }>).center)
+          && validPositive((entity as Extract<CadEntity, { type: "circle" }>).radius);
+        break;
+      case "ellipse": {
+        const ellipse = entity as Extract<CadEntity, { type: "ellipse" }>;
+        valid = finitePoint(ellipse.center) && validPositive(ellipse.rx) && validPositive(ellipse.ry);
+        break;
+      }
+      case "arc": {
+        const arc = entity as Extract<CadEntity, { type: "arc" }>;
+        valid = finitePoint(arc.center) && validPositive(arc.radius) && validAngle(arc.startAngle)
+          && validAngle(arc.endAngle) && Math.abs(arc.endAngle - arc.startAngle) > 1e-9;
+        break;
+      }
+      case "text": {
+        const annotation = entity as Extract<CadEntity, { type: "text" }>;
+        valid = finitePoint(annotation.at) && typeof annotation.text === "string" && annotation.text.length > 0
+          && validPositive(annotation.height) && validAngle(annotation.rotation);
+        break;
+      }
+      default: valid = false;
+    }
+    if (!valid) throw new Error("Invalid CAD entity geometry or properties.");
+  }
+  return doc as CadDocument;
 }
