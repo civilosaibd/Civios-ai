@@ -671,6 +671,9 @@ export default function ProfessionalCadWorkspace() {
           throw new Error("Some objects refer to layers that are missing from this file.");
         }
         const imported = candidate as CadDocument;
+        if (doc.entities.length > 0 && !window.confirm(
+          `Replace the current drawing (${doc.entities.length} object(s)) with this imported drawing (${imported.entities.length} object(s))? Export a JSON backup first if you need to keep the current drawing.`
+        )) return;
         commit(imported);
         setLayerName(imported.layers[0].name);
         setSelected([]);
