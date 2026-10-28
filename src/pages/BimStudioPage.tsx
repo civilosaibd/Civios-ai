@@ -130,35 +130,46 @@ function RoomMesh({ r, ox, oz, y, fin, showFurniture, bn, cutaway, showOpenings 
 }
 
 function StructuralFrame({ width, depth, floors }: { width: number; depth: number; floors: number }) {
-  const halfW = width * FT / 2;
-  const halfD = depth * FT / 2;
+  // This is a conceptual visualization grid, not a structural design or reinforcement layout.
+  // Add intermediate bays for larger plans so the frame does not remain a fixed 3x3 grid.
+  const maxBayFt = 12;
+  const xBays = Math.max(1, Math.min(8, Math.ceil(width / maxBayFt)));
+  const zBays = Math.max(1, Math.min(8, Math.ceil(depth / maxBayFt)));
+  const xs = Array.from({ length: xBays + 1 }, (_, i) => (-width / 2 + (width * i) / xBays) * FT);
+  const zs = Array.from({ length: zBays + 1 }, (_, i) => (-depth / 2 + (depth * i) / zBays) * FT);
+  const totalHeight = Math.max(1, floors) * FLOOR_H;
   const columnSize = 0.18;
   const beamSize = 0.16;
-  const xs = [-halfW, 0, halfW];
-  const zs = [-halfD, 0, halfD];
-  const levels = Array.from({ length: floors }, (_, i) => (i + 1) * FLOOR_H);
+  const levels = Array.from({ length: Math.max(1, floors) }, (_, i) => (i + 1) * FLOOR_H);
+
   return (
     <group>
       {xs.flatMap((x) => zs.map((z) => (
-        <mesh key={`column-${x}-${z}`} position={[x, (floors * FLOOR_H) / 2, z]} castShadow>
-          <boxGeometry args={[columnSize, floors * FLOOR_H, columnSize]} />
+        <mesh key={`column-${x.toFixed(3)}-${z.toFixed(3)}`} position={[x, totalHeight / 2, z]} castShadow>
+          <boxGeometry args={[columnSize, totalHeight, columnSize]} />
           <meshStandardMaterial color="#64748b" metalness={0.25} roughness={0.55} />
         </mesh>
       )))}
       {levels.map((y) => (
         <group key={`beam-level-${y}`}>
-          {[-halfD, halfD].map((z) => (
-            <mesh key={`x-${z}`} position={[0, y, z]} castShadow>
-              <boxGeometry args={[width * FT, beamSize, beamSize]} />
-              <meshStandardMaterial color="#ea580c" metalness={0.15} roughness={0.6} />
-            </mesh>
-          ))}
-          {[-halfW, halfW].map((x) => (
-            <mesh key={`z-${x}`} position={[x, y, 0]} castShadow>
-              <boxGeometry args={[beamSize, beamSize, depth * FT]} />
-              <meshStandardMaterial color="#ea580c" metalness={0.15} roughness={0.6} />
-            </mesh>
-          ))}
+          {zs.flatMap((z) => xs.slice(0, -1).map((x, i) => {
+            const nextX = xs[i + 1];
+            return (
+              <mesh key={`x-${z.toFixed(3)}-${i}`} position={[(x + nextX) / 2, y, z]} castShadow>
+                <boxGeometry args={[nextX - x, beamSize, beamSize]} />
+                <meshStandardMaterial color="#ea580c" metalness={0.15} roughness={0.6} />
+              </mesh>
+            );
+          }))}
+          {xs.flatMap((x) => zs.slice(0, -1).map((z, i) => {
+            const nextZ = zs[i + 1];
+            return (
+              <mesh key={`z-${x.toFixed(3)}-${i}`} position={[x, y, (z + nextZ) / 2]} castShadow>
+                <boxGeometry args={[beamSize, beamSize, nextZ - z]} />
+                <meshStandardMaterial color="#ea580c" metalness={0.15} roughness={0.6} />
+              </mesh>
+            );
+          }))}
         </group>
       ))}
     </group>
@@ -285,7 +296,7 @@ export default function BimStudioPage() {
               </div>
               <Button size="sm" variant="secondary" className="w-full" onClick={snapshot}><Camera className="h-4 w-4 mr-1" /> {L("Save image", "ছবি সংরক্ষণ")}</Button>
             </Card>
-            <Card id="bim-canvas" className="h-[60vh] lg:h-[calc(100vh-8rem)] overflow-hidden bg-muted/40">
+            <Card id="bim-canvas" className="relative h-[60vh] lg:h-[calc(100vh-8rem)] overflow-hidden bg-muted/40">
               <Canvas shadows camera={{ fov: 45, position: [size, size, size] }} gl={{ preserveDrawingBuffer: true }}>
                 <ambientLight intensity={0.6} />
                 <directionalLight position={[10, 20, 10]} intensity={1.1} castShadow />
@@ -316,6 +327,14 @@ export default function BimStudioPage() {
                 </Suspense>
                 <OrbitControls makeDefault target={[0, 0, 0]} />
               </Canvas>
+              <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-10 rounded-lg border border-amber-300/70 bg-background/95 px-3 py-2 shadow-sm backdrop-blur">
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                  {L("Conceptual 3D visualization — not construction documentation", "ধারণাভিত্তিক 3D মডেল — নির্মাণের নকশা নয়")}
+                </p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                  {L("Openings, furniture and the structural frame are illustrative. Verify dimensions, loads, reinforcement and code compliance with a qualified engineer before construction.", "দরজা-জানালা, ফার্নিচার ও স্ট্রাকচারাল ফ্রেম শুধু প্রদর্শনের জন্য। নির্মাণের আগে যোগ্য প্রকৌশলীর মাধ্যমে মাপ, লোড, রডের নকশা ও বিধিমালা যাচাই করুন।")}
+                </p>
+              </div>
             </Card>
           </main>
         </div>
