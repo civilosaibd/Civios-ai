@@ -264,9 +264,24 @@ export function entityBounds(entity: CadEntity): { min: Point2D; max: Point2D } 
       max: { x: entity.center.x + entity.rx, y: entity.center.y + entity.ry },
     };
   }
+  if (entity.type === "text") {
+    const width = Math.max(entity.height * 0.6, entity.text.length * entity.height * 0.6);
+    const corners = [
+      { x: 0, y: -entity.height },
+      { x: width, y: -entity.height },
+      { x: width, y: entity.height * 0.25 },
+      { x: 0, y: entity.height * 0.25 },
+    ].map((point) => ({
+      x: entity.at.x + point.x * Math.cos(entity.rotation) - point.y * Math.sin(entity.rotation),
+      y: entity.at.y + point.x * Math.sin(entity.rotation) + point.y * Math.cos(entity.rotation),
+    }));
+    return corners.reduce((bounds, point) => ({
+      min: { x: Math.min(bounds.min.x, point.x), y: Math.min(bounds.min.y, point.y) },
+      max: { x: Math.max(bounds.max.x, point.x), y: Math.max(bounds.max.y, point.y) },
+    }), { min: { ...corners[0] }, max: { ...corners[0] } });
+  }
   const points = entity.type === "line" || entity.type === "wall" ? [entity.start, entity.end]
     : entity.type === "rectangle" ? [entity.min, entity.max]
-    : entity.type === "text" ? [entity.at]
     : entity.points;
   return points.reduce((b, p) => ({
     min: { x: Math.min(b.min.x, p.x), y: Math.min(b.min.y, p.y) },
