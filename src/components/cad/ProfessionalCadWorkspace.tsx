@@ -228,24 +228,29 @@ export default function ProfessionalCadWorkspace() {
       const id=findHit(p); if (!id) { toast.info("Click an existing object first."); return; }
       if (tool === "erase") { const idsToErase = selected.includes(id) ? new Set(selected) : new Set([id]); const remaining = doc.entities.filter((entity) => !idsToErase.has(entity.id)); commit({ ...doc, entities: remaining }); setSelected([]); toast.success(`Erased ${doc.entities.length - remaining.length} object(s).`); return; }
       if (tool === "rotate") {
-        const entity=doc.entities.find((e)=>e.id===id);
-        if (entity) {
-          const bounds=entityBounds(entity);
-          const pivot={x:(bounds.min.x+bounds.max.x)/2,y:(bounds.min.y+bounds.max.y)/2};
-          commit({...doc,entities:doc.entities.map((e)=>e.id===id?rotateEntity(e,Math.PI/2,pivot):e)});
-          setSelected([id]);
-          toast.success("Rotated 90°.");
+        const targets = selected.includes(id) ? selected : [id];
+        const targetEntities = doc.entities.filter((entity) => targets.includes(entity.id));
+        if (targetEntities.length) {
+          const bounds = targetEntities.map(entityBounds);
+          const minX = Math.min(...bounds.map((item) => item.min.x));
+          const minY = Math.min(...bounds.map((item) => item.min.y));
+          const maxX = Math.max(...bounds.map((item) => item.max.x));
+          const maxY = Math.max(...bounds.map((item) => item.max.y));
+          const pivot = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+          const targetSet = new Set(targets);
+          commit({ ...doc, entities: doc.entities.map((entity) => targetSet.has(entity.id) ? rotateEntity(entity, Math.PI / 2, pivot) : entity) });
+          setSelected(targets);
+          toast.success(`Rotated ${targets.length} object(s) 90° around the selection center.`);
         }
         return;
       }
       if (tool === "mirror") {
-        const entity = doc.entities.find((e) => e.id === id);
-        if (entity) {
-          // The clicked world X coordinate defines a vertical mirror axis.
-          commit({ ...doc, entities: doc.entities.map((e) => e.id === id ? mirrorEntity(e, p.x) : e) });
-          setSelected([id]);
-          toast.success("Mirrored across the clicked vertical axis.");
-        }
+        const targets = selected.includes(id) ? selected : [id];
+        const targetSet = new Set(targets);
+        // The clicked world X coordinate defines the vertical mirror axis.
+        commit({ ...doc, entities: doc.entities.map((entity) => targetSet.has(entity.id) ? mirrorEntity(entity, p.x) : entity) });
+        setSelected(targets);
+        toast.success(`Mirrored ${targets.length} object(s) across the clicked vertical axis.`);
         return;
       }
       setSelected((current) => current.includes(id) ? current : [id]); setStart(p); return;
