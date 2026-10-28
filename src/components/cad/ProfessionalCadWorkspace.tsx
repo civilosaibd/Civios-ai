@@ -299,6 +299,30 @@ export default function ProfessionalCadWorkspace() {
     }
     let entity: CadEntity | null = null;
     const base={ id:makeId(), layerId:activeLayer.id };
+    if (tool === "dimension") {
+      const length = Math.hypot(b.x - a.x, b.y - a.y);
+      if (length <= 1e-8) {
+        toast.info("Choose two different points to create a dimension.");
+        setStart(null); setCursor(null);
+        return;
+      }
+      const offset = Math.max(1.5, length * 0.08);
+      const normal = { x: -(b.y - a.y) / length, y: (b.x - a.x) / length };
+      const da = { x: a.x + normal.x * offset, y: a.y + normal.y * offset };
+      const db = { x: b.x + normal.x * offset, y: b.y + normal.y * offset };
+      const mid = { x: (da.x + db.x) / 2, y: (da.y + db.y) / 2 };
+      const dimensionEntities: CadEntity[] = [
+        { ...base, id: makeId(), type: "line", start: a, end: da },
+        { ...base, id: makeId(), type: "line", start: b, end: db },
+        { ...base, id: makeId(), type: "line", start: da, end: db },
+        { ...base, id: makeId(), type: "text", at: { x: mid.x, y: mid.y - 0.2 }, text: `${length.toFixed(2)} ${doc.units}`, height: Math.max(0.8, offset * 0.45), rotation: Math.atan2(db.y - da.y, db.x - da.x) },
+      ];
+      commit({ ...doc, entities: [...doc.entities, ...dimensionEntities] });
+      setSelected(dimensionEntities.map((item) => item.id));
+      toast.success(`Dimension added: ${length.toFixed(2)} ${doc.units}`);
+      setStart(null); setPolylinePoints([]); setCursor(null);
+      return;
+    }
     if (tool==="line") entity={...base,type:"line",start:a,end:b};
     else if (tool==="rectangle" || tool==="column" || tool==="wall" || tool==="beam") {
       const r=normalizeRect(a,b);
