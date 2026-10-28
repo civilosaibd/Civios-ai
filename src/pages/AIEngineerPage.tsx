@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Loader2, Send, Bot, User as UserIcon, Trash2, Copy, RefreshCw, Plus,
   MessageSquare, Sparkles, BookOpen, Calculator, Ruler, ClipboardList,
@@ -115,11 +116,16 @@ export default function AIEngineerPage() {
 
     try {
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session?.access_token) {
+        throw new Error("Your session has expired. Please sign in again.");
+      }
       const resp = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ messages: history }),
       });
@@ -395,7 +401,7 @@ export default function AIEngineerPage() {
                     </Button>
                   </form>
                   <p className="text-[10px] text-muted-foreground text-center mt-2">
-                    Powered by Lovable AI · Verify critical calculations against BNBC / PWD schedules.
+                    Preliminary engineering guidance. Verify critical calculations against applicable BNBC and published PWD schedules.
                   </p>
                 </div>
               </section>
