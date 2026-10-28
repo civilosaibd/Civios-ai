@@ -752,8 +752,17 @@ export default function ProfessionalCadWorkspace() {
       clone.setAttribute("width", "1000");
       clone.setAttribute("height", "640");
       clone.setAttribute("viewBox", "0 0 1000 640");
-      // Preserve the visual canvas background when opening the SVG outside the app.
-      if (!clone.getAttribute("style")) clone.setAttribute("style", "background-color: #f8fafc");
+      // Use an actual SVG rectangle: CSS background-color is not consistently
+      // rendered by external SVG viewers, image converters, or print workflows.
+      // Insert it before defs/grid/entities so it never obscures drawing content.
+      const background = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      background.setAttribute("data-cad-export-background", "true");
+      background.setAttribute("x", "0");
+      background.setAttribute("y", "0");
+      background.setAttribute("width", "1000");
+      background.setAttribute("height", "640");
+      background.setAttribute("fill", "#f8fafc");
+      clone.insertBefore(background, clone.firstChild);
       content = new XMLSerializer().serializeToString(clone);
     }
     const blob = new Blob([content], { type: kind === "json" ? "application/json;charset=utf-8" : "image/svg+xml;charset=utf-8" });
