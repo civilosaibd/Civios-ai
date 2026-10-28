@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createEmptyDocument, deserializeCadDocument, distance, entityBounds,
   chamferLines, extendLineToBoundary, normalizeRect, offsetEntity, parseCadCommand, rotateEntity, serializeCadDocument, snapToGrid,
-  translateEntity, trimLineAtPoint, type CadEntity,
+  translateEntity, trimLineAtPoint, nearestEndpoint, type CadEntity,
 } from "./geometry";
 
 describe("2D CAD geometry foundation", () => {
@@ -108,5 +108,18 @@ describe("2D CAD geometry foundation", () => {
       locked: true,
       closed: true,
     });
+  });
+
+  it("snaps to both geometric endpoints of an arc, not an arbitrary circle point", () => {
+    const arc: CadEntity = {
+      id: "arc-snap", layerId: "0", type: "arc",
+      center: { x: 5, y: 5 }, radius: 2,
+      startAngle: 0, endAngle: Math.PI / 2,
+    };
+    expect(nearestEndpoint({ x: 7.02, y: 5 }, [arc], 0.1)).toEqual({ x: 7, y: 5 });
+    expect(nearestEndpoint({ x: 5, y: 7.02 }, [arc], 0.1)).toEqual({ x: 5, y: 7 });
+    expect(nearestEndpoint({ x: 7, y: 5 }, [{
+      id: "circle", layerId: "0", type: "circle", center: { x: 5, y: 5 }, radius: 2,
+    }], 0.1)).toBeNull();
   });
 });
