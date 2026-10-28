@@ -423,11 +423,22 @@ export default function ProfessionalCadWorkspace() {
     else if (tool==="polyline") entity={...base,type:"polyline",points:[a,b],closed:false};
     else if (tool==="polygon") {
       const radius=Math.hypot(b.x-a.x,b.y-a.y);
-      if (radius > 0) {
-        const sides=6, angle=Math.atan2(b.y-a.y,b.x-a.x);
-        const points=Array.from({length:sides},(_,i)=>({x:a.x+radius*Math.cos(angle+i*2*Math.PI/sides),y:a.y+radius*Math.sin(angle+i*2*Math.PI/sides)}));
-        entity={...base,type:"polyline",points,closed:true};
+      if (radius <= 1e-8) {
+        toast.info("Choose a point away from the polygon center.");
+        setStart(null); setCursor(null);
+        return;
       }
+      const rawSides = window.prompt("Number of polygon sides (3–64):", "6");
+      if (rawSides === null) { setStart(null); setCursor(null); return; }
+      const sides = Number(rawSides);
+      if (!Number.isInteger(sides) || sides < 3 || sides > 64) {
+        toast.error("Polygon sides must be a whole number from 3 to 64.");
+        setStart(null); setCursor(null);
+        return;
+      }
+      const angle=Math.atan2(b.y-a.y,b.x-a.x);
+      const points=Array.from({length:sides},(_,i)=>({x:a.x+radius*Math.cos(angle+i*2*Math.PI/sides),y:a.y+radius*Math.sin(angle+i*2*Math.PI/sides)}));
+      entity={...base,type:"polyline",points,closed:true};
     }
     else if (tool==="arc") entity={...base,type:"arc",center:a,radius:Math.hypot(b.x-a.x,b.y-a.y),startAngle:0,endAngle:Math.PI*1.5};
     else if (tool==="ellipse") entity={...base,type:"ellipse",center:a,rx:Math.abs(b.x-a.x),ry:Math.abs(b.y-a.y)};
