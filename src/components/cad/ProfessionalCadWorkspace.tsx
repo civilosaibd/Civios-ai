@@ -7,7 +7,7 @@ import {
   type CadToolId, type CadGridSettings,
 } from "@/lib/cad2d/professional-model";
 import {
-  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, type CadEntity, type CadDocument, type Point2D,
+  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, parseCadCommand, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand, Upload } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -350,14 +350,51 @@ export default function ProfessionalCadWorkspace() {
   };
 
   const runCommand = () => {
-    const raw=command.trim(); if(!raw) return;
-    if (/^(UNDO|U)$/i.test(raw)) { undo(); setCommand(""); return; }
-    if (/^(REDO|RE)$/i.test(raw)) { redo(); setCommand(""); return; }
-    if (/^(ERASE|DELETE|E)$/i.test(raw)) { setTool("erase"); setCommand(""); return; }
-    const def=normalizeCommand(raw);
-    if (!def) { toast.error(`Unknown command: ${raw.split(/\\s+/)[0]}`); return; }
-    setTool(def.id);
-    setCommand("");
+    const raw = command.trim();
+    if (!raw) return;
+    try {
+      const parsed = parseCadCommand(raw);
+      if (parsed.name === "UNDO") { undo(); setCommand(""); return; }
+      if (parsed.name === "REDO") { redo(); setCommand(""); return; }
+      if (parsed.name === "ERASE" || parsed.name === "DELETE") { setTool("erase"); setCommand(""); return; }
+      if (parsed.name === "ZOOMFIT") { fitToDrawing(); setCommand(""); return; }
+      const base = { id: makeId(), layerId: activeLayer.id };
+      let entity: CadEntity;
+      if (parsed.name === "LINE") {
+        const [startPoint, endPoint] = parsed.args;
+        if (Math.hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y) <= 1e-8) {
+          throw new Error("Line endpoints must be different.");
+        }
+        entity = { ...base, type: "line", start: startPoint, end: endPoint };
+      } else if (parsed.name === "RECTANGLE") {
+        const [first, second] = parsed.args;
+        const rect = normalizeRect(first, second);
+        if (rect.max.x <= rect.min.x || rect.max.y <= rect.min.y) throw new Error("Rectangle width and height must be positive.");
+        entity = { ...base, type: "rectangle", ...rect };
+      } else if (parsed.name === "CIRCLE") {
+        const [center, radius] = parsed.args;
+        entity = { ...base, type: "circle", center, radius };
+      } else {
+        const [startPoint, endPoint, thickness] = parsed.args;
+        if (Math.hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y) <= 1e-8) {
+          throw new Error("Wall endpoints must be different.");
+        }
+        entity = { ...base, type: "wall", start: startPoint, end: endPoint, thickness };
+      }
+      commit({ ...doc, entities: [...doc.entities, entity] });
+      setSelected([entity.id]);
+      setTool("select");
+      setCommand("");
+      toast.success(`${parsed.name} created from command coordinates.`);
+    } catch (error) {
+      const def = normalizeCommand(raw);
+      if (def) {
+        setTool(def.id);
+        setCommand("");
+        return;
+      }
+      toast.error(error instanceof Error ? error.message : "Could not run this CAD command.");
+    }
   };
   const undo = () => { if(!history.length)return; setFuture((f)=>[doc,...f]);setDoc(history[history.length-1]);setHistory(history.slice(0,-1)); };
   const redo = () => { if(!future.length)return; setHistory((h)=>[...h,doc]);setDoc(future[0]);setFuture(future.slice(1)); };
