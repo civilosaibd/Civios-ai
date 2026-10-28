@@ -62,6 +62,9 @@ export default function ProfessionalCadWorkspace() {
   const isMobile = useIsMobile();
   const svgRef = useRef<SVGSVGElement>(null);
   const panRef = useRef<{ clientX: number; clientY: number; viewX: number; viewY: number } | null>(null);
+  // Keep pointer-down data outside React state so a first drag can complete before a re-render.
+  const transformStartRef = useRef<Point2D | null>(null);
+  const transformTargetIdsRef = useRef<string[]>([]);
   const activeLayer = doc.layers.find((layer) => layer.name === layerName) ?? doc.layers[0];
 
   useEffect(() => {
@@ -254,7 +257,11 @@ export default function ProfessionalCadWorkspace() {
         toast.success(`Mirrored ${targets.length} object(s) across the clicked vertical axis.`);
         return;
       }
-      setSelected((current) => current.includes(id) ? current : [id]); setStart(p); return;
+      const targets = selected.includes(id) ? selected : [id];
+      setSelected(targets);
+      transformStartRef.current = p;
+      transformTargetIdsRef.current = targets;
+      return;
     }
     if (!start) { setStart(p); setCursor(p); return; }
     const a=start, b=p;
@@ -337,16 +344,20 @@ export default function ProfessionalCadWorkspace() {
       setStart(null);
       return;
     }
-    if (!start || !selected.length || (tool!=="move" && tool!=="copy")) return;
-    const end=toWorld(event), dx=end.x-start.x, dy=end.y-start.y;
-    if (selected.length && (dx!==0 || dy!==0)) {
-      const selectedSet = new Set(selected);
+    if (tool !== "move" && tool !== "copy") return;
+    const start = transformStartRef.current;
+    const targetIds = transformTargetIdsRef.current;
+    transformStartRef.current = null;
+    transformTargetIdsRef.current = [];
+    if (!start || !targetIds.length) return;
+    const end = toWorld(event), dx = end.x - start.x, dy = end.y - start.y;
+    if (dx !== 0 || dy !== 0) {
+      const selectedSet = new Set(targetIds);
       const entities = tool === "copy"
         ? [...doc.entities, ...doc.entities.filter((entity) => selectedSet.has(entity.id)).map((entity) => ({ ...translateEntity(entity, dx, dy), id: makeId() } as CadEntity))]
         : doc.entities.map((entity) => selectedSet.has(entity.id) ? translateEntity(entity, dx, dy) : entity);
       commit({ ...doc, entities });
     }
-    setStart(null);
   };
 
   const runCommand = () => {
@@ -427,6 +438,8 @@ export default function ProfessionalCadWorkspace() {
       if (event.key === "Escape") {
         setModifyTargetId(null);
         setSelectionWindow(null);
+        transformStartRef.current = null;
+        transformTargetIdsRef.current = [];
         setStart(null);
         setPolylinePoints([]);
         setCursor(null);
