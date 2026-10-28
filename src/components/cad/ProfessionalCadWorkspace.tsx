@@ -9,6 +9,7 @@ import {
 import {
   createEmptyDocument, deserializeCadDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, parseCadCommand, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
+import { recordCadEdit, undoCadDocument, redoCadDocument } from "@/lib/cad2d/history";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand, Upload } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -75,7 +76,7 @@ export default function ProfessionalCadWorkspace() {
   }, [doc]);
 
   const commit = useCallback((next: CadDocument) => {
-    setHistory((h) => [...h.slice(-99), doc]);
+    setHistory((h) => recordCadEdit(h, doc));
     setFuture([]);
     setDoc({ ...next });
   }, [doc]);
@@ -550,29 +551,30 @@ export default function ProfessionalCadWorkspace() {
       toast.error(error instanceof Error ? error.message : "Could not run this CAD command.");
     }
   };
-  const undo = () => {
-    if (!history.length) return;
-    setFuture((items) => [...items, doc].slice(-100));
-    setDoc(history[history.length - 1]);
-    setHistory(history.slice(0, -1));
+  const resetTransientEditingState = () => {
     setSelected([]);
     setStart(null);
     setArcStart(null);
     setPolylinePoints([]);
     setModifyTargetId(null);
     setSelectionWindow(null);
+    setCursor(null);
+  };
+  const undo = () => {
+    const result = undoCadDocument(doc, history, future);
+    if (!result) return;
+    setFuture(result.future);
+    setDoc(result.document);
+    setHistory(result.past);
+    resetTransientEditingState();
   };
   const redo = () => {
-    if (!future.length) return;
-    setHistory((items) => [...items, doc].slice(-100));
-    setDoc(future[0]);
-    setFuture(future.slice(1));
-    setSelected([]);
-    setStart(null);
-    setArcStart(null);
-    setPolylinePoints([]);
-    setModifyTargetId(null);
-    setSelectionWindow(null);
+    const result = redoCadDocument(doc, history, future);
+    if (!result) return;
+    setHistory(result.past);
+    setDoc(result.document);
+    setFuture(result.future);
+    resetTransientEditingState();
   };
 
   // Keyboard editing shortcuts mirror common desktop CAD conventions.
