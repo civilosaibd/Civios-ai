@@ -7,7 +7,7 @@ import {
   type CadToolId, type CadGridSettings,
 } from "@/lib/cad2d/professional-model";
 import {
-  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, parseCadCommand, type CadEntity, type CadDocument, type Point2D,
+  createEmptyDocument, deserializeCadDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, parseCadCommand, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand, Upload } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -38,8 +38,7 @@ export default function ProfessionalCadWorkspace() {
     try {
       const saved = window.localStorage.getItem("civilos-cad-document-v1");
       if (!saved) return createEmptyDocument("ft");
-      const parsed = JSON.parse(saved) as CadDocument;
-      if (parsed?.version === 1 && Array.isArray(parsed.entities) && Array.isArray(parsed.layers) && parsed.layers.length > 0) return parsed;
+      return deserializeCadDocument(saved);
     } catch {
       // Ignore invalid or unavailable local storage and start with an empty drawing.
     }
@@ -833,65 +832,7 @@ export default function ProfessionalCadWorkspace() {
         if (!proceed) return;
       }
       try {
-        const parsed: unknown = JSON.parse(await file.text());
-        if (!parsed || typeof parsed !== "object") throw new Error("The file is not a valid drawing document.");
-        const candidate = parsed as Partial<CadDocument>;
-        if (candidate.version !== 1 || !Array.isArray(candidate.entities) || !Array.isArray(candidate.layers) || candidate.layers.length === 0) {
-          throw new Error("Unsupported drawing format. Choose a CivilOS AI JSON drawing backup.");
-        }
-        const validLayers = candidate.layers.every((layer) =>
-          layer && typeof layer.id === "string" && typeof layer.name === "string" &&
-          typeof layer.visible === "boolean" && typeof layer.color === "string"
-        );
-        const isFinitePoint = (point: unknown): point is Point2D =>
-          !!point && typeof point === "object" &&
-          Number.isFinite((point as Point2D).x) && Number.isFinite((point as Point2D).y);
-        const validEntities = candidate.entities.every((rawEntity) => {
-          if (!rawEntity || typeof rawEntity !== "object" ||
-              typeof rawEntity.id !== "string" || typeof rawEntity.layerId !== "string") return false;
-          const entity = rawEntity as CadEntity;
-          switch (entity.type) {
-            case "line": return isFinitePoint(entity.start) && isFinitePoint(entity.end) &&
-              Math.hypot(entity.end.x - entity.start.x, entity.end.y - entity.start.y) > 1e-8;
-            case "wall": return isFinitePoint(entity.start) && isFinitePoint(entity.end) &&
-              Number.isFinite(entity.thickness) && entity.thickness > 0 &&
-              Math.hypot(entity.end.x - entity.start.x, entity.end.y - entity.start.y) > 1e-8;
-            case "polyline": return Array.isArray(entity.points) && entity.points.length >= 2 &&
-              entity.points.every(isFinitePoint);
-            case "rectangle": return isFinitePoint(entity.min) && isFinitePoint(entity.max) &&
-              entity.max.x > entity.min.x && entity.max.y > entity.min.y;
-            case "circle": return isFinitePoint(entity.center) && Number.isFinite(entity.radius) && entity.radius > 0;
-            case "ellipse": return isFinitePoint(entity.center) && Number.isFinite(entity.rx) && entity.rx > 0 &&
-              Number.isFinite(entity.ry) && entity.ry > 0;
-            case "arc": return isFinitePoint(entity.center) && Number.isFinite(entity.radius) && entity.radius > 0 &&
-              Number.isFinite(entity.startAngle) && Number.isFinite(entity.endAngle);
-            case "text": return isFinitePoint(entity.at) && typeof entity.text === "string" && entity.text.trim().length > 0 && Number.isFinite(entity.height) && entity.height > 0 && Number.isFinite(entity.rotation);
-            default: return false;
-          }
-        });
-        const validUnits = candidate.units === "mm" || candidate.units === "cm" ||
-          candidate.units === "m" || candidate.units === "in" || candidate.units === "ft";
-        const layerIdsForValidation = candidate.layers.map((layer) => layer.id);
-        const layerNamesForValidation = candidate.layers.map((layer) => layer.name.trim().toLowerCase());
-        const entityIdsForValidation = candidate.entities.map((entity) =>
-          entity && typeof entity === "object" && "id" in entity ? (entity as { id?: unknown }).id : undefined
-        );
-        const uniqueValues = (values: unknown[]) => new Set(values).size === values.length;
-        if (!validUnits) throw new Error("Unsupported drawing units. Use mm, cm, m, in, or ft.");
-        if (!validLayers || !validEntities) throw new Error("The drawing contains invalid layer or object data.");
-        if (!uniqueValues(layerIdsForValidation) || layerNamesForValidation.some((name) => !name) ||
-            !uniqueValues(layerNamesForValidation)) {
-          throw new Error("Layer IDs and names must be present and unique.");
-        }
-        if (entityIdsForValidation.some((id) => typeof id !== "string" || !id.trim()) ||
-            !uniqueValues(entityIdsForValidation)) {
-          throw new Error("Every drawing object must have a unique, non-empty ID.");
-        }
-        const layerIds = new Set(candidate.layers.map((layer) => layer.id));
-        if (candidate.entities.some((entity) => !layerIds.has(entity.layerId))) {
-          throw new Error("Some objects refer to layers that are missing from this file.");
-        }
-        const imported = candidate as CadDocument;
+        const imported = deserializeCadDocument(await file.text());
         if (doc.entities.length > 0 && !window.confirm(
           `Replace the current drawing (${doc.entities.length} object(s)) with this imported drawing (${imported.entities.length} object(s))? Export a JSON backup first if you need to keep the current drawing.`
         )) return;
