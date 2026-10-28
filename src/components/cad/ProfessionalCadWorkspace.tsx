@@ -114,6 +114,7 @@ export default function ProfessionalCadWorkspace() {
       const startAngle = normalizeAngle(e.startAngle), endAngle = normalizeAngle(e.endAngle);
       return startAngle <= endAngle ? angle >= startAngle && angle <= endAngle : angle >= startAngle || angle <= endAngle;
     }
+    if (e.type === "text") { const bounds = entityBounds(e); return p.x >= bounds.min.x && p.x <= bounds.max.x && p.y >= bounds.min.y && p.y <= bounds.max.y; }
     if (e.type === "ellipse") { const t=Math.atan2((p.y-e.center.y)/Math.max(e.ry,.001),(p.x-e.center.x)/Math.max(e.rx,.001)); const q={x:e.center.x+e.rx*Math.cos(t),y:e.center.y+e.ry*Math.sin(t)}; return Math.hypot(p.x-q.x,p.y-q.y)<7/view.scale; }
     if (e.type === "polyline") {
       const segments = e.points.slice(1).map((point, index) => [e.points[index], point] as const);
@@ -209,6 +210,23 @@ export default function ProfessionalCadWorkspace() {
         toast.error(error instanceof Error ? error.message : "Could not extend this line.");
         setModifyTargetId(null);
       }
+      return;
+    }
+    if (tool === "text") {
+      const value = window.prompt("Text to place in the drawing:");
+      if (value === null || !value.trim()) return;
+      const rawHeight = window.prompt(`Text height in ${doc.units}:`, "2.5");
+      if (rawHeight === null) return;
+      const height = Number(rawHeight);
+      if (!Number.isFinite(height) || height <= 0) {
+        toast.error("Text height must be a positive finite number.");
+        return;
+      }
+      const entity: CadEntity = { id: makeId(), layerId: activeLayer.id, type: "text", at: p, text: value.trim(), height, rotation: 0 };
+      commit({ ...doc, entities: [...doc.entities, entity] });
+      setSelected([entity.id]);
+      setTool("select");
+      toast.success("Text annotation added.");
       return;
     }
     if (tool === "measure") {
@@ -602,6 +620,7 @@ export default function ProfessionalCadWorkspace() {
               Number.isFinite(entity.ry) && entity.ry > 0;
             case "arc": return isFinitePoint(entity.center) && Number.isFinite(entity.radius) && entity.radius > 0 &&
               Number.isFinite(entity.startAngle) && Number.isFinite(entity.endAngle);
+            case "text": return isFinitePoint(entity.at) && typeof entity.text === "string" && entity.text.trim().length > 0 && Number.isFinite(entity.height) && entity.height > 0 && Number.isFinite(entity.rotation);
             default: return false;
           }
         });
@@ -664,7 +683,8 @@ export default function ProfessionalCadWorkspace() {
     const common={stroke:color,strokeWidth:selected.includes(e.id)?2.5:1.6,fill:"none" as const,vectorEffect:"non-scaling-stroke" as const};
     if(e.type==="line"||e.type==="wall")return <line key={e.id} x1={e.start.x} y1={e.start.y} x2={e.end.x} y2={e.end.y} {...common} strokeWidth={e.type==="wall"?Math.max(2,e.thickness):common.strokeWidth}/>;
     if(e.type==="rectangle")return <rect key={e.id} x={e.min.x} y={e.min.y} width={e.max.x-e.min.x} height={e.max.y-e.min.y} {...common}/>;
-    if(e.type==="circle")return <circle key={e.id} cx={e.center.x} cy={e.center.y} r={e.radius} {...common}/>;
+    if(e.type==="circle")return <circle key={e.id} cx={e.center.x} cy={e.center.y} r={e.radius} {...common}/>
+    if(e.type==="text")return <text key={e.id} x={e.at.x} y={e.at.y} fontSize={e.height} transform={`rotate(${e.rotation * 180 / Math.PI} ${e.at.x} ${e.at.y})`} fill={color} stroke="none" style={{userSelect:"none"}}>{e.text}</text>;;
     if(e.type==="ellipse")return <ellipse key={e.id} cx={e.center.x} cy={e.center.y} rx={e.rx} ry={e.ry} {...common}/>;
     if(e.type==="polyline")return <polyline key={e.id} points={e.points.map((p)=>`${p.x},${p.y}`).join(" ")} {...common}/>;
     if(e.type==="arc")return <path key={e.id} d={`M ${e.center.x+e.radius*Math.cos(e.startAngle)} ${e.center.y+e.radius*Math.sin(e.startAngle)} A ${e.radius} ${e.radius} 0 1 1 ${e.center.x+e.radius*Math.cos(e.endAngle)} ${e.center.y+e.radius*Math.sin(e.endAngle)}`} {...common}/>;
