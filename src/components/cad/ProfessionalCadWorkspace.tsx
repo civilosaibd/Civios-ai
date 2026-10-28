@@ -355,7 +355,7 @@ export default function ProfessionalCadWorkspace() {
     if (/^(REDO|RE)$/i.test(raw)) { redo(); setCommand(""); return; }
     if (/^(ERASE|DELETE|E)$/i.test(raw)) { setTool("erase"); setCommand(""); return; }
     const def=normalizeCommand(raw);
-    if (!def) { toast.error(`Unknown command: ${raw.split(/\\s+/)[0]}`); return; }
+    if (!def) { toast.error(`Unknown command: ${raw.split(/\s+/)[0]}`); return; }
     setTool(def.id);
     setCommand("");
   };
