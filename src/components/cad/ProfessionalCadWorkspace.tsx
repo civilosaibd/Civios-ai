@@ -379,6 +379,24 @@ export default function ProfessionalCadWorkspace() {
         toast.success(`Duplicated ${duplicates.length} object(s).`);
         return;
       }
+      if (!modifier && !event.altKey) {
+        const toolShortcuts: Record<string, CadToolId> = {
+          s: "select", l: "line", c: "circle", r: "rectangle", p: "polyline",
+          w: "wall", m: "move", o: "offset", t: "trim", x: "extend",
+          e: "erase", g: "measure", i: "mirror", q: "rotate",
+        };
+        const shortcutTool = toolShortcuts[event.key.toLowerCase()];
+        if (shortcutTool) {
+          event.preventDefault();
+          setTool(shortcutTool);
+          setStart(null);
+          setPolylinePoints([]);
+          setModifyTargetId(null);
+          setSelectionWindow(null);
+          setCursor(null);
+          return;
+        }
+      }
       if (modifier && event.key.toLowerCase() === "a") {
         event.preventDefault();
         setSelected(doc.entities.filter((entity) => doc.layers.find((layer) => layer.id === entity.layerId)?.visible !== false).map((entity) => entity.id));
@@ -599,7 +617,7 @@ export default function ProfessionalCadWorkspace() {
   return <section className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm md:p-5">
     <div className="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-lg">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-5"><div className="flex min-w-0 items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500 shadow-md shadow-orange-950/30"><DraftingCompass className="h-6 w-6 text-white"/></div><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-2"><h2 className="text-lg font-bold tracking-tight md:text-xl">Professional 2D Studio</h2><span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300"><CheckCircle2 className="mr-1 inline h-3 w-3"/>Workspace ready</span></div><p className="text-xs text-slate-400">CivilOS AI · precision drafting workspace</p></div></div><div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs"><span className="h-2 w-2 rounded-full bg-emerald-400"/><span className="text-slate-300">Auto-save</span><span className="font-semibold text-white">On this device</span></div></div>
-      <div className="flex flex-wrap items-center gap-2 border-t border-white/10 bg-white/[0.03] px-4 py-2.5 text-[11px] text-slate-400 md:px-5"><span className="inline-flex items-center gap-1.5"><Command className="h-3.5 w-3.5"/>Keyboard shortcuts supported</span><span className="hidden text-slate-600 sm:inline">•</span><span className="inline-flex items-center gap-1.5"><Hand className="h-3.5 w-3.5"/>Wheel zoom · middle/right drag pan</span></div>
+      <div className="flex flex-wrap items-center gap-2 border-t border-white/10 bg-white/[0.03] px-4 py-2.5 text-[11px] text-slate-400 md:px-5"><span className="inline-flex items-center gap-1.5"><Command className="h-3.5 w-3.5"/>Shortcuts: L line · C circle · R rectangle · P polyline · S select · E erase</span><span className="hidden text-slate-600 sm:inline">•</span><span className="inline-flex items-center gap-1.5"><Hand className="h-3.5 w-3.5"/>Wheel zoom · middle/right drag pan</span></div>
     </div>
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
       <div className="flex items-center gap-2 px-1"><div className="rounded-lg bg-orange-50 p-2 text-orange-600"><Wrench className="h-4 w-4"/></div><div><p className="text-xs font-semibold text-slate-800">Quick controls</p><p className="text-[10px] text-slate-500">Manage your drawing</p></div></div>
