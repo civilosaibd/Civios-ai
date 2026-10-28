@@ -16,7 +16,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 type DraftEntity = CadEntity & { id: string; layerId: string };
 type View = { x: number; y: number; scale: number };
 const palette: { id: CadToolId; label: string; group: string }[] = [
-  { id: "select", label: "Select", group: "Common" },
+  { id: "select", label: "Select", group: "Common" }, { id: "measure", label: "Measure", group: "Common" },
   { id: "line", label: "Line", group: "Draw" }, { id: "polyline", label: "Polyline", group: "Draw" },
   { id: "rectangle", label: "Rectangle", group: "Draw" }, { id: "circle", label: "Circle", group: "Draw" },
   { id: "arc", label: "Arc", group: "Draw" }, { id: "ellipse", label: "Ellipse", group: "Draw" },
@@ -199,6 +199,19 @@ export default function ProfessionalCadWorkspace() {
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not extend this line.");
         setModifyTargetId(null);
+      }
+      return;
+    }
+    if (tool === "measure") {
+      if (!start) {
+        setStart(p);
+        setCursor(p);
+        toast.info("Choose the second point to measure the distance.");
+      } else {
+        const length = Math.hypot(p.x - start.x, p.y - start.y);
+        toast.success(`Distance: ${length.toFixed(3)} ${doc.units}`);
+        setStart(null);
+        setCursor(p);
       }
       return;
     }
@@ -504,7 +517,7 @@ export default function ProfessionalCadWorkspace() {
           {grid.enabled&&<rect width="1000" height="640" fill="url(#cad-grid-small)"/>}
           <g transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>{doc.entities.map(renderEntity)}{tool==="polyline"&&polylinePoints.length>0&&<polyline points={[...polylinePoints,...(cursor?[cursor]:[])].map((p)=>`${p.x},${p.y}`).join(" ")} fill="none" stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}{start&&cursor&&tool!=="select"&&tool!=="move"&&tool!=="copy"&&tool!=="polyline"&&<line x1={start.x} y1={start.y} x2={cursor.x} y2={cursor.y} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}</g>
         </svg>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>Tool: {tool.toUpperCase()} · Objects: {doc.entities.length} · Selected: {selected.length}</span><span>Cursor: {cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"} · Wheel: zoom · Middle/right drag: pan</span></div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>Tool: {tool.toUpperCase()} · Objects: {doc.entities.length} · Selected: {selected.length} · Units: {doc.units}</span><span>Cursor: {cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"} · Wheel: zoom · Middle/right drag: pan</span></div>
       </div>
       <aside className="min-w-0 space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1">
         <div><h3 className="mb-2 flex items-center gap-2 text-sm font-semibold"><Layers3 className="h-4 w-4"/>Layers</h3><div className="space-y-1">{doc.layers.map((l)=><div key={l.id} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={l.visible} onChange={(e)=>commit({...doc,layers:doc.layers.map((x)=>x.id===l.id?{...x,visible:e.target.checked}:x)})}/><span className="h-3 w-3 rounded-sm border" style={{background:l.color}}/><button className="truncate text-left" onClick={()=>setLayerName(l.name)}>{l.name}</button><span className="ml-auto text-muted-foreground">{doc.entities.filter((e)=>e.layerId===l.id).length}</span></div>)}</div><div className="mt-2 grid grid-cols-2 gap-1.5"><Button size="sm" variant="outline" onClick={addLayer}>+ New layer</Button><Button size="sm" variant="outline" onClick={renameActiveLayer}>Rename</Button><Button size="sm" variant="outline" className="col-span-2" onClick={deleteActiveLayer} disabled={doc.layers.length <= 1 || doc.entities.some((entity) => entity.layerId === activeLayer.id)}>Delete empty active layer</Button></div></div>
@@ -513,6 +526,6 @@ export default function ProfessionalCadWorkspace() {
         <div><p className="mb-1 text-xs font-medium">Command line</p><form className="flex gap-1" onSubmit={(e)=>{e.preventDefault();runCommand();}}><Input value={command} onChange={(e)=>setCommand(e.target.value)} placeholder="LINE / RECTANG / CIRCLE"/><Button size="sm" type="submit">Run</Button></form><p className="mt-1 text-[10px] text-muted-foreground">Command aliases select the corresponding tool; geometry handlers are enabled for the initial draw tools.</p></div>
       </aside>
     </div>
-    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, line, rectangle, circle, arc, wall, polygon, move, copy, rotate, mirror and erase. Offset supports current geometry entities; Trim and Extend currently support straight lines/walls with guided two-click workflows. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings auto-save in this browser on this device. Export JSON for a portable editable backup; SVG is for sharing/printing.</p>
+    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, measure, line, rectangle, circle, arc, wall, polygon, move, copy, rotate, mirror and erase. Offset supports current geometry entities; Trim and Extend currently support straight lines/walls with guided two-click workflows. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings auto-save in this browser on this device. Export JSON for a portable editable backup; SVG is for sharing/printing.</p>
   </section>;
 }
