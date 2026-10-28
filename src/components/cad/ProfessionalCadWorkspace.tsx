@@ -7,7 +7,7 @@ import {
   type CadToolId, type CadGridSettings,
 } from "@/lib/cad2d/professional-model";
 import {
-  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, parseCadCommand, type CadEntity, type CadDocument, type Point2D,
+  createEmptyDocument, deserializeCadDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, parseCadCommand, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand, Upload } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -38,8 +38,7 @@ export default function ProfessionalCadWorkspace() {
     try {
       const saved = window.localStorage.getItem("civilos-cad-document-v1");
       if (!saved) return createEmptyDocument("ft");
-      const parsed = JSON.parse(saved) as CadDocument;
-      if (parsed?.version === 1 && Array.isArray(parsed.entities) && Array.isArray(parsed.layers) && parsed.layers.length > 0) return parsed;
+      return deserializeCadDocument(saved);
     } catch {
       // Ignore invalid or unavailable local storage and start with an empty drawing.
     }
@@ -348,10 +347,20 @@ export default function ProfessionalCadWorkspace() {
       const da = { x: a.x + normal.x * offset, y: a.y + normal.y * offset };
       const db = { x: b.x + normal.x * offset, y: b.y + normal.y * offset };
       const mid = { x: (da.x + db.x) / 2, y: (da.y + db.y) / 2 };
+      const arrowSize = Math.min(offset * 0.35, length * 0.08);
+      const unit = { x: (db.x - da.x) / length, y: (db.y - da.y) / length };
+      const arrowA1 = { x: da.x + unit.x * arrowSize + normal.x * arrowSize * 0.45, y: da.y + unit.y * arrowSize + normal.y * arrowSize * 0.45 };
+      const arrowA2 = { x: da.x + unit.x * arrowSize - normal.x * arrowSize * 0.45, y: da.y + unit.y * arrowSize - normal.y * arrowSize * 0.45 };
+      const arrowB1 = { x: db.x - unit.x * arrowSize + normal.x * arrowSize * 0.45, y: db.y - unit.y * arrowSize + normal.y * arrowSize * 0.45 };
+      const arrowB2 = { x: db.x - unit.x * arrowSize - normal.x * arrowSize * 0.45, y: db.y - unit.y * arrowSize - normal.y * arrowSize * 0.45 };
       const dimensionEntities: CadEntity[] = [
         { ...base, id: makeId(), type: "line", start: a, end: da },
         { ...base, id: makeId(), type: "line", start: b, end: db },
         { ...base, id: makeId(), type: "line", start: da, end: db },
+        { ...base, id: makeId(), type: "line", start: da, end: arrowA1 },
+        { ...base, id: makeId(), type: "line", start: da, end: arrowA2 },
+        { ...base, id: makeId(), type: "line", start: db, end: arrowB1 },
+        { ...base, id: makeId(), type: "line", start: db, end: arrowB2 },
         { ...base, id: makeId(), type: "text", at: { x: mid.x, y: mid.y - 0.2 }, text: `${length.toFixed(2)} ${doc.units}`, height: Math.max(0.8, offset * 0.45), rotation: Math.atan2(db.y - da.y, db.x - da.x) },
       ];
       commit({ ...doc, entities: [...doc.entities, ...dimensionEntities] });
@@ -541,8 +550,30 @@ export default function ProfessionalCadWorkspace() {
       toast.error(error instanceof Error ? error.message : "Could not run this CAD command.");
     }
   };
-  const undo = () => { if(!history.length)return; setFuture((f)=>[doc,...f]);setDoc(history[history.length-1]);setHistory(history.slice(0,-1)); };
-  const redo = () => { if(!future.length)return; setHistory((h)=>[...h,doc]);setDoc(future[0]);setFuture(future.slice(1)); };
+  const undo = () => {
+    if (!history.length) return;
+    setFuture((items) => [...items, doc].slice(-100));
+    setDoc(history[history.length - 1]);
+    setHistory(history.slice(0, -1));
+    setSelected([]);
+    setStart(null);
+    setArcStart(null);
+    setPolylinePoints([]);
+    setModifyTargetId(null);
+    setSelectionWindow(null);
+  };
+  const redo = () => {
+    if (!future.length) return;
+    setHistory((items) => [...items, doc].slice(-100));
+    setDoc(future[0]);
+    setFuture(future.slice(1));
+    setSelected([]);
+    setStart(null);
+    setArcStart(null);
+    setPolylinePoints([]);
+    setModifyTargetId(null);
+    setSelectionWindow(null);
+  };
 
   // Keyboard editing shortcuts mirror common desktop CAD conventions.
   useEffect(() => {
@@ -572,6 +603,7 @@ export default function ProfessionalCadWorkspace() {
           event.preventDefault();
           setTool(shortcutTool);
           setStart(null);
+          setArcStart(null);
           setPolylinePoints([]);
           setModifyTargetId(null);
           setSelectionWindow(null);
@@ -610,6 +642,7 @@ export default function ProfessionalCadWorkspace() {
         setModifyTargetId(null);
         setSelectionWindow(null);
         setStart(null);
+        setArcStart(null);
         setPolylinePoints([]);
         setCursor(null);
         return;
@@ -702,10 +735,82 @@ export default function ProfessionalCadWorkspace() {
       return { scale, x: canvasX - worldX * scale, y: canvasY - worldY * scale };
     });
   };
-  const exportFile = (kind:"json"|"svg") => {
-    const content=kind==="json" ? JSON.stringify(doc,null,2) : svgRef.current?.outerHTML ?? "";
-    const blob=new Blob([content],{type:kind==="json"?"application/json":"image/svg+xml"});
-    const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`civilos-drawing.${kind}`;a.click();URL.revokeObjectURL(url);
+  const exportFile = (kind: "json" | "svg") => {
+    let content: string;
+    if (kind === "json") {
+      content = JSON.stringify(doc, null, 2);
+    } else {
+      const source = svgRef.current;
+      if (!source) {
+        toast.error("Drawing canvas is not ready to export.");
+        return;
+      }
+      // Serialize a clone so the downloaded SVG is standalone and the live canvas is untouched.
+      const clone = source.cloneNode(true) as SVGSVGElement;
+      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      clone.setAttribute("width", "1000");
+      clone.setAttribute("height", "640");
+      clone.setAttribute("viewBox", "0 0 1000 640");
+      // Use an actual SVG rectangle: CSS background-color is not consistently
+      // rendered by external SVG viewers, image converters, or print workflows.
+      // Insert it before defs/grid/entities so it never obscures drawing content.
+      const background = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      background.setAttribute("data-cad-export-background", "true");
+      background.setAttribute("x", "0");
+      background.setAttribute("y", "0");
+      background.setAttribute("width", "1000");
+      background.setAttribute("height", "640");
+      background.setAttribute("fill", "#f8fafc");
+      clone.insertBefore(background, clone.firstChild);
+      // Export the actual drawing rather than the current editor viewport: hide the
+      // drafting grid and fit every visible entity into the standalone SVG canvas.
+      clone.querySelector('[data-cad-editor-grid="true"]')?.remove();
+      const visibleEntities = doc.entities.filter((entity) =>
+        doc.layers.find((layer) => layer.id === entity.layerId)?.visible !== false
+      );
+      if (visibleEntities.length) {
+        const bounds = visibleEntities.map(entityBounds);
+        const minX = Math.min(...bounds.map((item) => item.min.x));
+        const minY = Math.min(...bounds.map((item) => item.min.y));
+        const maxX = Math.max(...bounds.map((item) => item.max.x));
+        const maxY = Math.max(...bounds.map((item) => item.max.y));
+        const width = Math.max(maxX - minX, 1e-6);
+        const height = Math.max(maxY - minY, 1e-6);
+        const scale = Math.min(920 / width, 560 / height);
+        const x = (1000 - width * scale) / 2 - minX * scale;
+        const y = (640 - height * scale) / 2 - minY * scale;
+        clone.querySelector('[data-cad-drawing-group="true"]')?.setAttribute(
+          "transform",
+          `translate(${x},${y}) scale(${scale})`
+        );
+      }
+      // Remove only editor-only previews. Dashed entities may be legitimate drawing content.
+      clone.querySelectorAll('[data-cad-transient="true"]').forEach((element) => element.remove());
+      // Selected entities are orange in the editor; restore their actual layer colors.
+      clone.querySelectorAll('[data-cad-layer-color]').forEach((element) => {
+        const node = element as SVGElement;
+        const layerColor = node.getAttribute("data-cad-layer-color");
+        if (!layerColor) return;
+        if (node.hasAttribute("stroke")) node.setAttribute("stroke", layerColor);
+        if (node.tagName.toLowerCase() === "text") node.setAttribute("fill", layerColor);
+        const exportStrokeWidth = node.getAttribute("data-cad-export-stroke-width");
+        if (exportStrokeWidth && node.hasAttribute("stroke-width")) node.setAttribute("stroke-width", exportStrokeWidth);
+        node.removeAttribute("data-cad-entity-id");
+        node.removeAttribute("data-cad-layer-color");
+        node.removeAttribute("data-cad-export-stroke-width");
+      });
+      content = new XMLSerializer().serializeToString(clone);
+    }
+    const blob = new Blob([content], { type: kind === "json" ? "application/json;charset=utf-8" : "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `civilos-drawing.${kind}`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    // Allow the browser to begin the download before releasing its object URL.
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   const importJson = () => {
     const input = document.createElement("input");
@@ -714,66 +819,20 @@ export default function ProfessionalCadWorkspace() {
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
+      if (file.size > 200 * 1024 * 1024) {
+        toast.error("Drawing backup is too large. Choose a JSON file no larger than 200 MB.");
+        return;
+      }
+      // Parsing a large JSON file temporarily keeps both its text and object graph in memory.
+      if (file.size > 25 * 1024 * 1024) {
+        const sizeMb = Math.ceil(file.size / (1024 * 1024));
+        const proceed = window.confirm(
+          `This drawing backup is about ${sizeMb} MB. Importing it may use substantial memory and slow or freeze your browser. Continue?`
+        );
+        if (!proceed) return;
+      }
       try {
-        const parsed: unknown = JSON.parse(await file.text());
-        if (!parsed || typeof parsed !== "object") throw new Error("The file is not a valid drawing document.");
-        const candidate = parsed as Partial<CadDocument>;
-        if (candidate.version !== 1 || !Array.isArray(candidate.entities) || !Array.isArray(candidate.layers) || candidate.layers.length === 0) {
-          throw new Error("Unsupported drawing format. Choose a CivilOS AI JSON drawing backup.");
-        }
-        const validLayers = candidate.layers.every((layer) =>
-          layer && typeof layer.id === "string" && typeof layer.name === "string" &&
-          typeof layer.visible === "boolean" && typeof layer.color === "string"
-        );
-        const isFinitePoint = (point: unknown): point is Point2D =>
-          !!point && typeof point === "object" &&
-          Number.isFinite((point as Point2D).x) && Number.isFinite((point as Point2D).y);
-        const validEntities = candidate.entities.every((rawEntity) => {
-          if (!rawEntity || typeof rawEntity !== "object" ||
-              typeof rawEntity.id !== "string" || typeof rawEntity.layerId !== "string") return false;
-          const entity = rawEntity as CadEntity;
-          switch (entity.type) {
-            case "line": return isFinitePoint(entity.start) && isFinitePoint(entity.end) &&
-              Math.hypot(entity.end.x - entity.start.x, entity.end.y - entity.start.y) > 1e-8;
-            case "wall": return isFinitePoint(entity.start) && isFinitePoint(entity.end) &&
-              Number.isFinite(entity.thickness) && entity.thickness > 0 &&
-              Math.hypot(entity.end.x - entity.start.x, entity.end.y - entity.start.y) > 1e-8;
-            case "polyline": return Array.isArray(entity.points) && entity.points.length >= 2 &&
-              entity.points.every(isFinitePoint);
-            case "rectangle": return isFinitePoint(entity.min) && isFinitePoint(entity.max) &&
-              entity.max.x > entity.min.x && entity.max.y > entity.min.y;
-            case "circle": return isFinitePoint(entity.center) && Number.isFinite(entity.radius) && entity.radius > 0;
-            case "ellipse": return isFinitePoint(entity.center) && Number.isFinite(entity.rx) && entity.rx > 0 &&
-              Number.isFinite(entity.ry) && entity.ry > 0;
-            case "arc": return isFinitePoint(entity.center) && Number.isFinite(entity.radius) && entity.radius > 0 &&
-              Number.isFinite(entity.startAngle) && Number.isFinite(entity.endAngle);
-            case "text": return isFinitePoint(entity.at) && typeof entity.text === "string" && entity.text.trim().length > 0 && Number.isFinite(entity.height) && entity.height > 0 && Number.isFinite(entity.rotation);
-            default: return false;
-          }
-        });
-        const validUnits = candidate.units === "mm" || candidate.units === "cm" ||
-          candidate.units === "m" || candidate.units === "in" || candidate.units === "ft";
-        const layerIdsForValidation = candidate.layers.map((layer) => layer.id);
-        const layerNamesForValidation = candidate.layers.map((layer) => layer.name.trim().toLowerCase());
-        const entityIdsForValidation = candidate.entities.map((entity) =>
-          entity && typeof entity === "object" && "id" in entity ? (entity as { id?: unknown }).id : undefined
-        );
-        const uniqueValues = (values: unknown[]) => new Set(values).size === values.length;
-        if (!validUnits) throw new Error("Unsupported drawing units. Use mm, cm, m, in, or ft.");
-        if (!validLayers || !validEntities) throw new Error("The drawing contains invalid layer or object data.");
-        if (!uniqueValues(layerIdsForValidation) || layerNamesForValidation.some((name) => !name) ||
-            !uniqueValues(layerNamesForValidation)) {
-          throw new Error("Layer IDs and names must be present and unique.");
-        }
-        if (entityIdsForValidation.some((id) => typeof id !== "string" || !id.trim()) ||
-            !uniqueValues(entityIdsForValidation)) {
-          throw new Error("Every drawing object must have a unique, non-empty ID.");
-        }
-        const layerIds = new Set(candidate.layers.map((layer) => layer.id));
-        if (candidate.entities.some((entity) => !layerIds.has(entity.layerId))) {
-          throw new Error("Some objects refer to layers that are missing from this file.");
-        }
-        const imported = candidate as CadDocument;
+        const imported = deserializeCadDocument(await file.text());
         if (doc.entities.length > 0 && !window.confirm(
           `Replace the current drawing (${doc.entities.length} object(s)) with this imported drawing (${imported.entities.length} object(s))? Export a JSON backup first if you need to keep the current drawing.`
         )) return;
@@ -781,8 +840,11 @@ export default function ProfessionalCadWorkspace() {
         setLayerName(imported.layers[0].name);
         setSelected([]);
         setStart(null);
+        setArcStart(null);
         setPolylinePoints([]);
         setModifyTargetId(null);
+        setSelectionWindow(null);
+        setCursor(null);
         toast.success(`Imported ${imported.entities.length} drawing object(s).`);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not import this JSON drawing.");
@@ -791,7 +853,7 @@ export default function ProfessionalCadWorkspace() {
     input.click();
   };
   const groups=useMemo(()=>Array.from(new Set(palette.map((p)=>p.group))),[]);
-  const selectTool = (id: CadToolId) => { setTool(id); setStart(null); setPolylinePoints([]); setModifyTargetId(null); setCursor(null); setToolsOpen(false); };
+  const selectTool = (id: CadToolId) => { setTool(id); setStart(null); setArcStart(null); setPolylinePoints([]); setModifyTargetId(null); setSelectionWindow(null); setCursor(null); setToolsOpen(false); };
   const finishPolyline = () => {
     const points = polylinePoints.filter((point, index) => index === 0 ||
       Math.hypot(point.x - polylinePoints[index - 1].x, point.y - polylinePoints[index - 1].y) > 1e-8);
@@ -803,18 +865,79 @@ export default function ProfessionalCadWorkspace() {
   };
   const ToolPalette = (
     <div className="space-y-4">
-      <div className="rounded-xl bg-slate-950 p-3 text-white shadow-sm"><div className="mb-2 flex items-center gap-2"><div className="rounded-lg bg-orange-500/20 p-2 text-orange-300"><DraftingCompass className="h-4 w-4"/></div><div><h3 className="text-sm font-semibold">Drafting tools</h3><p className="text-[10px] text-slate-400">Choose a tool to begin</p></div></div><p className="text-[11px] leading-relaxed text-slate-300">Click points on the canvas. Shift-click adds/removes objects from the selection; Ctrl/Cmd+Shift+D duplicates the selection. Polyline supports multiple vertices; press Enter, double-click, or use Finish Polyline when done.</p><div className="mt-3 flex items-center justify-between rounded-lg bg-white/10 px-2 py-1.5 text-[11px]"><span className="text-slate-300">Active tool</span><span className="font-semibold text-orange-300">{tool.toUpperCase()}</span></div></div>
-      {groups.map((group)=>{const GroupIcon = group === "Draw" ? Shapes : group === "Modify" ? Move : group === "Annotate" ? Ruler : group === "Architecture" ? House : MousePointer2; return <div key={group} className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm"><p className="mb-2 flex items-center gap-2 px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500"><GroupIcon className="h-3.5 w-3.5 text-orange-500"/>{group === "Common" ? "Essentials" : group === "Architecture" ? "Architecture" : group === "Draw" ? "Draw objects" : group === "Modify" ? "Edit objects" : group}</p><div className="grid grid-cols-2 gap-1.5">{palette.filter((p)=>p.group===group).map((p)=>{const active=tool===p.id;return <Button key={p.id} size="sm" variant="outline" className={`h-10 min-w-0 justify-start rounded-lg border px-2 text-xs transition-all ${active?"border-orange-400 bg-orange-50 text-orange-800 shadow-sm ring-1 ring-orange-200 hover:bg-orange-50":"border-slate-200 bg-slate-50/60 text-slate-700 hover:border-slate-300 hover:bg-white"}`} onClick={()=>selectTool(p.id)} title={p.label} aria-pressed={active}><span className={`mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${active?"bg-orange-500 text-white":"bg-white text-slate-500 shadow-sm"}`}><MousePointer2 className="h-3 w-3"/></span><span className="truncate">{p.label}</span></Button>})}</div></div>})
+      <div className="rounded-xl bg-slate-950 p-3 text-white shadow-sm">
+        <div className="mb-2 flex items-center gap-2">
+          <div className="rounded-lg bg-orange-500/20 p-2 text-orange-300">
+            <DraftingCompass className="h-4 w-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">Drafting tools</h3>
+            <p className="text-[10px] text-slate-400">Choose a tool to begin</p>
+          </div>
+        </div>
+        <p className="text-[11px] leading-relaxed text-slate-300">
+          Click points on the canvas. Shift-click adds/removes objects from the selection; Ctrl/Cmd+Shift+D duplicates the selection. Polyline supports multiple vertices; press Enter, double-click, or use Finish Polyline when done.
+        </p>
+        <div className="mt-3 flex items-center justify-between rounded-lg bg-white/10 px-2 py-1.5 text-[11px]">
+          <span className="text-slate-300">Active tool</span>
+          <span className="font-semibold text-orange-300">{tool.toUpperCase()}</span>
+        </div>
+      </div>
+      {groups.map((group) => {
+        const GroupIcon = group === "Draw" ? Shapes
+          : group === "Modify" ? Move
+          : group === "Annotate" ? Ruler
+          : group === "Architecture" ? House
+          : MousePointer2;
+        const groupLabel = group === "Common" ? "Essentials"
+          : group === "Architecture" ? "Architecture"
+          : group === "Draw" ? "Draw objects"
+          : group === "Modify" ? "Edit objects"
+          : group;
+        return (
+          <div key={group} className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+            <p className="mb-2 flex items-center gap-2 px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              <GroupIcon className="h-3.5 w-3.5 text-orange-500" />
+              {groupLabel}
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {palette.filter((item) => item.group === group).map((item) => {
+                const active = tool === item.id;
+                return (
+                  <Button
+                    key={item.id}
+                    size="sm"
+                    variant="outline"
+                    className={`h-10 min-w-0 justify-start rounded-lg border px-2 text-xs transition-all ${active
+                      ? "border-orange-400 bg-orange-50 text-orange-800 shadow-sm ring-1 ring-orange-200 hover:bg-orange-50"
+                      : "border-slate-200 bg-slate-50/60 text-slate-700 hover:border-slate-300 hover:bg-white"}`}
+                    onClick={() => selectTool(item.id)}
+                    title={item.label}
+                    aria-pressed={active}
+                  >
+                    <span className={`mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${active
+                      ? "bg-orange-500 text-white"
+                      : "bg-white text-slate-500 shadow-sm"}`}>
+                      <MousePointer2 className="h-3 w-3" />
+                    </span>
+                    <span className="truncate">{item.label}</span>
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
   const renderEntity = (e: CadEntity) => {
     const layer=doc.layers.find((l)=>l.id===e.layerId); if(layer && !layer.visible)return null;
     const color=selected.includes(e.id)?"#f97316":layer?.color ?? "#111827";
-    const common={stroke:color,strokeWidth:selected.includes(e.id)?2.5:1.6,fill:"none" as const,vectorEffect:"non-scaling-stroke" as const};
+    const common={stroke:color,strokeWidth:selected.includes(e.id)?2.5:1.6,fill:"none" as const,vectorEffect:"non-scaling-stroke" as const,"data-cad-entity-id":e.id,"data-cad-layer-color":layer?.color ?? "#111827","data-cad-export-stroke-width":e.type==="wall"?Math.max(2,e.thickness):1.6};
     if(e.type==="line"||e.type==="wall")return <line key={e.id} x1={e.start.x} y1={e.start.y} x2={e.end.x} y2={e.end.y} {...common} strokeWidth={e.type==="wall"?Math.max(2,e.thickness):common.strokeWidth}/>;
     if(e.type==="rectangle")return <rect key={e.id} x={e.min.x} y={e.min.y} width={e.max.x-e.min.x} height={e.max.y-e.min.y} {...common}/>;
     if(e.type==="circle")return <circle key={e.id} cx={e.center.x} cy={e.center.y} r={e.radius} {...common}/>
-    if(e.type==="text")return <text key={e.id} x={e.at.x} y={e.at.y} fontSize={e.height} transform={`rotate(${e.rotation * 180 / Math.PI} ${e.at.x} ${e.at.y})`} fill={color} stroke="none" style={{userSelect:"none"}}>{e.text}</text>;;
+    if(e.type==="text")return <text key={e.id} x={e.at.x} y={e.at.y} fontSize={e.height} transform={`rotate(${e.rotation * 180 / Math.PI} ${e.at.x} ${e.at.y})`} fill={color} stroke="none" style={{userSelect:"none"}} data-cad-entity-id={e.id} data-cad-layer-color={layer?.color ?? "#111827"}>{e.text}</text>;
     if(e.type==="ellipse")return <ellipse key={e.id} cx={e.center.x} cy={e.center.y} rx={e.rx} ry={e.ry} {...common}/>;
     if(e.type==="polyline")return <polyline key={e.id} points={e.points.map((p)=>`${p.x},${p.y}`).join(" ")} {...common}/>;
     if(e.type==="arc"){const sweep=e.endAngle-e.startAngle;const largeArc=Math.abs(sweep) > Math.PI ? 1 : 0;const sweepFlag=sweep >= 0 ? 1 : 0;return <path key={e.id} d={`M ${e.center.x+e.radius*Math.cos(e.startAngle)} ${e.center.y+e.radius*Math.sin(e.startAngle)} A ${e.radius} ${e.radius} 0 ${largeArc} ${sweepFlag} ${e.center.x+e.radius*Math.cos(e.endAngle)} ${e.center.y+e.radius*Math.sin(e.endAngle)}`} {...common}/>;}
@@ -849,9 +972,9 @@ export default function ProfessionalCadWorkspace() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5"><div className="flex items-center gap-2"><div className="rounded-md bg-orange-50 p-1.5 text-orange-600"><Ruler className="h-4 w-4"/></div><div><p className="text-xs font-semibold text-slate-800">Drawing canvas</p><p className="text-[10px] text-slate-500">Infinite-feel workspace · grid & precision controls</p></div></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-600">{doc.entities.length} objects</span></div>
         <svg ref={svgRef} viewBox="0 0 1000 640" className="h-[min(62dvh,640px)] min-h-[340px] w-full touch-none bg-slate-50 sm:h-[560px] xl:h-[min(76vh,760px)]" role="img" aria-label="2D CAD drafting canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onDoubleClick={(event)=>{if(tool==="polyline"){event.preventDefault();finishPolyline();}}} onWheel={handleWheel} onContextMenu={(event)=>event.preventDefault()}>
           <defs><pattern id="cad-grid-small" width={Math.max(2,grid.gridSpacing*view.scale)} height={Math.max(2,grid.gridSpacing*view.scale)} patternUnits="userSpaceOnUse" x={view.x%Math.max(2,grid.gridSpacing*view.scale)} y={view.y%Math.max(2,grid.gridSpacing*view.scale)}><path d={`M ${Math.max(2,grid.gridSpacing*view.scale)} 0 L 0 0 0 ${Math.max(2,grid.gridSpacing*view.scale)}`} fill="none" stroke="#e5e7eb" strokeWidth=".7"/></pattern></defs>
-          {grid.enabled&&<rect width="1000" height="640" fill="url(#cad-grid-small)"/>}
-          {selectionWindow && tool === "select" && <rect x={Math.min(selectionWindow.start.x, selectionWindow.end.x)} y={Math.min(selectionWindow.start.y, selectionWindow.end.y)} width={Math.abs(selectionWindow.end.x - selectionWindow.start.x)} height={Math.abs(selectionWindow.end.y - selectionWindow.start.y)} fill="#2563eb" fillOpacity={0.08} stroke="#2563eb" strokeDasharray="5 3" strokeWidth={1 / view.scale} pointerEvents="none" transform={`translate(${view.x},${view.y}) scale(${view.scale})`} />}
-          <g transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>{doc.entities.map(renderEntity)}{tool==="polyline"&&polylinePoints.length>0&&<polyline points={[...polylinePoints,...(cursor?[cursor]:[])].map((p)=>`${p.x},${p.y}`).join(" ")} fill="none" stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}{start&&cursor&&tool!=="select"&&tool!=="move"&&tool!=="copy"&&tool!=="polyline"&&<line x1={start.x} y1={start.y} x2={cursor.x} y2={cursor.y} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}</g>
+          {grid.enabled&&<rect data-cad-editor-grid="true" width="1000" height="640" fill="url(#cad-grid-small)"/>}
+          {selectionWindow && tool === "select" && <rect data-cad-transient="true" x={Math.min(selectionWindow.start.x, selectionWindow.end.x)} y={Math.min(selectionWindow.start.y, selectionWindow.end.y)} width={Math.abs(selectionWindow.end.x - selectionWindow.start.x)} height={Math.abs(selectionWindow.end.y - selectionWindow.start.y)} fill="#2563eb" fillOpacity={0.08} stroke="#2563eb" strokeDasharray="5 3" strokeWidth={1 / view.scale} pointerEvents="none" transform={`translate(${view.x},${view.y}) scale(${view.scale})`} />}
+          <g data-cad-drawing-group="true" transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>{doc.entities.map(renderEntity)}{tool==="polyline"&&polylinePoints.length>0&&<polyline data-cad-transient="true" points={[...polylinePoints,...(cursor?[cursor]:[])].map((p)=>`${p.x},${p.y}`).join(" ")} fill="none" stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}{start&&cursor&&tool!=="select"&&tool!=="move"&&tool!=="copy"&&tool!=="polyline"&&<line data-cad-transient="true" x1={start.x} y1={start.y} x2={cursor.x} y2={cursor.y} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}</g>
         </svg>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>Tool: {tool.toUpperCase()} · Objects: {doc.entities.length} · Selected: {selected.length} · Units: {doc.units}</span><span>Cursor: {cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"} · Wheel: zoom · Middle/right drag: pan</span></div>
       </div>
