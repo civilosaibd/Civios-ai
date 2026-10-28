@@ -35,6 +35,7 @@ function RoomMesh({ r, ox, oz, y, fin, showFurniture, bn, cutaway, showOpenings 
   const t = 0.12, wallH = FLOOR_H - 0.15, f = FINISHES[fin];
   const key = Object.keys(FURN).find((k) => r.name.includes(k));
   const fu = key ? FURN[key] : null;
+  const hasWindow = !/bath|toilet|store|corridor|stair/i.test(r.name);
   const doorW = Math.min(3 * FT, w * 0.42);
   const doorH = Math.min(6.8 * FT, wallH * 0.78);
   const windowW = Math.min(4 * FT, w * 0.55);
@@ -53,12 +54,16 @@ function RoomMesh({ r, ox, oz, y, fin, showFurniture, bn, cutaway, showOpenings 
     addWall(cx - doorW / 2 - doorSideW / 2, wallH / 2 + 0.1, cz + d / 2, doorSideW, wallH, t);
     addWall(cx + doorW / 2 + doorSideW / 2, wallH / 2 + 0.1, cz + d / 2, doorSideW, wallH, t);
     addWall(cx, doorH + (wallH - doorH) / 2 + 0.1, cz + d / 2, doorW, wallH - doorH, t);
-    const windowSideW = Math.max(0, (w - windowW) / 2);
-    addWall(cx - windowW / 2 - windowSideW / 2, wallH / 2 + 0.1, cz - d / 2, windowSideW, wallH, t);
-    addWall(cx + windowW / 2 + windowSideW / 2, wallH / 2 + 0.1, cz - d / 2, windowSideW, wallH, t);
-    addWall(cx, windowSill / 2 + 0.1, cz - d / 2, windowW, windowSill, t);
-    const upperH = Math.max(0, wallH - windowSill - windowH);
-    addWall(cx, windowSill + windowH + upperH / 2 + 0.1, cz - d / 2, windowW, upperH, t);
+    if (hasWindow) {
+      const windowSideW = Math.max(0, (w - windowW) / 2);
+      addWall(cx - windowW / 2 - windowSideW / 2, wallH / 2 + 0.1, cz - d / 2, windowSideW, wallH, t);
+      addWall(cx + windowW / 2 + windowSideW / 2, wallH / 2 + 0.1, cz - d / 2, windowSideW, wallH, t);
+      addWall(cx, windowSill / 2 + 0.1, cz - d / 2, windowW, windowSill, t);
+      const upperH = Math.max(0, wallH - windowSill - windowH);
+      addWall(cx, windowSill + windowH + upperH / 2 + 0.1, cz - d / 2, windowW, upperH, t);
+    } else {
+      addWall(cx, wallH / 2 + 0.1, cz - d / 2, w, wallH, t);
+    }
   }
   addWall(cx - w / 2, wallH / 2 + 0.1, cz, t, wallH, d);
   addWall(cx + w / 2, wallH / 2 + 0.1, cz, t, wallH, d);
@@ -88,19 +93,27 @@ function RoomMesh({ r, ox, oz, y, fin, showFurniture, bn, cutaway, showOpenings 
             <sphereGeometry args={[0.025, 10, 8]} />
             <meshStandardMaterial color="#fbbf24" metalness={0.65} roughness={0.3} />
           </mesh>
-          {/* Blue glazed window detail on the opposite wall. */}
-          <mesh position={[cx, y + 0.1 + windowSill + windowH / 2, cz - d / 2 - 0.014]}>
-            <boxGeometry args={[windowW * 1.04, windowH * 1.04, 0.035]} />
-            <meshStandardMaterial color="#475569" roughness={0.5} />
-          </mesh>
-          <mesh position={[cx, y + 0.1 + windowSill + windowH / 2, cz - d / 2 - 0.037]}>
-            <boxGeometry args={[windowW * 0.91, windowH * 0.87, 0.012]} />
-            <meshStandardMaterial color="#7dd3fc" metalness={0.15} roughness={0.2} />
-          </mesh>
-          <mesh position={[cx, y + 0.1 + windowSill + windowH / 2, cz - d / 2 - 0.045]}>
-            <boxGeometry args={[0.025, windowH * 0.94, 0.014]} />
-            <meshStandardMaterial color="#475569" />
-          </mesh>
+          {hasWindow && (
+            <group>
+              {/* Blue glazed window, outer frame, and two simple mullions. */}
+              <mesh position={[cx, y + 0.1 + windowSill + windowH / 2, cz - d / 2 - 0.014]}>
+                <boxGeometry args={[windowW * 1.04, windowH * 1.04, 0.035]} />
+                <meshStandardMaterial color="#475569" roughness={0.5} />
+              </mesh>
+              <mesh position={[cx, y + 0.1 + windowSill + windowH / 2, cz - d / 2 - 0.037]}>
+                <boxGeometry args={[windowW * 0.91, windowH * 0.87, 0.012]} />
+                <meshStandardMaterial color="#7dd3fc" metalness={0.15} roughness={0.2} />
+              </mesh>
+              <mesh position={[cx, y + 0.1 + windowSill + windowH / 2, cz - d / 2 - 0.045]}>
+                <boxGeometry args={[0.025, windowH * 0.94, 0.014]} />
+                <meshStandardMaterial color="#475569" />
+              </mesh>
+              <mesh position={[cx, y + 0.1 + windowSill + windowH / 2, cz - d / 2 - 0.045]}>
+                <boxGeometry args={[windowW * 0.9, 0.025, 0.014]} />
+                <meshStandardMaterial color="#475569" />
+              </mesh>
+            </group>
+          )}
         </group>
       )}
       {showFurniture && fu && (
