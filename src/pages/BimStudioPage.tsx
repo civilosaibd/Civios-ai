@@ -130,35 +130,46 @@ function RoomMesh({ r, ox, oz, y, fin, showFurniture, bn, cutaway, showOpenings 
 }
 
 function StructuralFrame({ width, depth, floors }: { width: number; depth: number; floors: number }) {
-  const halfW = width * FT / 2;
-  const halfD = depth * FT / 2;
+  // This is a conceptual visualization grid, not a structural design or reinforcement layout.
+  // Add intermediate bays for larger plans so the frame does not remain a fixed 3x3 grid.
+  const maxBayFt = 12;
+  const xBays = Math.max(1, Math.min(8, Math.ceil(width / maxBayFt)));
+  const zBays = Math.max(1, Math.min(8, Math.ceil(depth / maxBayFt)));
+  const xs = Array.from({ length: xBays + 1 }, (_, i) => (-width / 2 + (width * i) / xBays) * FT);
+  const zs = Array.from({ length: zBays + 1 }, (_, i) => (-depth / 2 + (depth * i) / zBays) * FT);
+  const totalHeight = Math.max(1, floors) * FLOOR_H;
   const columnSize = 0.18;
   const beamSize = 0.16;
-  const xs = [-halfW, 0, halfW];
-  const zs = [-halfD, 0, halfD];
-  const levels = Array.from({ length: floors }, (_, i) => (i + 1) * FLOOR_H);
+  const levels = Array.from({ length: Math.max(1, floors) }, (_, i) => (i + 1) * FLOOR_H);
+
   return (
     <group>
       {xs.flatMap((x) => zs.map((z) => (
-        <mesh key={`column-${x}-${z}`} position={[x, (floors * FLOOR_H) / 2, z]} castShadow>
-          <boxGeometry args={[columnSize, floors * FLOOR_H, columnSize]} />
+        <mesh key={`column-${x.toFixed(3)}-${z.toFixed(3)}`} position={[x, totalHeight / 2, z]} castShadow>
+          <boxGeometry args={[columnSize, totalHeight, columnSize]} />
           <meshStandardMaterial color="#64748b" metalness={0.25} roughness={0.55} />
         </mesh>
       )))}
       {levels.map((y) => (
         <group key={`beam-level-${y}`}>
-          {[-halfD, halfD].map((z) => (
-            <mesh key={`x-${z}`} position={[0, y, z]} castShadow>
-              <boxGeometry args={[width * FT, beamSize, beamSize]} />
-              <meshStandardMaterial color="#ea580c" metalness={0.15} roughness={0.6} />
-            </mesh>
-          ))}
-          {[-halfW, halfW].map((x) => (
-            <mesh key={`z-${x}`} position={[x, y, 0]} castShadow>
-              <boxGeometry args={[beamSize, beamSize, depth * FT]} />
-              <meshStandardMaterial color="#ea580c" metalness={0.15} roughness={0.6} />
-            </mesh>
-          ))}
+          {zs.flatMap((z) => xs.slice(0, -1).map((x, i) => {
+            const nextX = xs[i + 1];
+            return (
+              <mesh key={`x-${z.toFixed(3)}-${i}`} position={[(x + nextX) / 2, y, z]} castShadow>
+                <boxGeometry args={[nextX - x, beamSize, beamSize]} />
+                <meshStandardMaterial color="#ea580c" metalness={0.15} roughness={0.6} />
+              </mesh>
+            );
+          }))}
+          {xs.flatMap((x) => zs.slice(0, -1).map((z, i) => {
+            const nextZ = zs[i + 1];
+            return (
+              <mesh key={`z-${x.toFixed(3)}-${i}`} position={[x, y, (z + nextZ) / 2]} castShadow>
+                <boxGeometry args={[beamSize, beamSize, nextZ - z]} />
+                <meshStandardMaterial color="#ea580c" metalness={0.15} roughness={0.6} />
+              </mesh>
+            );
+          }))}
         </group>
       ))}
     </group>
