@@ -752,6 +752,14 @@ export default function ProfessionalCadWorkspace() {
         toast.error("Drawing backup is too large. Choose a JSON file no larger than 200 MB.");
         return;
       }
+      // Parsing a large JSON file temporarily keeps both its text and object graph in memory.
+      if (file.size > 25 * 1024 * 1024) {
+        const sizeMb = Math.ceil(file.size / (1024 * 1024));
+        const proceed = window.confirm(
+          `This drawing backup is about ${sizeMb} MB. Importing it may use substantial memory and slow or freeze your browser. Continue?`
+        );
+        if (!proceed) return;
+      }
       try {
         const parsed: unknown = JSON.parse(await file.text());
         if (!parsed || typeof parsed !== "object") throw new Error("The file is not a valid drawing document.");
