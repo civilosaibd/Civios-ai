@@ -31,8 +31,10 @@ describe("CAD undo/redo history", () => {
   it("caps redo and undo stacks to the same history limit", () => {
     const docs = Array.from({ length: MAX_CAD_HISTORY + 3 }, (_, i) => createEmptyDocument(i % 2 ? "mm" : "cm"));
     const undo = undoCadDocument(createEmptyDocument("m"), docs, []);
-    expect(undo?.past).toHaveLength(MAX_CAD_HISTORY);
-    const redo = redoCadDocument(createEmptyDocument("ft"), [], docs);
-    expect(redo?.future).toHaveLength(MAX_CAD_HISTORY - 1);
+    expect(undo?.past).toHaveLength(MAX_CAD_HISTORY + 2);
+    expect(undo?.future).toHaveLength(MAX_CAD_HISTORY);
+    const redo = redoCadDocument(createEmptyDocument("ft"), docs, docs);
+    expect(redo?.past).toHaveLength(MAX_CAD_HISTORY);
+    expect(redo?.future).toHaveLength(MAX_CAD_HISTORY + 2);
   });
 });
