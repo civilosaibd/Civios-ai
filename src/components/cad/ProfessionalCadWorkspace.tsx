@@ -763,6 +763,28 @@ export default function ProfessionalCadWorkspace() {
       background.setAttribute("height", "640");
       background.setAttribute("fill", "#f8fafc");
       clone.insertBefore(background, clone.firstChild);
+      // Export the actual drawing rather than the current editor viewport: hide the
+      // drafting grid and fit every visible entity into the standalone SVG canvas.
+      clone.querySelector('[data-cad-editor-grid="true"]')?.remove();
+      const visibleEntities = doc.entities.filter((entity) =>
+        doc.layers.find((layer) => layer.id === entity.layerId)?.visible !== false
+      );
+      if (visibleEntities.length) {
+        const bounds = visibleEntities.map(entityBounds);
+        const minX = Math.min(...bounds.map((item) => item.min.x));
+        const minY = Math.min(...bounds.map((item) => item.min.y));
+        const maxX = Math.max(...bounds.map((item) => item.max.x));
+        const maxY = Math.max(...bounds.map((item) => item.max.y));
+        const width = Math.max(maxX - minX, 1e-6);
+        const height = Math.max(maxY - minY, 1e-6);
+        const scale = Math.min(920 / width, 560 / height);
+        const x = (1000 - width * scale) / 2 - minX * scale;
+        const y = (640 - height * scale) / 2 - minY * scale;
+        clone.querySelector('[data-cad-drawing-group="true"]')?.setAttribute(
+          "transform",
+          `translate(${x},${y}) scale(${scale})`
+        );
+      }
       // Remove only editor-only previews. Dashed entities may be legitimate drawing content.
       clone.querySelectorAll('[data-cad-transient="true"]').forEach((element) => element.remove());
       // Selected entities are orange in the editor; restore their actual layer colors.
@@ -948,9 +970,9 @@ export default function ProfessionalCadWorkspace() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5"><div className="flex items-center gap-2"><div className="rounded-md bg-orange-50 p-1.5 text-orange-600"><Ruler className="h-4 w-4"/></div><div><p className="text-xs font-semibold text-slate-800">Drawing canvas</p><p className="text-[10px] text-slate-500">Infinite-feel workspace · grid & precision controls</p></div></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-600">{doc.entities.length} objects</span></div>
         <svg ref={svgRef} viewBox="0 0 1000 640" className="h-[min(62dvh,640px)] min-h-[340px] w-full touch-none bg-slate-50 sm:h-[560px] xl:h-[min(76vh,760px)]" role="img" aria-label="2D CAD drafting canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onDoubleClick={(event)=>{if(tool==="polyline"){event.preventDefault();finishPolyline();}}} onWheel={handleWheel} onContextMenu={(event)=>event.preventDefault()}>
           <defs><pattern id="cad-grid-small" width={Math.max(2,grid.gridSpacing*view.scale)} height={Math.max(2,grid.gridSpacing*view.scale)} patternUnits="userSpaceOnUse" x={view.x%Math.max(2,grid.gridSpacing*view.scale)} y={view.y%Math.max(2,grid.gridSpacing*view.scale)}><path d={`M ${Math.max(2,grid.gridSpacing*view.scale)} 0 L 0 0 0 ${Math.max(2,grid.gridSpacing*view.scale)}`} fill="none" stroke="#e5e7eb" strokeWidth=".7"/></pattern></defs>
-          {grid.enabled&&<rect width="1000" height="640" fill="url(#cad-grid-small)"/>}
+          {grid.enabled&&<rect data-cad-editor-grid="true" width="1000" height="640" fill="url(#cad-grid-small)"/>}
           {selectionWindow && tool === "select" && <rect data-cad-transient="true" x={Math.min(selectionWindow.start.x, selectionWindow.end.x)} y={Math.min(selectionWindow.start.y, selectionWindow.end.y)} width={Math.abs(selectionWindow.end.x - selectionWindow.start.x)} height={Math.abs(selectionWindow.end.y - selectionWindow.start.y)} fill="#2563eb" fillOpacity={0.08} stroke="#2563eb" strokeDasharray="5 3" strokeWidth={1 / view.scale} pointerEvents="none" transform={`translate(${view.x},${view.y}) scale(${view.scale})`} />}
-          <g transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>{doc.entities.map(renderEntity)}{tool==="polyline"&&polylinePoints.length>0&&<polyline data-cad-transient="true" points={[...polylinePoints,...(cursor?[cursor]:[])].map((p)=>`${p.x},${p.y}`).join(" ")} fill="none" stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}{start&&cursor&&tool!=="select"&&tool!=="move"&&tool!=="copy"&&tool!=="polyline"&&<line data-cad-transient="true" x1={start.x} y1={start.y} x2={cursor.x} y2={cursor.y} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}</g>
+          <g data-cad-drawing-group="true" transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>{doc.entities.map(renderEntity)}{tool==="polyline"&&polylinePoints.length>0&&<polyline data-cad-transient="true" points={[...polylinePoints,...(cursor?[cursor]:[])].map((p)=>`${p.x},${p.y}`).join(" ")} fill="none" stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}{start&&cursor&&tool!=="select"&&tool!=="move"&&tool!=="copy"&&tool!=="polyline"&&<line data-cad-transient="true" x1={start.x} y1={start.y} x2={cursor.x} y2={cursor.y} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}</g>
         </svg>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>Tool: {tool.toUpperCase()} · Objects: {doc.entities.length} · Selected: {selected.length} · Units: {doc.units}</span><span>Cursor: {cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"} · Wheel: zoom · Middle/right drag: pan</span></div>
       </div>
