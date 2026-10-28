@@ -642,6 +642,7 @@ export default function ProfessionalCadWorkspace() {
         setModifyTargetId(null);
         setSelectionWindow(null);
         setStart(null);
+        setArcStart(null);
         setPolylinePoints([]);
         setCursor(null);
         return;
