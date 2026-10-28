@@ -348,6 +348,17 @@ export default function ProfessionalCadWorkspace() {
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
       const modifier = event.ctrlKey || event.metaKey;
+      if (modifier && event.shiftKey && event.key.toLowerCase() === "d" && selected.length > 0) {
+        event.preventDefault();
+        const selectedSet = new Set(selected);
+        const originals = doc.entities.filter((entity) => selectedSet.has(entity.id));
+        const offset = Math.max(grid.snapSpacing, 1);
+        const duplicates = originals.map((entity) => ({ ...translateEntity(entity, offset, offset), id: makeId() } as CadEntity));
+        commit({ ...doc, entities: [...doc.entities, ...duplicates] });
+        setSelected(duplicates.map((entity) => entity.id));
+        toast.success(`Duplicated ${duplicates.length} object(s).`);
+        return;
+      }
       if (modifier && event.key.toLowerCase() === "a") {
         event.preventDefault();
         setSelected(doc.entities.filter((entity) => doc.layers.find((layer) => layer.id === entity.layerId)?.visible !== false).map((entity) => entity.id));
@@ -530,7 +541,7 @@ export default function ProfessionalCadWorkspace() {
   };
   const ToolPalette = (
     <div className="space-y-4">
-      <div className="rounded-xl bg-slate-950 p-3 text-white shadow-sm"><div className="mb-2 flex items-center gap-2"><div className="rounded-lg bg-orange-500/20 p-2 text-orange-300"><DraftingCompass className="h-4 w-4"/></div><div><h3 className="text-sm font-semibold">Drafting tools</h3><p className="text-[10px] text-slate-400">Choose a tool to begin</p></div></div><p className="text-[11px] leading-relaxed text-slate-300">Click points on the canvas. Shift-click adds/removes objects from the selection. Polyline supports multiple vertices; press Enter, double-click, or use Finish Polyline when done.</p><div className="mt-3 flex items-center justify-between rounded-lg bg-white/10 px-2 py-1.5 text-[11px]"><span className="text-slate-300">Active tool</span><span className="font-semibold text-orange-300">{tool.toUpperCase()}</span></div></div>
+      <div className="rounded-xl bg-slate-950 p-3 text-white shadow-sm"><div className="mb-2 flex items-center gap-2"><div className="rounded-lg bg-orange-500/20 p-2 text-orange-300"><DraftingCompass className="h-4 w-4"/></div><div><h3 className="text-sm font-semibold">Drafting tools</h3><p className="text-[10px] text-slate-400">Choose a tool to begin</p></div></div><p className="text-[11px] leading-relaxed text-slate-300">Click points on the canvas. Shift-click adds/removes objects from the selection; Ctrl/Cmd+Shift+D duplicates the selection. Polyline supports multiple vertices; press Enter, double-click, or use Finish Polyline when done.</p><div className="mt-3 flex items-center justify-between rounded-lg bg-white/10 px-2 py-1.5 text-[11px]"><span className="text-slate-300">Active tool</span><span className="font-semibold text-orange-300">{tool.toUpperCase()}</span></div></div>
       {groups.map((group)=>{const GroupIcon = group === "Draw" ? Shapes : group === "Modify" ? Move : group === "Annotate" ? Ruler : group === "Architecture" ? House : MousePointer2; return <div key={group} className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm"><p className="mb-2 flex items-center gap-2 px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500"><GroupIcon className="h-3.5 w-3.5 text-orange-500"/>{group === "Common" ? "Essentials" : group === "Architecture" ? "Architecture" : group === "Draw" ? "Draw objects" : group === "Modify" ? "Edit objects" : group}</p><div className="grid grid-cols-2 gap-1.5">{palette.filter((p)=>p.group===group).map((p)=>{const active=tool===p.id;return <Button key={p.id} size="sm" variant="outline" className={`h-10 min-w-0 justify-start rounded-lg border px-2 text-xs transition-all ${active?"border-orange-400 bg-orange-50 text-orange-800 shadow-sm ring-1 ring-orange-200 hover:bg-orange-50":"border-slate-200 bg-slate-50/60 text-slate-700 hover:border-slate-300 hover:bg-white"}`} onClick={()=>selectTool(p.id)} title={p.label} aria-pressed={active}><span className={`mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${active?"bg-orange-500 text-white":"bg-white text-slate-500 shadow-sm"}`}><MousePointer2 className="h-3 w-3"/></span><span className="truncate">{p.label}</span></Button>})}</div></div>})
     </div>
   );
