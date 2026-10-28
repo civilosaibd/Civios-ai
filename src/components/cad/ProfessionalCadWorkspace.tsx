@@ -817,7 +817,7 @@ export default function ProfessionalCadWorkspace() {
     if(e.type==="text")return <text key={e.id} x={e.at.x} y={e.at.y} fontSize={e.height} transform={`rotate(${e.rotation * 180 / Math.PI} ${e.at.x} ${e.at.y})`} fill={color} stroke="none" style={{userSelect:"none"}}>{e.text}</text>;;
     if(e.type==="ellipse")return <ellipse key={e.id} cx={e.center.x} cy={e.center.y} rx={e.rx} ry={e.ry} {...common}/>;
     if(e.type==="polyline")return <polyline key={e.id} points={e.points.map((p)=>`${p.x},${p.y}`).join(" ")} {...common}/>;
-    if(e.type==="arc")return <path key={e.id} d={`M ${e.center.x+e.radius*Math.cos(e.startAngle)} ${e.center.y+e.radius*Math.sin(e.startAngle)} A ${e.radius} ${e.radius} 0 1 1 ${e.center.x+e.radius*Math.cos(e.endAngle)} ${e.center.y+e.radius*Math.sin(e.endAngle)}`} {...common}/>;
+    if(e.type==="arc"){const sweep=e.endAngle-e.startAngle;const largeArc=Math.abs(sweep) > Math.PI ? 1 : 0;const sweepFlag=sweep >= 0 ? 1 : 0;return <path key={e.id} d={`M ${e.center.x+e.radius*Math.cos(e.startAngle)} ${e.center.y+e.radius*Math.sin(e.startAngle)} A ${e.radius} ${e.radius} 0 ${largeArc} ${sweepFlag} ${e.center.x+e.radius*Math.cos(e.endAngle)} ${e.center.y+e.radius*Math.sin(e.endAngle)}`} {...common}/>;}
     return null;
   };
 
