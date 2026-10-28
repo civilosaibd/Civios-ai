@@ -142,8 +142,7 @@ export function offsetEntity(entity: CadEntity, amount: number): CadEntity {
     return { ...entity, radius };
   }
   if (entity.type === "text") {
-    const width = Math.max(entity.height * 0.6, entity.text.length * entity.height * 0.6);
-    return { min: { x: entity.at.x, y: entity.at.y - entity.height }, max: { x: entity.at.x + width, y: entity.at.y + entity.height * 0.25 } };
+    throw new Error("Text annotations cannot be offset. Change the text position or height instead.");
   }
   if (entity.type === "ellipse") {
     const rx = entity.rx + amount, ry = entity.ry + amount;
