@@ -49,6 +49,7 @@ export default function ProfessionalCadWorkspace() {
   const [grid, setGrid] = useState<CadGridSettings>(DEFAULT_CAD_GRID);
   const [view, setView] = useState<View>({ x: 60, y: 50, scale: 1 });
   const [start, setStart] = useState<Point2D | null>(null);
+  const [arcStart, setArcStart] = useState<{ center: Point2D; radius: number; startAngle: number } | null>(null);
   const [polylinePoints, setPolylinePoints] = useState<Point2D[]>([]);
   const [modifyTargetId, setModifyTargetId] = useState<string | null>(null);
   const [cursor, setCursor] = useState<Point2D | null>(null);
@@ -212,6 +213,40 @@ export default function ProfessionalCadWorkspace() {
         toast.error(error instanceof Error ? error.message : "Could not extend this line.");
         setModifyTargetId(null);
       }
+      return;
+    }
+    if (tool === "arc") {
+      if (!start) {
+        setStart(p);
+        setCursor(p);
+        setArcStart(null);
+        toast.info("Choose the arc start point.");
+        return;
+      }
+      if (!arcStart) {
+        const radius = Math.hypot(p.x - start.x, p.y - start.y);
+        if (radius <= 1e-8) {
+          toast.info("Arc radius must be greater than zero.");
+          setStart(null); setCursor(null);
+          return;
+        }
+        setArcStart({ center: start, radius, startAngle: Math.atan2(p.y - start.y, p.x - start.x) });
+        setCursor(p);
+        toast.info("Choose the arc end point.");
+        return;
+      }
+      const endAngle = Math.atan2(p.y - arcStart.center.y, p.x - arcStart.center.x);
+      let sweep = endAngle - arcStart.startAngle;
+      while (sweep <= 0) sweep += Math.PI * 2;
+      if (sweep < 1e-6 || Math.abs(sweep - Math.PI * 2) < 1e-6) {
+        toast.info("Choose a different arc end point.");
+        return;
+      }
+      const entity: CadEntity = { id: makeId(), layerId: activeLayer.id, type: "arc", center: arcStart.center, radius: arcStart.radius, startAngle: arcStart.startAngle, endAngle: arcStart.startAngle + sweep };
+      commit({ ...doc, entities: [...doc.entities, entity] });
+      setSelected([entity.id]);
+      setStart(null); setArcStart(null); setCursor(null);
+      toast.success("Arc created from center, start, and end points.");
       return;
     }
     if (tool === "text") {
