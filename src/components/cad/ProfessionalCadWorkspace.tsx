@@ -60,6 +60,7 @@ export default function ProfessionalCadWorkspace() {
   const [toolsOpen, setToolsOpen] = useState(false);
   const isMobile = useIsMobile();
   const svgRef = useRef<SVGSVGElement>(null);
+  const panRef = useRef<{ clientX: number; clientY: number; viewX: number; viewY: number } | null>(null);
   const activeLayer = doc.layers.find((layer) => layer.name === layerName) ?? doc.layers[0];
 
   useEffect(() => {
@@ -78,7 +79,10 @@ export default function ProfessionalCadWorkspace() {
 
   const toWorld = (event: ReactPointerEvent<SVGSVGElement>): Point2D => {
     const rect = event.currentTarget.getBoundingClientRect();
-    let p = { x: (event.clientX - rect.left - view.x) / view.scale, y: (event.clientY - rect.top - view.y) / view.scale };
+    // Convert CSS pixels into SVG viewBox coordinates before applying the world transform.
+    const canvasX = (event.clientX - rect.left) * (1000 / Math.max(rect.width, 1));
+    const canvasY = (event.clientY - rect.top) * (640 / Math.max(rect.height, 1));
+    let p = { x: (canvasX - view.x) / view.scale, y: (canvasY - view.y) / view.scale };
     if (grid.snapEnabled) p = snapToGrid(p, grid.snapSpacing);
     // Ortho uses the previous polyline vertex, or the first point for other tools.
     const orthoAnchor = tool === "polyline" && polylinePoints.length
@@ -110,6 +114,13 @@ export default function ProfessionalCadWorkspace() {
     return false;
   })?.id;
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    // Middle/right mouse drag pans the drawing without changing the active tool.
+    if (event.button === 1 || event.button === 2) {
+      event.preventDefault();
+      panRef.current = { clientX: event.clientX, clientY: event.clientY, viewX: view.x, viewY: view.y };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
     if (event.button !== 0) return;
     const p = toWorld(event);
     if (tool === "polyline") {
@@ -242,12 +253,23 @@ export default function ProfessionalCadWorkspace() {
     setStart(null); setPolylinePoints([]); setCursor(null);
   };
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (panRef.current) {
+      const pan = panRef.current;
+      const rect = event.currentTarget.getBoundingClientRect();
+      setView((current) => ({ ...current, x: pan.viewX + (event.clientX - pan.clientX) * (1000 / Math.max(rect.width, 1)), y: pan.viewY + (event.clientY - pan.clientY) * (640 / Math.max(rect.height, 1)) }));
+      return;
+    }
     const p=toWorld(event); setCursor(p);
     if (start && (tool==="move" || tool==="copy") && selected.length) {
       // Preview is shown by cursor; commit on pointer-up to keep history deterministic.
     }
   };
   const handlePointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (panRef.current) {
+      panRef.current = null;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      return;
+    }
     if (!start || !selected.length || (tool!=="move" && tool!=="copy")) return;
     const end=toWorld(event), dx=end.x-start.x, dy=end.y-start.y;
     const id=selected[0], entity=doc.entities.find((e)=>e.id===id);
@@ -315,6 +337,31 @@ export default function ProfessionalCadWorkspace() {
     const layer={id:makeId(),name:name.trim(),visible:true,color:["#2563eb","#dc2626","#059669","#9333ea"][doc.layers.length%4],lineWeight:1};
     commit({...doc,layers:[...doc.layers,layer]});setLayerName(layer.name);
   };
+  const fitToDrawing = () => {
+    if (!doc.entities.length) { setView({ x: 60, y: 50, scale: 1 }); return; }
+    const bounds = doc.entities.map(entityBounds);
+    const minX = Math.min(...bounds.map((b) => b.min.x));
+    const minY = Math.min(...bounds.map((b) => b.min.y));
+    const maxX = Math.max(...bounds.map((b) => b.max.x));
+    const maxY = Math.max(...bounds.map((b) => b.max.y));
+    const width = Math.max(maxX - minX, 1);
+    const height = Math.max(maxY - minY, 1);
+    const scale = Math.max(0.2, Math.min(8, 900 / width, 540 / height));
+    setView({ x: (1000 - width * scale) / 2 - minX * scale, y: (640 - height * scale) / 2 - minY * scale, scale });
+  };
+  const handleWheel = (event: React.WheelEvent<SVGSVGElement>) => {
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const canvasX = (event.clientX - rect.left) * (1000 / Math.max(rect.width, 1));
+    const canvasY = (event.clientY - rect.top) * (640 / Math.max(rect.height, 1));
+    const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+    setView((current) => {
+      const scale = Math.max(0.2, Math.min(8, current.scale * factor));
+      const worldX = (canvasX - current.x) / current.scale;
+      const worldY = (canvasY - current.y) / current.scale;
+      return { scale, x: canvasX - worldX * scale, y: canvasY - worldY * scale };
+    });
+  };
   const exportFile = (kind:"json"|"svg") => {
     const content=kind==="json" ? JSON.stringify(doc,null,2) : svgRef.current?.outerHTML ?? "";
     const blob=new Blob([content],{type:kind==="json"?"application/json":"image/svg+xml"});
@@ -350,14 +397,14 @@ export default function ProfessionalCadWorkspace() {
 
   return <section className="space-y-3 rounded-xl border bg-card p-3 md:p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <div><h2 className="text-lg font-semibold">CivilOS Professional 2D Drafting</h2><p className="text-xs text-muted-foreground">Interactive drafting workspace · drawing units: feet · local auto-save enabled</p></div>
+      <div><h2 className="text-lg font-semibold">CivilOS Professional 2D Drafting</h2><p className="text-xs text-muted-foreground">Interactive drafting workspace · local auto-save enabled</p></div>
       <div className="flex flex-wrap items-center gap-1">
         {tool === "polyline" && polylinePoints.length >= 2 && <Button size="sm" onClick={finishPolyline}>Finish Polyline</Button>}
         {isMobile && <Sheet open={toolsOpen} onOpenChange={setToolsOpen}><SheetTrigger asChild><Button size="sm" variant="default"><Wrench className="mr-1 h-4 w-4"/>Tools</Button></SheetTrigger><SheetContent side="bottom" className="max-h-[82dvh] overflow-y-auto"><SheetHeader><SheetTitle>2D Drafting Tools</SheetTitle></SheetHeader><div className="mt-4">{ToolPalette}</div></SheetContent></Sheet>}
         <Button size="sm" variant="outline" onClick={undo} disabled={!history.length}><Undo2 className="mr-1 h-4 w-4"/>Undo</Button>
         <Button size="sm" variant="outline" onClick={redo} disabled={!future.length}><Redo2 className="mr-1 h-4 w-4"/>Redo</Button>
         <Button size="sm" variant="outline" onClick={()=>setGrid((g)=>({...g,enabled:!g.enabled}))}><Grid3X3 className="mr-1 h-4 w-4"/>{grid.enabled?"Grid on":"Grid off"}</Button>
-        <Button size="sm" variant="outline" onClick={()=>setView({x:60,y:50,scale:1})}><Maximize2 className="mr-1 h-4 w-4"/>Fit</Button>
+        <Button size="sm" variant="outline" onClick={fitToDrawing} title="Fit all drawing objects into the canvas"><Maximize2 className="mr-1 h-4 w-4"/>Fit drawing</Button>
         <Button size="sm" variant="outline" onClick={()=>setView((v)=>({...v,scale:Math.min(8,v.scale*1.25)}))}><ZoomIn className="h-4 w-4"/></Button>
         <Button size="sm" variant="outline" onClick={()=>setView((v)=>({...v,scale:Math.max(.2,v.scale/1.25)}))}><ZoomOut className="h-4 w-4"/></Button>
         <Button size="sm" variant="outline" onClick={()=>exportFile("svg")}><Download className="mr-1 h-4 w-4"/>SVG</Button>
@@ -367,12 +414,12 @@ export default function ProfessionalCadWorkspace() {
     <div className="grid min-w-0 gap-3 md:grid-cols-[180px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_240px]">
       <aside className="hidden space-y-3 rounded-lg border p-3 md:block xl:max-h-[76vh] xl:overflow-y-auto">{ToolPalette}</aside>
       <div className="min-w-0 overflow-hidden rounded-lg border bg-white xl:col-start-2">
-        <svg ref={svgRef} viewBox="0 0 1000 640" className="h-[min(62dvh,640px)] min-h-[340px] w-full touch-none sm:h-[560px] xl:h-[min(76vh,760px)]" role="img" aria-label="2D CAD drafting canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
+        <svg ref={svgRef} viewBox="0 0 1000 640" className="h-[min(62dvh,640px)] min-h-[340px] w-full touch-none sm:h-[560px] xl:h-[min(76vh,760px)]" role="img" aria-label="2D CAD drafting canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onWheel={handleWheel} onContextMenu={(event)=>event.preventDefault()}>
           <defs><pattern id="cad-grid-small" width={10*view.scale} height={10*view.scale} patternUnits="userSpaceOnUse" x={view.x% (10*view.scale)} y={view.y%(10*view.scale)}><path d={`M ${10*view.scale} 0 L 0 0 0 ${10*view.scale}`} fill="none" stroke="#e5e7eb" strokeWidth=".7"/></pattern></defs>
           {grid.enabled&&<rect width="1000" height="640" fill="url(#cad-grid-small)"/>}
           <g transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>{doc.entities.map(renderEntity)}{tool==="polyline"&&polylinePoints.length>0&&<polyline points={[...polylinePoints,...(cursor?[cursor]:[])].map((p)=>`${p.x},${p.y}`).join(" ")} fill="none" stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}{start&&cursor&&tool!=="select"&&tool!=="move"&&tool!=="copy"&&tool!=="polyline"&&<line x1={start.x} y1={start.y} x2={cursor.x} y2={cursor.y} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}</g>
         </svg>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>Tool: {tool.toUpperCase()} · Objects: {doc.entities.length} · Selected: {selected.length}</span><span>Cursor: {cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"}</span></div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>Tool: {tool.toUpperCase()} · Objects: {doc.entities.length} · Selected: {selected.length}</span><span>Cursor: {cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"} · Wheel: zoom · Middle/right drag: pan</span></div>
       </div>
       <aside className="min-w-0 space-y-3 rounded-lg border p-3 md:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1">
         <div><h3 className="mb-2 flex items-center gap-2 text-sm font-semibold"><Layers3 className="h-4 w-4"/>Layers</h3><div className="space-y-1">{doc.layers.map((l)=><div key={l.id} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={l.visible} onChange={(e)=>commit({...doc,layers:doc.layers.map((x)=>x.id===l.id?{...x,visible:e.target.checked}:x)})}/><span className="h-3 w-3 rounded-sm border" style={{background:l.color}}/><button className="truncate text-left" onClick={()=>setLayerName(l.name)}>{l.name}</button><span className="ml-auto text-muted-foreground">{doc.entities.filter((e)=>e.layerId===l.id).length}</span></div>)}</div><Button size="sm" variant="outline" className="mt-2 w-full" onClick={addLayer}>+ New layer</Button></div>
@@ -381,6 +428,6 @@ export default function ProfessionalCadWorkspace() {
         <div><p className="mb-1 text-xs font-medium">Command line</p><form className="flex gap-1" onSubmit={(e)=>{e.preventDefault();runCommand();}}><Input value={command} onChange={(e)=>setCommand(e.target.value)} placeholder="LINE / RECTANG / CIRCLE"/><Button size="sm" type="submit">Run</Button></form><p className="mt-1 text-[10px] text-muted-foreground">Command aliases select the corresponding tool; geometry handlers are enabled for the initial draw tools.</p></div>
       </aside>
     </div>
-    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, line, rectangle, circle, arc, wall, polygon, move, copy, rotate, mirror and erase. Offset supports current geometry entities; Trim and Extend currently support straight lines/walls with guided two-click workflows. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings stay in this browser session unless exported as SVG or JSON.</p>
+    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, line, rectangle, circle, arc, wall, polygon, move, copy, rotate, mirror and erase. Offset supports current geometry entities; Trim and Extend currently support straight lines/walls with guided two-click workflows. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings auto-save in this browser on this device. Export JSON for a portable editable backup; SVG is for sharing/printing.</p>
   </section>;
 }
