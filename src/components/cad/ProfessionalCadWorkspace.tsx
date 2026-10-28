@@ -772,8 +772,11 @@ export default function ProfessionalCadWorkspace() {
         if (!layerColor) return;
         if (node.hasAttribute("stroke")) node.setAttribute("stroke", layerColor);
         if (node.tagName.toLowerCase() === "text") node.setAttribute("fill", layerColor);
+        const exportStrokeWidth = node.getAttribute("data-cad-export-stroke-width");
+        if (exportStrokeWidth && node.hasAttribute("stroke-width")) node.setAttribute("stroke-width", exportStrokeWidth);
         node.removeAttribute("data-cad-entity-id");
         node.removeAttribute("data-cad-layer-color");
+        node.removeAttribute("data-cad-export-stroke-width");
       });
       content = new XMLSerializer().serializeToString(clone);
     }
@@ -906,7 +909,7 @@ export default function ProfessionalCadWorkspace() {
   const renderEntity = (e: CadEntity) => {
     const layer=doc.layers.find((l)=>l.id===e.layerId); if(layer && !layer.visible)return null;
     const color=selected.includes(e.id)?"#f97316":layer?.color ?? "#111827";
-    const common={stroke:color,strokeWidth:selected.includes(e.id)?2.5:1.6,fill:"none" as const,vectorEffect:"non-scaling-stroke" as const,"data-cad-entity-id":e.id,"data-cad-layer-color":layer?.color ?? "#111827"};
+    const common={stroke:color,strokeWidth:selected.includes(e.id)?2.5:1.6,fill:"none" as const,vectorEffect:"non-scaling-stroke" as const,"data-cad-entity-id":e.id,"data-cad-layer-color":layer?.color ?? "#111827","data-cad-export-stroke-width":e.type==="wall"?Math.max(2,e.thickness):1.6};
     if(e.type==="line"||e.type==="wall")return <line key={e.id} x1={e.start.x} y1={e.start.y} x2={e.end.x} y2={e.end.y} {...common} strokeWidth={e.type==="wall"?Math.max(2,e.thickness):common.strokeWidth}/>;
     if(e.type==="rectangle")return <rect key={e.id} x={e.min.x} y={e.min.y} width={e.max.x-e.min.x} height={e.max.y-e.min.y} {...common}/>;
     if(e.type==="circle")return <circle key={e.id} cx={e.center.x} cy={e.center.y} r={e.radius} {...common}/>
