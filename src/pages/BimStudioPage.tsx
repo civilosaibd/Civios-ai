@@ -98,6 +98,26 @@ function StructuralFrame({ width, depth, floors }: { width: number; depth: numbe
   );
 }
 
+function ModelDimensions({ width, depth, floors }: { width: number; depth: number; floors: number }) {
+  const w = width * FT;
+  const d = depth * FT;
+  const h = floors * FLOOR_H;
+  const offset = 0.65;
+  const line = 0.025;
+  return (
+    <group>
+      <mesh position={[0, 0.04, d / 2 + offset]}><boxGeometry args={[w, line, line]} /><meshBasicMaterial color="#2563eb" /></mesh>
+      <mesh position={[0, 0.04, -d / 2 - offset]}><boxGeometry args={[w, line, line]} /><meshBasicMaterial color="#2563eb" /></mesh>
+      <mesh position={[w / 2 + offset, 0.04, 0]}><boxGeometry args={[line, line, d]} /><meshBasicMaterial color="#0891b2" /></mesh>
+      <mesh position={[-w / 2 - offset, 0.04, 0]}><boxGeometry args={[line, line, d]} /><meshBasicMaterial color="#0891b2" /></mesh>
+      <Text position={[0, 0.18, d / 2 + offset]} rotation={[-Math.PI / 2, 0, 0]} fontSize={0.22} color="#1d4ed8" anchorX="center">{width.toFixed(1)} ft</Text>
+      <Text position={[w / 2 + offset, 0.18, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 2]} fontSize={0.22} color="#0e7490" anchorX="center">{depth.toFixed(1)} ft</Text>
+      <mesh position={[w / 2 + offset, h / 2, -d / 2 - offset]}><boxGeometry args={[line, h, line]} /><meshBasicMaterial color="#16a34a" /></mesh>
+      <Text position={[w / 2 + offset, h / 2, -d / 2 - offset - 0.18]} fontSize={0.22} color="#15803d" anchorX="center">{(h / FT).toFixed(1)} ft</Text>
+    </group>
+  );
+}
+
 function CameraRig({ view, size }: { view: string; size: number }) {
   const { camera } = useThree();
   const last = useRef("");
@@ -123,6 +143,7 @@ export default function BimStudioPage() {
   const [view, setView] = useState("iso");
   const [showStructure, setShowStructure] = useState(false);
   const [showRoof, setShowRoof] = useState(true);
+  const [showDimensions, setShowDimensions] = useState(false);
   const [cutaway, setCutaway] = useState(false);
   const ox = -(plan.buildW * FT) / 2, oz = (plan.buildD * FT) / 2;
   const size = Math.max(plan.buildW, plan.buildD) * FT;
@@ -186,6 +207,8 @@ export default function BimStudioPage() {
                 </Button>
                 <Button size="sm" variant={showRoof ? "default" : "outline"} className="w-full" onClick={() => setShowRoof(!showRoof)}>
                   {showRoof ? L("Hide roof slab", "ছাদের স্ল্যাব লুকান") : L("Show roof slab", "ছাদের স্ল্যাব দেখান")}
+                </Button>                <Button size="sm" variant={showDimensions ? "default" : "outline"} className="w-full" onClick={() => setShowDimensions(!showDimensions)}>
+                  {showDimensions ? L("Hide dimensions", "মাপ লুকান") : L("Show dimensions", "মাপ দেখান")}
                 </Button>
               </div>
               <Button size="sm" variant="secondary" className="w-full" onClick={snapshot}><Camera className="h-4 w-4 mr-1" /> {L("Save image", "ছবি সংরক্ষণ")}</Button>
@@ -210,6 +233,7 @@ export default function BimStudioPage() {
                     )),
                   )}
                   {showStructure && <StructuralFrame width={plan.buildW} depth={plan.buildD} floors={shown} />}
+                  {showDimensions && <ModelDimensions width={plan.buildW} depth={plan.buildD} floors={shown} />}
                   {showRoof && (
                     <mesh position={[0, shown * FLOOR_H + 0.08, 0]} castShadow receiveShadow>
                       <boxGeometry args={[plan.buildW * FT + 0.2, 0.16, plan.buildD * FT + 0.2]} />
