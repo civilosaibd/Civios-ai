@@ -90,4 +90,23 @@ describe("2D CAD geometry foundation", () => {
     expect(deserializeCadDocument(serializeCadDocument(doc))).toEqual(doc);
     expect(() => deserializeCadDocument("{}")).toThrow(/invalid CAD document format/i);
   });
+
+  it("preserves locked state when rotating a rectangle into a polyline", () => {
+    const lockedRectangle: CadEntity = {
+      id: "locked-rect",
+      layerId: "walls",
+      type: "rectangle",
+      min: { x: 0, y: 0 },
+      max: { x: 4, y: 2 },
+      locked: true,
+    };
+    const rotated = rotateEntity(lockedRectangle, Math.PI / 2);
+    expect(rotated).toMatchObject({
+      id: "locked-rect",
+      layerId: "walls",
+      type: "polyline",
+      locked: true,
+      closed: true,
+    });
+  });
 });
