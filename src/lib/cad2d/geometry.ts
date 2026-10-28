@@ -15,7 +15,8 @@ export type CadEntity =
   | (BaseEntity & { type: "circle"; center: Point2D; radius: number })
   | (BaseEntity & { type: "ellipse"; center: Point2D; rx: number; ry: number })
   | (BaseEntity & { type: "arc"; center: Point2D; radius: number; startAngle: number; endAngle: number })
-  | (BaseEntity & { type: "wall"; start: Point2D; end: Point2D; thickness: number });
+  | (BaseEntity & { type: "wall"; start: Point2D; end: Point2D; thickness: number })
+  | (BaseEntity & { type: "text"; at: Point2D; text: string; height: number; rotation: number });
 
 export type CadDocument = {
   version: 1;
@@ -72,6 +73,7 @@ export function translateEntity(entity: CadEntity, dx: number, dy: number): CadE
   switch (entity.type) {
     case "line": case "wall": return { ...entity, start: move(entity.start), end: move(entity.end) };
     case "polyline": return { ...entity, points: entity.points.map(move) };
+    case "text": return { ...entity, at: move(entity.at) };
     case "rectangle": return { ...entity, min: move(entity.min), max: move(entity.max) };
     case "circle": case "arc": case "ellipse": return { ...entity, center: move(entity.center) };
   }
@@ -91,6 +93,7 @@ export function rotateEntity(entity: CadEntity, angleRadians: number, origin: Po
       return { id: entity.id, layerId: entity.layerId, type: "polyline", points: pts, closed: true };
     }
     case "circle": case "ellipse": return { ...entity, center: rotate(entity.center) };
+    case "text": return { ...entity, at: rotate(entity.at), rotation: entity.rotation + angleRadians };
     case "arc": return { ...entity, center: rotate(entity.center), startAngle: entity.startAngle + angleRadians, endAngle: entity.endAngle + angleRadians };
   }
 }
@@ -110,6 +113,8 @@ export function mirrorEntity(entity: CadEntity, axisX: number): CadEntity {
     case "circle":
     case "ellipse":
       return { ...entity, center: mirror(entity.center) };
+    case "text":
+      return { ...entity, at: mirror(entity.at), rotation: -entity.rotation };
     case "arc":
       return { ...entity, center: mirror(entity.center), startAngle: Math.PI - entity.startAngle, endAngle: Math.PI - entity.endAngle };
   }
@@ -135,6 +140,9 @@ export function offsetEntity(entity: CadEntity, amount: number): CadEntity {
     const radius = entity.radius + amount;
     if (radius <= 0) throw new Error("Offset would create a zero or negative radius.");
     return { ...entity, radius };
+  }
+  if (entity.type === "text") {
+    throw new Error("Text annotations cannot be offset. Change the text position or height instead.");
   }
   if (entity.type === "ellipse") {
     const rx = entity.rx + amount, ry = entity.ry + amount;
@@ -255,6 +263,22 @@ export function entityBounds(entity: CadEntity): { min: Point2D; max: Point2D } 
       min: { x: entity.center.x - entity.rx, y: entity.center.y - entity.ry },
       max: { x: entity.center.x + entity.rx, y: entity.center.y + entity.ry },
     };
+  }
+  if (entity.type === "text") {
+    const width = Math.max(entity.height * 0.6, entity.text.length * entity.height * 0.6);
+    const corners = [
+      { x: 0, y: -entity.height },
+      { x: width, y: -entity.height },
+      { x: width, y: entity.height * 0.25 },
+      { x: 0, y: entity.height * 0.25 },
+    ].map((point) => ({
+      x: entity.at.x + point.x * Math.cos(entity.rotation) - point.y * Math.sin(entity.rotation),
+      y: entity.at.y + point.x * Math.sin(entity.rotation) + point.y * Math.cos(entity.rotation),
+    }));
+    return corners.reduce((bounds, point) => ({
+      min: { x: Math.min(bounds.min.x, point.x), y: Math.min(bounds.min.y, point.y) },
+      max: { x: Math.max(bounds.max.x, point.x), y: Math.max(bounds.max.y, point.y) },
+    }), { min: { ...corners[0] }, max: { ...corners[0] } });
   }
   const points = entity.type === "line" || entity.type === "wall" ? [entity.start, entity.end]
     : entity.type === "rectangle" ? [entity.min, entity.max]
