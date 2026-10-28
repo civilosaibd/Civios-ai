@@ -565,7 +565,24 @@ export default function ProfessionalCadWorkspace() {
             default: return false;
           }
         });
+        const validUnits = candidate.units === "mm" || candidate.units === "cm" ||
+          candidate.units === "m" || candidate.units === "in" || candidate.units === "ft";
+        const layerIdsForValidation = candidate.layers.map((layer) => layer.id);
+        const layerNamesForValidation = candidate.layers.map((layer) => layer.name.trim().toLowerCase());
+        const entityIdsForValidation = candidate.entities.map((entity) =>
+          entity && typeof entity === "object" && "id" in entity ? (entity as { id?: unknown }).id : undefined
+        );
+        const uniqueValues = (values: unknown[]) => new Set(values).size === values.length;
+        if (!validUnits) throw new Error("Unsupported drawing units. Use mm, cm, m, in, or ft.");
         if (!validLayers || !validEntities) throw new Error("The drawing contains invalid layer or object data.");
+        if (!uniqueValues(layerIdsForValidation) || layerNamesForValidation.some((name) => !name) ||
+            !uniqueValues(layerNamesForValidation)) {
+          throw new Error("Layer IDs and names must be present and unique.");
+        }
+        if (entityIdsForValidation.some((id) => typeof id !== "string" || !id.trim()) ||
+            !uniqueValues(entityIdsForValidation)) {
+          throw new Error("Every drawing object must have a unique, non-empty ID.");
+        }
         const layerIds = new Set(candidate.layers.map((layer) => layer.id));
         if (candidate.entities.some((entity) => !layerIds.has(entity.layerId))) {
           throw new Error("Some objects refer to layers that are missing from this file.");
