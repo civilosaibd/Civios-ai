@@ -62,6 +62,9 @@ export default function ProfessionalCadWorkspace() {
   const isMobile = useIsMobile();
   const svgRef = useRef<SVGSVGElement>(null);
   const panRef = useRef<{ clientX: number; clientY: number; viewX: number; viewY: number } | null>(null);
+  const transformStartRef = useRef<Point2D | null>(null);
+  const transformTargetIdsRef = useRef<string[]>([]);
+  const transformToolRef = useRef<"move" | "copy" | null>(null);
   const activeLayer = doc.layers.find((layer) => layer.name === layerName) ?? doc.layers[0];
 
   useEffect(() => {
@@ -78,7 +81,7 @@ export default function ProfessionalCadWorkspace() {
     setDoc({ ...next });
   }, [doc]);
 
-  const toWorld = (event: ReactPointerEvent<SVGSVGElement>): Point2D => {
+  const toWorld = (event: ReactPointerEvent<SVGSVGElement>, orthoAnchorOverride?: Point2D): Point2D => {
     const rect = event.currentTarget.getBoundingClientRect();
     // Convert CSS pixels into SVG viewBox coordinates before applying the world transform.
     const canvasX = (event.clientX - rect.left) * (1000 / Math.max(rect.width, 1));
@@ -86,9 +89,11 @@ export default function ProfessionalCadWorkspace() {
     let p = { x: (canvasX - view.x) / view.scale, y: (canvasY - view.y) / view.scale };
     if (grid.snapEnabled) p = snapToGrid(p, grid.snapSpacing);
     // Ortho uses the previous polyline vertex, or the first point for other tools.
-    const orthoAnchor = tool === "polyline" && polylinePoints.length
+    const orthoAnchor = orthoAnchorOverride ?? (tool === "polyline" && polylinePoints.length
       ? polylinePoints[polylinePoints.length - 1]
-      : start;
+      : tool === "move" || tool === "copy"
+        ? null
+        : start);
     if (grid.ortho && orthoAnchor && tool !== "select" && tool !== "erase") {
       const dx = p.x - orthoAnchor.x, dy = p.y - orthoAnchor.y;
       p = Math.abs(dx) >= Math.abs(dy)
@@ -123,6 +128,9 @@ export default function ProfessionalCadWorkspace() {
     return false;
   })?.id;
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    transformStartRef.current = null;
+    transformTargetIdsRef.current = [];
+    transformToolRef.current = null;
     // Middle/right mouse drag pans the drawing without changing the active tool.
     if (event.button === 1 || event.button === 2) {
       event.preventDefault();
@@ -254,7 +262,13 @@ export default function ProfessionalCadWorkspace() {
         toast.success(`Mirrored ${targets.length} object(s) across the clicked vertical axis.`);
         return;
       }
-      setSelected((current) => current.includes(id) ? current : [id]); setStart(p); return;
+      const targets = selected.includes(id) ? selected : [id];
+      setSelected(targets);
+      transformStartRef.current = p;
+      transformTargetIdsRef.current = targets;
+      transformToolRef.current = tool;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
     }
     if (!start) { setStart(p); setCursor(p); return; }
     const a=start, b=p;
@@ -337,16 +351,38 @@ export default function ProfessionalCadWorkspace() {
       setStart(null);
       return;
     }
-    if (!start || !selected.length || (tool!=="move" && tool!=="copy")) return;
-    const end=toWorld(event), dx=end.x-start.x, dy=end.y-start.y;
-    if (selected.length && (dx!==0 || dy!==0)) {
-      const selectedSet = new Set(selected);
-      const entities = tool === "copy"
-        ? [...doc.entities, ...doc.entities.filter((entity) => selectedSet.has(entity.id)).map((entity) => ({ ...translateEntity(entity, dx, dy), id: makeId() } as CadEntity))]
-        : doc.entities.map((entity) => selectedSet.has(entity.id) ? translateEntity(entity, dx, dy) : entity);
+    const start = transformStartRef.current;
+    const targetIds = transformTargetIdsRef.current;
+    const transformTool = transformToolRef.current;
+    transformStartRef.current = null;
+    transformTargetIdsRef.current = [];
+    transformToolRef.current = null;
+    if (!start || !targetIds.length || !transformTool) return;
+    const end = toWorld(event, start), dx = end.x - start.x, dy = end.y - start.y;
+    if (dx !== 0 || dy !== 0) {
+      const targetSet = new Set(targetIds);
+      const entities = transformTool === "copy"
+        ? [...doc.entities, ...doc.entities.filter((entity) => targetSet.has(entity.id)).map((entity) => ({ ...translateEntity(entity, dx, dy), id: makeId() } as CadEntity))]
+        : doc.entities.map((entity) => targetSet.has(entity.id) ? translateEntity(entity, dx, dy) : entity);
       commit({ ...doc, entities });
     }
-    setStart(null);
+  };
+
+  const handlePointerCancel = (event: ReactPointerEvent<SVGSVGElement>) => {
+    panRef.current = null;
+    transformStartRef.current = null;
+    transformTargetIdsRef.current = [];
+    transformToolRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handleLostPointerCapture = () => {
+    panRef.current = null;
+    transformStartRef.current = null;
+    transformTargetIdsRef.current = [];
+    transformToolRef.current = null;
   };
 
   const runCommand = () => {
@@ -427,6 +463,9 @@ export default function ProfessionalCadWorkspace() {
       if (event.key === "Escape") {
         setModifyTargetId(null);
         setSelectionWindow(null);
+        transformStartRef.current = null;
+        transformTargetIdsRef.current = [];
+        transformToolRef.current = null;
         setStart(null);
         setPolylinePoints([]);
         setCursor(null);
@@ -640,7 +679,7 @@ export default function ProfessionalCadWorkspace() {
       <aside className="hidden space-y-3 rounded-2xl border border-slate-200 bg-slate-100/80 p-3 md:block xl:max-h-[76vh] xl:overflow-y-auto">{ToolPalette}</aside>
       <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md xl:col-start-2">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5"><div className="flex items-center gap-2"><div className="rounded-md bg-orange-50 p-1.5 text-orange-600"><Ruler className="h-4 w-4"/></div><div><p className="text-xs font-semibold text-slate-800">Drawing canvas</p><p className="text-[10px] text-slate-500">Infinite-feel workspace · grid & precision controls</p></div></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-600">{doc.entities.length} objects</span></div>
-        <svg ref={svgRef} viewBox="0 0 1000 640" className="h-[min(62dvh,640px)] min-h-[340px] w-full touch-none bg-slate-50 sm:h-[560px] xl:h-[min(76vh,760px)]" role="img" aria-label="2D CAD drafting canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onDoubleClick={(event)=>{if(tool==="polyline"){event.preventDefault();finishPolyline();}}} onWheel={handleWheel} onContextMenu={(event)=>event.preventDefault()}>
+        <svg ref={svgRef} viewBox="0 0 1000 640" className="h-[min(62dvh,640px)] min-h-[340px] w-full touch-none bg-slate-50 sm:h-[560px] xl:h-[min(76vh,760px)]" role="img" aria-label="2D CAD drafting canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerCancel} onLostPointerCapture={handleLostPointerCapture} onDoubleClick={(event)=>{if(tool==="polyline"){event.preventDefault();finishPolyline();}}} onWheel={handleWheel} onContextMenu={(event)=>event.preventDefault()}>
           <defs><pattern id="cad-grid-small" width={Math.max(2,grid.gridSpacing*view.scale)} height={Math.max(2,grid.gridSpacing*view.scale)} patternUnits="userSpaceOnUse" x={view.x%Math.max(2,grid.gridSpacing*view.scale)} y={view.y%Math.max(2,grid.gridSpacing*view.scale)}><path d={`M ${Math.max(2,grid.gridSpacing*view.scale)} 0 L 0 0 0 ${Math.max(2,grid.gridSpacing*view.scale)}`} fill="none" stroke="#e5e7eb" strokeWidth=".7"/></pattern></defs>
           {grid.enabled&&<rect width="1000" height="640" fill="url(#cad-grid-small)"/>}
           {selectionWindow && tool === "select" && <rect x={Math.min(selectionWindow.start.x, selectionWindow.end.x)} y={Math.min(selectionWindow.start.y, selectionWindow.end.y)} width={Math.abs(selectionWindow.end.x - selectionWindow.start.x)} height={Math.abs(selectionWindow.end.y - selectionWindow.start.y)} fill="#2563eb" fillOpacity={0.08} stroke="#2563eb" strokeDasharray="5 3" strokeWidth={1 / view.scale} pointerEvents="none" transform={`translate(${view.x},${view.y}) scale(${view.scale})`} />}
