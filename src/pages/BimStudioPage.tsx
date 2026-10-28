@@ -30,7 +30,7 @@ const FURN: Record<string, { w: number; d: number; h: number; c: string }> = {
   Bath: { w: 2, d: 1.5, h: 1.5, c: "#e2e8f0" },
 };
 
-function RoomMesh({ r, ox, oz, y, fin, showFurniture, bn, cutaway }: { r: Room; ox: number; oz: number; y: number; fin: FinishKey; showFurniture: boolean; bn: boolean; cutaway: boolean }) {
+function RoomMesh({ r, ox, oz, y, fin, showFurniture, bn, cutaway, showOpenings }: { r: Room; ox: number; oz: number; y: number; fin: FinishKey; showFurniture: boolean; bn: boolean; cutaway: boolean; showOpenings: boolean }) {
   const w = r.w * FT, d = r.h * FT, cx = ox + (r.x + r.w / 2) * FT, cz = oz - (r.y + r.h / 2) * FT;
   const t = 0.12, wallH = FLOOR_H - 0.15, f = FINISHES[fin];
   const key = Object.keys(FURN).find((k) => r.name.includes(k));
@@ -49,6 +49,36 @@ function RoomMesh({ r, ox, oz, y, fin, showFurniture, bn, cutaway }: { r: Room; 
           <Edges color="#0f172a" />
         </mesh>
       ))}
+      {showOpenings && (
+        <group>
+          {/* Visual door panel on the room's front wall; this is a concept detail, not a wall-cut boolean. */}
+          <mesh position={[cx, y + 0.1 + 1.05 * FT, cz + d / 2 + 0.012]}>
+            <boxGeometry args={[Math.min(3 * FT, w * 0.42), 2.1 * FT, 0.035]} />
+            <meshStandardMaterial color="#8b5e3c" roughness={0.72} />
+          </mesh>
+          <mesh position={[cx, y + 0.1 + 1.05 * FT, cz + d / 2 + 0.034]}>
+            <boxGeometry args={[Math.min(2.85 * FT, w * 0.4), 1.95 * FT, 0.012]} />
+            <meshStandardMaterial color="#b8895d" roughness={0.68} />
+          </mesh>
+          <mesh position={[cx + Math.min(1.1 * FT, w * 0.12), y + 0.1 + 1.05 * FT, cz + d / 2 + 0.045]}>
+            <sphereGeometry args={[0.025, 10, 8]} />
+            <meshStandardMaterial color="#fbbf24" metalness={0.65} roughness={0.3} />
+          </mesh>
+          {/* Blue glazed window detail on the opposite wall. */}
+          <mesh position={[cx, y + 0.1 + 5.7 * FT, cz - d / 2 - 0.014]}>
+            <boxGeometry args={[Math.min(4 * FT, w * 0.55), 2.2 * FT, 0.035]} />
+            <meshStandardMaterial color="#475569" roughness={0.5} />
+          </mesh>
+          <mesh position={[cx, y + 0.1 + 5.7 * FT, cz - d / 2 - 0.037]}>
+            <boxGeometry args={[Math.min(3.75 * FT, w * 0.5), 1.95 * FT, 0.012]} />
+            <meshStandardMaterial color="#7dd3fc" metalness={0.15} roughness={0.2} />
+          </mesh>
+          <mesh position={[cx, y + 0.1 + 5.7 * FT, cz - d / 2 - 0.045]}>
+            <boxGeometry args={[0.025, 2.05 * FT, 0.014]} />
+            <meshStandardMaterial color="#475569" />
+          </mesh>
+        </group>
+      )}
       {showFurniture && fu && (
         <mesh position={[cx, y + 0.1 + (fu.h * FT) / 2, cz]}>
           <boxGeometry args={[Math.min(fu.w * FT, w * 0.7), fu.h * FT, Math.min(fu.d * FT, d * 0.7)]} />
@@ -145,6 +175,7 @@ export default function BimStudioPage() {
   const [showRoof, setShowRoof] = useState(true);
   const [showDimensions, setShowDimensions] = useState(false);
   const [cutaway, setCutaway] = useState(false);
+  const [showOpenings, setShowOpenings] = useState(true);
   const ox = -(plan.buildW * FT) / 2, oz = (plan.buildD * FT) / 2;
   const size = Math.max(plan.buildW, plan.buildD) * FT;
 
@@ -207,7 +238,11 @@ export default function BimStudioPage() {
                 </Button>
                 <Button size="sm" variant={showRoof ? "default" : "outline"} className="w-full" onClick={() => setShowRoof(!showRoof)}>
                   {showRoof ? L("Hide roof slab", "ছাদের স্ল্যাব লুকান") : L("Show roof slab", "ছাদের স্ল্যাব দেখান")}
-                </Button>                <Button size="sm" variant={showDimensions ? "default" : "outline"} className="w-full" onClick={() => setShowDimensions(!showDimensions)}>
+                </Button>
+                <Button size="sm" variant={showOpenings ? "default" : "outline"} className="w-full" onClick={() => setShowOpenings(!showOpenings)}>
+                  {showOpenings ? L("Hide doors & windows", "দরজা-জানালা লুকান") : L("Show doors & windows", "দরজা-জানালা দেখান")}
+                </Button>
+                <Button size="sm" variant={showDimensions ? "default" : "outline"} className="w-full" onClick={() => setShowDimensions(!showDimensions)}>
                   {showDimensions ? L("Hide dimensions", "মাপ লুকান") : L("Show dimensions", "মাপ দেখান")}
                 </Button>
               </div>
@@ -229,7 +264,7 @@ export default function BimStudioPage() {
                   </mesh>
                   {Array.from({ length: shown }).map((_, f) =>
                     plan.rooms.map((r) => (
-                      <RoomMesh key={`${f}-${r.name}`} r={r} ox={ox} oz={oz} y={f * FLOOR_H} fin={fin} showFurniture={furniture && f === shown - 1} bn={bn && f === shown - 1} cutaway={cutaway} />
+                      <RoomMesh key={`${f}-${r.name}`} r={r} ox={ox} oz={oz} y={f * FLOOR_H} fin={fin} showFurniture={furniture && f === shown - 1} bn={bn && f === shown - 1} cutaway={cutaway} showOpenings={showOpenings} />
                     )),
                   )}
                   {showStructure && <StructuralFrame width={plan.buildW} depth={plan.buildD} floors={shown} />}
