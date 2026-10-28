@@ -26,7 +26,7 @@ const palette: { id: CadToolId; label: string; group: string }[] = [
   { id: "offset", label: "Offset", group: "Modify" }, { id: "trim", label: "Trim", group: "Modify" },
   { id: "extend", label: "Extend", group: "Modify" }, { id: "fillet", label: "Fillet", group: "Modify" },
   { id: "dimension", label: "Dimension", group: "Annotate" }, { id: "text", label: "Text", group: "Annotate" },
-  { id: "wall", label: "Wall", group: "Architecture" }, { id: "door", label: "Door", group: "Architecture" },
+  { id: "wall", label: "Wall", group: "Architecture" }, { id: "beam", label: "Beam", group: "Architecture" }, { id: "door", label: "Door", group: "Architecture" },
   { id: "window", label: "Window", group: "Architecture" }, { id: "column", label: "Column", group: "Architecture" },
 ];
 
@@ -259,13 +259,13 @@ export default function ProfessionalCadWorkspace() {
     if (!start) { setStart(p); setCursor(p); return; }
     const a=start, b=p;
     const deltaX = Math.abs(b.x - a.x), deltaY = Math.abs(b.y - a.y);
-    if ((tool === "line" || tool === "wall") && Math.hypot(deltaX, deltaY) < 1e-8) {
+    if ((tool === "line" || tool === "wall" || tool === "beam") && Math.hypot(deltaX, deltaY) < 1e-8) {
       toast.info("Choose two different points to create a line or wall.");
       setStart(null); setCursor(null);
       return;
     }
-    if (tool === "rectangle" && (deltaX < 1e-8 || deltaY < 1e-8)) {
-      toast.info("A rectangle needs both a width and a height.");
+    if ((tool === "rectangle" || tool === "column") && (deltaX < 1e-8 || deltaY < 1e-8)) {
+      toast.info("This shape needs both a width and a height.");
       setStart(null); setCursor(null);
       return;
     }
@@ -282,9 +282,9 @@ export default function ProfessionalCadWorkspace() {
     let entity: CadEntity | null = null;
     const base={ id:makeId(), layerId:activeLayer.id };
     if (tool==="line") entity={...base,type:"line",start:a,end:b};
-    else if (tool==="rectangle" || tool==="wall") {
+    else if (tool==="rectangle" || tool==="column" || tool==="wall" || tool==="beam") {
       const r=normalizeRect(a,b);
-      entity=tool==="wall" ? {...base,type:"wall",start:a,end:b,thickness:0.5} : {...base,type:"rectangle",...r};
+      entity=(tool==="wall" || tool==="beam") ? {...base,type:"wall",start:a,end:b,thickness:tool==="beam"?0.75:0.5} : {...base,type:"rectangle",...r};
     } else if (tool==="circle") entity={...base,type:"circle",center:a,radius:Math.hypot(b.x-a.x,b.y-a.y)};
     else if (tool==="polyline") entity={...base,type:"polyline",points:[a,b],closed:false};
     else if (tool==="polygon") {
