@@ -736,10 +736,34 @@ export default function ProfessionalCadWorkspace() {
       return { scale, x: canvasX - worldX * scale, y: canvasY - worldY * scale };
     });
   };
-  const exportFile = (kind:"json"|"svg") => {
-    const content=kind==="json" ? JSON.stringify(doc,null,2) : svgRef.current?.outerHTML ?? "";
-    const blob=new Blob([content],{type:kind==="json"?"application/json":"image/svg+xml"});
-    const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`civilos-drawing.${kind}`;a.click();URL.revokeObjectURL(url);
+  const exportFile = (kind: "json" | "svg") => {
+    let content: string;
+    if (kind === "json") {
+      content = JSON.stringify(doc, null, 2);
+    } else {
+      const source = svgRef.current;
+      if (!source) {
+        toast.error("Drawing canvas is not ready to export.");
+        return;
+      }
+      // Serialize a clone so the downloaded SVG is standalone and the live canvas is untouched.
+      const clone = source.cloneNode(true) as SVGSVGElement;
+      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      clone.setAttribute("width", "1000");
+      clone.setAttribute("height", "640");
+      clone.setAttribute("viewBox", "0 0 1000 640");
+      content = new XMLSerializer().serializeToString(clone);
+    }
+    const blob = new Blob([content], { type: kind === "json" ? "application/json;charset=utf-8" : "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `civilos-drawing.${kind}`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    // Allow the browser to begin the download before releasing its object URL.
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   const importJson = () => {
     const input = document.createElement("input");
