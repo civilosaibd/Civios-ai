@@ -296,7 +296,7 @@ export default function BimStudioPage() {
               </div>
               <Button size="sm" variant="secondary" className="w-full" onClick={snapshot}><Camera className="h-4 w-4 mr-1" /> {L("Save image", "ছবি সংরক্ষণ")}</Button>
             </Card>
-            <Card id="bim-canvas" className="h-[60vh] lg:h-[calc(100vh-8rem)] overflow-hidden bg-muted/40">
+            <Card id="bim-canvas" className="relative h-[60vh] lg:h-[calc(100vh-8rem)] overflow-hidden bg-muted/40">
               <Canvas shadows camera={{ fov: 45, position: [size, size, size] }} gl={{ preserveDrawingBuffer: true }}>
                 <ambientLight intensity={0.6} />
                 <directionalLight position={[10, 20, 10]} intensity={1.1} castShadow />
@@ -327,6 +327,14 @@ export default function BimStudioPage() {
                 </Suspense>
                 <OrbitControls makeDefault target={[0, 0, 0]} />
               </Canvas>
+              <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-10 rounded-lg border border-amber-300/70 bg-background/95 px-3 py-2 shadow-sm backdrop-blur">
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                  {L("Conceptual 3D visualization — not construction documentation", "ধারণাভিত্তিক 3D মডেল — নির্মাণের নকশা নয়")}
+                </p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                  {L("Openings, furniture and the structural frame are illustrative. Verify dimensions, loads, reinforcement and code compliance with a qualified engineer before construction.", "দরজা-জানালা, ফার্নিচার ও স্ট্রাকচারাল ফ্রেম শুধু প্রদর্শনের জন্য। নির্মাণের আগে যোগ্য প্রকৌশলীর মাধ্যমে মাপ, লোড, রডের নকশা ও বিধিমালা যাচাই করুন।")}
+                </p>
+              </div>
             </Card>
           </main>
         </div>
