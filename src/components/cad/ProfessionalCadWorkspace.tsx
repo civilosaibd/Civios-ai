@@ -541,8 +541,30 @@ export default function ProfessionalCadWorkspace() {
       toast.error(error instanceof Error ? error.message : "Could not run this CAD command.");
     }
   };
-  const undo = () => { if(!history.length)return; setFuture((f)=>[doc,...f]);setDoc(history[history.length-1]);setHistory(history.slice(0,-1)); };
-  const redo = () => { if(!future.length)return; setHistory((h)=>[...h,doc]);setDoc(future[0]);setFuture(future.slice(1)); };
+  const undo = () => {
+    if (!history.length) return;
+    setFuture((items) => [...items, doc].slice(-100));
+    setDoc(history[history.length - 1]);
+    setHistory(history.slice(0, -1));
+    setSelected([]);
+    setStart(null);
+    setArcStart(null);
+    setPolylinePoints([]);
+    setModifyTargetId(null);
+    setSelectionWindow(null);
+  };
+  const redo = () => {
+    if (!future.length) return;
+    setHistory((items) => [...items, doc].slice(-100));
+    setDoc(future[0]);
+    setFuture(future.slice(1));
+    setSelected([]);
+    setStart(null);
+    setArcStart(null);
+    setPolylinePoints([]);
+    setModifyTargetId(null);
+    setSelectionWindow(null);
+  };
 
   // Keyboard editing shortcuts mirror common desktop CAD conventions.
   useEffect(() => {
