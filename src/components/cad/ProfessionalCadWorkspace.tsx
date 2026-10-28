@@ -53,6 +53,7 @@ export default function ProfessionalCadWorkspace() {
   const [modifyTargetId, setModifyTargetId] = useState<string | null>(null);
   const [cursor, setCursor] = useState<Point2D | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  const [selectionWindow, setSelectionWindow] = useState<{ start: Point2D; end: Point2D } | null>(null);
   const [command, setCommand] = useState("");
   const [history, setHistory] = useState<CadDocument[]>([]);
   const [future, setFuture] = useState<CadDocument[]>([]);
@@ -223,7 +224,7 @@ export default function ProfessionalCadWorkspace() {
       }
       return;
     }
-    if (tool === "select") { const id=findHit(p); if (event.shiftKey && id) setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]); else setSelected(id ? [id] : []); return; }
+    if (tool === "select") { const id=findHit(p); if (event.shiftKey && id) setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]); else setSelected(id ? [id] : []); setStart(p); setCursor(p); setSelectionWindow(null); return; }
     if (tool === "move" || tool === "copy" || tool === "erase" || tool === "rotate" || tool === "mirror") {
       const id=findHit(p); if (!id) { toast.info("Click an existing object first."); return; }
       if (tool === "erase") { const idsToErase = selected.includes(id) ? new Set(selected) : new Set([id]); const remaining = doc.entities.filter((entity) => !idsToErase.has(entity.id)); commit({ ...doc, entities: remaining }); setSelected([]); toast.success(`Erased ${doc.entities.length - remaining.length} object(s).`); return; }
@@ -307,6 +308,7 @@ export default function ProfessionalCadWorkspace() {
       return;
     }
     const p=toWorld(event); setCursor(p);
+    if (tool === "select" && start) setSelectionWindow({ start, end: p });
     if (start && (tool==="move" || tool==="copy") && selected.length) {
       // Preview is shown by cursor; commit on pointer-up to keep history deterministic.
     }
@@ -315,6 +317,24 @@ export default function ProfessionalCadWorkspace() {
     if (panRef.current) {
       panRef.current = null;
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      return;
+    }
+    if (tool === "select" && start) {
+      const end = toWorld(event);
+      const width = Math.abs(end.x - start.x), height = Math.abs(end.y - start.y);
+      if (Math.hypot(width, height) > 4 / view.scale) {
+        const minX = Math.min(start.x, end.x), maxX = Math.max(start.x, end.x);
+        const minY = Math.min(start.y, end.y), maxY = Math.max(start.y, end.y);
+        const ids = doc.entities.filter((entity) => {
+          if (doc.layers.find((layer) => layer.id === entity.layerId)?.visible === false) return false;
+          const bounds = entityBounds(entity);
+          return bounds.max.x >= minX && bounds.min.x <= maxX && bounds.max.y >= minY && bounds.min.y <= maxY;
+        }).map((entity) => entity.id);
+        setSelected(ids);
+        setSelectionWindow({ start, end });
+        window.setTimeout(() => setSelectionWindow(null), 180);
+      }
+      setStart(null);
       return;
     }
     if (!start || !selected.length || (tool!=="move" && tool!=="copy")) return;
@@ -388,6 +408,7 @@ export default function ProfessionalCadWorkspace() {
       }
       if (event.key === "Escape") {
         setModifyTargetId(null);
+        setSelectionWindow(null);
         setStart(null);
         setPolylinePoints([]);
         setCursor(null);
@@ -604,6 +625,7 @@ export default function ProfessionalCadWorkspace() {
         <svg ref={svgRef} viewBox="0 0 1000 640" className="h-[min(62dvh,640px)] min-h-[340px] w-full touch-none bg-slate-50 sm:h-[560px] xl:h-[min(76vh,760px)]" role="img" aria-label="2D CAD drafting canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onDoubleClick={(event)=>{if(tool==="polyline"){event.preventDefault();finishPolyline();}}} onWheel={handleWheel} onContextMenu={(event)=>event.preventDefault()}>
           <defs><pattern id="cad-grid-small" width={Math.max(2,grid.gridSpacing*view.scale)} height={Math.max(2,grid.gridSpacing*view.scale)} patternUnits="userSpaceOnUse" x={view.x%Math.max(2,grid.gridSpacing*view.scale)} y={view.y%Math.max(2,grid.gridSpacing*view.scale)}><path d={`M ${Math.max(2,grid.gridSpacing*view.scale)} 0 L 0 0 0 ${Math.max(2,grid.gridSpacing*view.scale)}`} fill="none" stroke="#e5e7eb" strokeWidth=".7"/></pattern></defs>
           {grid.enabled&&<rect width="1000" height="640" fill="url(#cad-grid-small)"/>}
+          {selectionWindow && tool === "select" && <rect x={Math.min(selectionWindow.start.x, selectionWindow.end.x)} y={Math.min(selectionWindow.start.y, selectionWindow.end.y)} width={Math.abs(selectionWindow.end.x - selectionWindow.start.x)} height={Math.abs(selectionWindow.end.y - selectionWindow.start.y)} fill="#2563eb" fillOpacity={0.08} stroke="#2563eb" strokeDasharray="5 3" strokeWidth={1 / view.scale} pointerEvents="none" transform={`translate(${view.x},${view.y}) scale(${view.scale})`} />}
           <g transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>{doc.entities.map(renderEntity)}{tool==="polyline"&&polylinePoints.length>0&&<polyline points={[...polylinePoints,...(cursor?[cursor]:[])].map((p)=>`${p.x},${p.y}`).join(" ")} fill="none" stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}{start&&cursor&&tool!=="select"&&tool!=="move"&&tool!=="copy"&&tool!=="polyline"&&<line x1={start.x} y1={start.y} x2={cursor.x} y2={cursor.y} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}</g>
         </svg>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>Tool: {tool.toUpperCase()} · Objects: {doc.entities.length} · Selected: {selected.length} · Units: {doc.units}</span><span>Cursor: {cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"} · Wheel: zoom · Middle/right drag: pan</span></div>
