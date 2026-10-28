@@ -30,7 +30,7 @@ const FURN: Record<string, { w: number; d: number; h: number; c: string }> = {
   Bath: { w: 2, d: 1.5, h: 1.5, c: "#e2e8f0" },
 };
 
-function RoomMesh({ r, ox, oz, y, fin, showFurniture, bn }: { r: Room; ox: number; oz: number; y: number; fin: FinishKey; showFurniture: boolean; bn: boolean }) {
+function RoomMesh({ r, ox, oz, y, fin, showFurniture, bn, cutaway }: { r: Room; ox: number; oz: number; y: number; fin: FinishKey; showFurniture: boolean; bn: boolean; cutaway: boolean }) {
   const w = r.w * FT, d = r.h * FT, cx = ox + (r.x + r.w / 2) * FT, cz = oz - (r.y + r.h / 2) * FT;
   const t = 0.12, wallH = FLOOR_H - 0.15, f = FINISHES[fin];
   const key = Object.keys(FURN).find((k) => r.name.includes(k));
@@ -45,7 +45,7 @@ function RoomMesh({ r, ox, oz, y, fin, showFurniture, bn }: { r: Room; ox: numbe
       </mesh>
       {walls.map(([x, z, ww, dd], i) => (
         <mesh key={i} position={[x, y + wallH / 2 + 0.1, z]} castShadow>
-          <boxGeometry args={[ww, wallH, dd]} /><meshStandardMaterial color={f.wall} transparent opacity={0.85} />
+          <boxGeometry args={[ww, wallH, dd]} /><meshStandardMaterial color={f.wall} transparent opacity={cutaway ? 0.22 : 0.85} depthWrite={!cutaway} />
           <Edges color="#0f172a" />
         </mesh>
       ))}
@@ -58,6 +58,42 @@ function RoomMesh({ r, ox, oz, y, fin, showFurniture, bn }: { r: Room; ox: numbe
       <Text position={[cx, y + wallH + 0.4, cz]} fontSize={0.35} color="#0f172a" anchorX="center" outlineWidth={0.02} outlineColor="#ffffff">
         {bn ? r.nameBn : r.name}
       </Text>
+    </group>
+  );
+}
+
+function StructuralFrame({ width, depth, floors }: { width: number; depth: number; floors: number }) {
+  const halfW = width * FT / 2;
+  const halfD = depth * FT / 2;
+  const columnSize = 0.18;
+  const beamSize = 0.16;
+  const xs = [-halfW, 0, halfW];
+  const zs = [-halfD, 0, halfD];
+  const levels = Array.from({ length: floors }, (_, i) => (i + 1) * FLOOR_H);
+  return (
+    <group>
+      {xs.flatMap((x) => zs.map((z) => (
+        <mesh key={`column-${x}-${z}`} position={[x, (floors * FLOOR_H) / 2, z]} castShadow>
+          <boxGeometry args={[columnSize, floors * FLOOR_H, columnSize]} />
+          <meshStandardMaterial color="#64748b" metalness={0.25} roughness={0.55} />
+        </mesh>
+      )))}
+      {levels.map((y) => (
+        <group key={`beam-level-${y}`}>
+          {[-halfD, halfD].map((z) => (
+            <mesh key={`x-${z}`} position={[0, y, z]} castShadow>
+              <boxGeometry args={[width * FT, beamSize, beamSize]} />
+              <meshStandardMaterial color="#ea580c" metalness={0.15} roughness={0.6} />
+            </mesh>
+          ))}
+          {[-halfW, halfW].map((x) => (
+            <mesh key={`z-${x}`} position={[x, y, 0]} castShadow>
+              <boxGeometry args={[beamSize, beamSize, depth * FT]} />
+              <meshStandardMaterial color="#ea580c" metalness={0.15} roughness={0.6} />
+            </mesh>
+          ))}
+        </group>
+      ))}
     </group>
   );
 }
@@ -85,6 +121,9 @@ export default function BimStudioPage() {
   const [fin, setFin] = useState<FinishKey>("white");
   const [furniture, setFurniture] = useState(true);
   const [view, setView] = useState("iso");
+  const [showStructure, setShowStructure] = useState(false);
+  const [showRoof, setShowRoof] = useState(true);
+  const [cutaway, setCutaway] = useState(false);
   const ox = -(plan.buildW * FT) / 2, oz = (plan.buildD * FT) / 2;
   const size = Math.max(plan.buildW, plan.buildD) * FT;
 
@@ -137,6 +176,18 @@ export default function BimStudioPage() {
               <Button size="sm" variant={furniture ? "default" : "outline"} className="w-full" onClick={() => setFurniture(!furniture)}>
                 {furniture ? L("Hide furniture", "ফার্নিচার লুকান") : L("Show furniture", "ফার্নিচার দেখান")}
               </Button>
+              <div className="space-y-2 border-t pt-3">
+                <Label className="text-xs">{L("Model layers", "মডেল লেয়ার")}</Label>
+                <Button size="sm" variant={showStructure ? "default" : "outline"} className="w-full" onClick={() => setShowStructure(!showStructure)}>
+                  {showStructure ? L("Hide structural frame", "স্ট্রাকচার লুকান") : L("Show columns & beams", "কলাম ও বিম দেখান")}
+                </Button>
+                <Button size="sm" variant={cutaway ? "default" : "outline"} className="w-full" onClick={() => setCutaway(!cutaway)}>
+                  {cutaway ? L("Restore solid walls", "দেয়াল স্বাভাবিক করুন") : L("Cutaway / transparent walls", "স্বচ্ছ দেয়াল")}
+                </Button>
+                <Button size="sm" variant={showRoof ? "default" : "outline"} className="w-full" onClick={() => setShowRoof(!showRoof)}>
+                  {showRoof ? L("Hide roof slab", "ছাদের স্ল্যাব লুকান") : L("Show roof slab", "ছাদের স্ল্যাব দেখান")}
+                </Button>
+              </div>
               <Button size="sm" variant="secondary" className="w-full" onClick={snapshot}><Camera className="h-4 w-4 mr-1" /> {L("Save image", "ছবি সংরক্ষণ")}</Button>
             </Card>
             <Card id="bim-canvas" className="h-[60vh] lg:h-[calc(100vh-8rem)] overflow-hidden bg-muted/40">
@@ -155,8 +206,16 @@ export default function BimStudioPage() {
                   </mesh>
                   {Array.from({ length: shown }).map((_, f) =>
                     plan.rooms.map((r) => (
-                      <RoomMesh key={`${f}-${r.name}`} r={r} ox={ox} oz={oz} y={f * FLOOR_H} fin={fin} showFurniture={furniture && f === shown - 1} bn={bn && f === shown - 1} />
+                      <RoomMesh key={`${f}-${r.name}`} r={r} ox={ox} oz={oz} y={f * FLOOR_H} fin={fin} showFurniture={furniture && f === shown - 1} bn={bn && f === shown - 1} cutaway={cutaway} />
                     )),
+                  )}
+                  {showStructure && <StructuralFrame width={plan.buildW} depth={plan.buildD} floors={shown} />}
+                  {showRoof && (
+                    <mesh position={[0, shown * FLOOR_H + 0.08, 0]} castShadow receiveShadow>
+                      <boxGeometry args={[plan.buildW * FT + 0.2, 0.16, plan.buildD * FT + 0.2]} />
+                      <meshStandardMaterial color={fin === "wood" ? "#a16207" : fin === "brick" ? "#9f4a32" : "#94a3b8"} roughness={0.78} />
+                      <Edges color="#334155" />
+                    </mesh>
                   )}
                 </Suspense>
                 <OrbitControls makeDefault target={[0, 0, 0]} />
