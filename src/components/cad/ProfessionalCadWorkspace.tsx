@@ -9,7 +9,7 @@ import {
 import {
   createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
-import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand } from "lucide-react";
+import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand, Upload } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -367,6 +367,48 @@ export default function ProfessionalCadWorkspace() {
     const blob=new Blob([content],{type:kind==="json"?"application/json":"image/svg+xml"});
     const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`civilos-drawing.${kind}`;a.click();URL.revokeObjectURL(url);
   };
+  const importJson = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,application/json";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const parsed: unknown = JSON.parse(await file.text());
+        if (!parsed || typeof parsed !== "object") throw new Error("The file is not a valid drawing document.");
+        const candidate = parsed as Partial<CadDocument>;
+        if (candidate.version !== 1 || !Array.isArray(candidate.entities) || !Array.isArray(candidate.layers) || candidate.layers.length === 0) {
+          throw new Error("Unsupported drawing format. Choose a CivilOS AI JSON drawing backup.");
+        }
+        const validLayers = candidate.layers.every((layer) =>
+          layer && typeof layer.id === "string" && typeof layer.name === "string" &&
+          typeof layer.visible === "boolean" && typeof layer.color === "string"
+        );
+        const validEntities = candidate.entities.every((entity) =>
+          entity && typeof entity === "object" && typeof entity.id === "string" &&
+          typeof entity.layerId === "string" &&
+          ["line", "polyline", "rectangle", "circle", "ellipse", "arc", "wall"].includes((entity as CadEntity).type)
+        );
+        if (!validLayers || !validEntities) throw new Error("The drawing contains invalid layer or object data.");
+        const layerIds = new Set(candidate.layers.map((layer) => layer.id));
+        if (candidate.entities.some((entity) => !layerIds.has(entity.layerId))) {
+          throw new Error("Some objects refer to layers that are missing from this file.");
+        }
+        const imported = candidate as CadDocument;
+        commit(imported);
+        setLayerName(imported.layers[0].name);
+        setSelected([]);
+        setStart(null);
+        setPolylinePoints([]);
+        setModifyTargetId(null);
+        toast.success(`Imported ${imported.entities.length} drawing object(s).`);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not import this JSON drawing.");
+      }
+    };
+    input.click();
+  };
   const groups=useMemo(()=>Array.from(new Set(palette.map((p)=>p.group))),[]);
   const selectTool = (id: CadToolId) => { setTool(id); setStart(null); setPolylinePoints([]); setModifyTargetId(null); setCursor(null); setToolsOpen(false); };
   const finishPolyline = () => {
@@ -411,6 +453,7 @@ export default function ProfessionalCadWorkspace() {
         <Button size="sm" variant="outline" className="rounded-lg" onClick={fitToDrawing} title="Fit all drawing objects into the canvas"><Maximize2 className="mr-1.5 h-4 w-4"/>Fit drawing</Button>
         <Button size="icon" variant="outline" className="rounded-lg" onClick={()=>setView((v)=>({...v,scale:Math.min(8,v.scale*1.25)}))} title="Zoom in"><ZoomIn className="h-4 w-4"/></Button>
         <Button size="icon" variant="outline" className="rounded-lg" onClick={()=>setView((v)=>({...v,scale:Math.max(.2,v.scale/1.25)}))} title="Zoom out"><ZoomOut className="h-4 w-4"/></Button>
+        <Button size="sm" variant="outline" className="rounded-lg" onClick={importJson} title="Open a CivilOS AI JSON drawing backup"><Upload className="mr-1.5 h-4 w-4"/>Import JSON</Button>
         <Button size="sm" variant="outline" className="rounded-lg" onClick={()=>exportFile("svg")}><Download className="mr-1.5 h-4 w-4"/>Export SVG</Button>
         <Button size="sm" className="rounded-lg bg-orange-500 text-white hover:bg-orange-600" onClick={()=>exportFile("json")}><FileJson className="mr-1.5 h-4 w-4"/>Backup JSON</Button>
       </div>
