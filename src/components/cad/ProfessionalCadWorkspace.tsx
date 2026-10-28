@@ -323,6 +323,31 @@ export default function ProfessionalCadWorkspace() {
       setStart(null); setPolylinePoints([]); setCursor(null);
       return;
     }
+    if (tool === "door" || tool === "window") {
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const length = Math.hypot(dx, dy);
+      if (length <= 1e-8) {
+        toast.info("Choose two different points to set the opening width.");
+        setStart(null); setCursor(null);
+        return;
+      }
+      const normal = { x: -dy / length, y: dx / length };
+      const openingEntities: CadEntity[] = tool === "door"
+        ? [
+            { ...base, id: makeId(), type: "line", start: a, end: b },
+            { ...base, id: makeId(), type: "arc", center: a, radius: length, startAngle: Math.atan2(dy, dx), endAngle: Math.atan2(dy, dx) + Math.PI / 2 },
+          ]
+        : [
+            { ...base, id: makeId(), type: "line", start: { x: a.x + normal.x * 0.12 * length, y: a.y + normal.y * 0.12 * length }, end: { x: b.x + normal.x * 0.12 * length, y: b.y + normal.y * 0.12 * length } },
+            { ...base, id: makeId(), type: "line", start: { x: a.x + normal.x * 0.32 * length, y: a.y + normal.y * 0.32 * length }, end: { x: b.x + normal.x * 0.32 * length, y: b.y + normal.y * 0.32 * length } },
+            { ...base, id: makeId(), type: "line", start: { x: a.x + normal.x * 0.52 * length, y: a.y + normal.y * 0.52 * length }, end: { x: b.x + normal.x * 0.52 * length, y: b.y + normal.y * 0.52 * length } },
+          ];
+      commit({ ...doc, entities: [...doc.entities, ...openingEntities] });
+      setSelected(openingEntities.map((item) => item.id));
+      toast.success(tool === "door" ? "Basic door swing symbol added." : "Basic window symbol added.");
+      setStart(null); setPolylinePoints([]); setCursor(null);
+      return;
+    }
     if (tool==="line") entity={...base,type:"line",start:a,end:b};
     else if (tool==="rectangle" || tool==="column" || tool==="wall" || tool==="beam") {
       const r=normalizeRect(a,b);
