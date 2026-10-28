@@ -85,6 +85,27 @@ describe("2D CAD geometry foundation", () => {
     expect(() => chamferLines(first, second, 11)).toThrow(/shorter/);
   });
 
+  it("rejects malformed imported geometry, duplicate IDs, and missing layers", () => {
+    const valid = createEmptyDocument("mm");
+    expect(() => deserializeCadDocument(JSON.stringify({ ...valid, units: "yards" }))).toThrow(/format/i);
+    expect(() => deserializeCadDocument(JSON.stringify({ ...valid, layers: [] }))).toThrow(/at least one layer/i);
+    const invalidGeometry = {
+      ...valid,
+      entities: [{ id: "bad", layerId: "layer-0", type: "circle", center: { x: 0, y: 0 }, radius: -2 }],
+    };
+    expect(() => deserializeCadDocument(JSON.stringify(invalidGeometry))).toThrow(/geometry/i);
+    const duplicateLayers = {
+      ...valid,
+      layers: [...valid.layers, { ...valid.layers[0], id: "layer-1" }],
+    };
+    expect(() => deserializeCadDocument(JSON.stringify(duplicateLayers))).toThrow(/unique/i);
+    const missingLayer = {
+      ...valid,
+      entities: [{ id: "line", layerId: "missing", type: "line", start: { x: 0, y: 0 }, end: { x: 1, y: 0 } }],
+    };
+    expect(() => deserializeCadDocument(JSON.stringify(missingLayer))).toThrow(/ID\/layer/i);
+  });
+
   it("round-trips versioned documents", () => {
     const doc = createEmptyDocument("mm");
     expect(deserializeCadDocument(serializeCadDocument(doc))).toEqual(doc);
