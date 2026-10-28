@@ -101,7 +101,7 @@ export default function AdminAgentPage() {
               </TabsList>
 
               <TabsContent value="command">
-                <AgentConsole agentType="admin" onTask={load} examples={["Website slow hocche? System health check koro", "Recent errors dekhao", "Search user zobaer", "Database e kon table gulo ache?"]} />
+                <AgentConsole agentType="admin" onTask={load} examples={["Puro website diagnostic chalao — kothay problem, severity, ar ki korte hobe dekhao", "Website slow hocche? System health check koro", "Recent errors dekhao", "Database e kon table gulo ache?"]} />
               </TabsContent>
 
               <TabsContent value="tasks" className="space-y-2">

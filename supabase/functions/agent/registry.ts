@@ -145,6 +145,58 @@ export const TOOLS: AgentTool[] = [
       const { data } = await ctx.db.from("agent_steps").select("created_at, agent_type, tool, error").eq("status", "error").order("created_at", { ascending: false }).limit(n);
       return { errors: data || [], note: "Only agent/tool errors are recorded here; browser errors are not collected by the server." };
     } },
+  { name: "run_website_diagnostics", description: "Run a read-only operational diagnostic for the CivilOS AI website: probe critical database tables, summarize recent agent failures, detect failed scheduled automations, and return prioritized findings with the exact affected subsystem/table/tool. This does not change data or deploy code.", agentTypes: ["admin"], input: z.object({ window_hours: z.number().int().min(1).max(168).optional() }), risk: "LOW", requiresApproval: false,
+    handler: async (ctx, i) => {
+      const hours = Math.min(Math.max(i.window_hours || 24, 1), 168);
+      const since = new Date(Date.now() - hours * 3600_000).toISOString();
+      const findings: Array<{ severity: "critical" | "high" | "medium" | "info"; area: string; location: string; title: string; detail: string; recommendation: string }> = [];
+      const tables = ["profiles", "projects", "agent_tasks", "agent_steps", "agent_automations", "contact_messages", "payments", "subscriptions", "plans"];
+      const probes = await Promise.all(tables.map(async (table) => {
+        const { count, error } = await ctx.db.from(table).select("*", { count: "exact", head: true });
+        return { table, count, error: error?.message || null };
+      }));
+      const unavailable = probes.filter((p) => p.error);
+      for (const p of unavailable) findings.push({
+        severity: /does not exist|schema cache/i.test(p.error || "") ? "high" : "medium",
+        area: "database", location: "public." + p.table,
+        title: /does not exist|schema cache/i.test(p.error || "") ? "Required table unavailable" : "Table health probe failed",
+        detail: (p.error || "Unknown database error").slice(0, 240),
+        recommendation: "Check Supabase migrations, table grants, RLS policies, and the deployed schema before changing application code."
+      });
+      const [failedSteps, failedTasks, automations] = await Promise.all([
+        ctx.db.from("agent_steps").select("created_at, agent_type, tool, target, error, task_id").eq("status", "error").gte("created_at", since).order("created_at", { ascending: false }).limit(25),
+        ctx.db.from("agent_tasks").select("id, objective, error, created_at").eq("status", "failed").gte("created_at", since).order("created_at", { ascending: false }).limit(15),
+        ctx.db.from("agent_automations").select("id, name, kind, last_status, fail_count, last_run_at, enabled").gt("fail_count", 0).order("fail_count", { ascending: false }).limit(15)
+      ]);
+      for (const e of failedSteps.data || []) findings.push({
+        severity: "high", area: "agent/tool", location: e.tool || e.agent_type || "unknown tool",
+        title: "Agent tool execution failed", detail: (e.error || "No error details recorded").slice(0, 240),
+        recommendation: "Inspect the linked task and tool input/result summaries in Admin Agent → Tasks/Audit; reproduce the failing operation and verify its dependencies."
+      });
+      for (const t of failedTasks.data || []) findings.push({
+        severity: "high", area: "agent/task", location: t.id,
+        title: "Agent task failed", detail: `${t.objective.slice(0, 120)} — ${(t.error || "No error details").slice(0, 160)}`,
+        recommendation: "Open this task in Admin Agent → Tasks and inspect each execution step before retrying."
+      });
+      for (const a of automations.data || []) findings.push({
+        severity: a.fail_count >= 3 ? "high" : "medium", area: "automation", location: a.name,
+        title: "Scheduled automation has failures", detail: `${a.kind}; failures: ${a.fail_count}; last status: ${a.last_status || "unknown"}; enabled: ${a.enabled}`,
+        recommendation: "Inspect the last result and scheduler configuration; do not disable or rerun automatically until the cause is understood."
+      });
+      if (failedSteps.error) findings.push({ severity: "medium", area: "agent logs", location: "public.agent_steps", title: "Could not read agent error history", detail: failedSteps.error.message.slice(0, 240), recommendation: "Check table grants and schema migrations." });
+      if (failedTasks.error) findings.push({ severity: "medium", area: "agent tasks", location: "public.agent_tasks", title: "Could not read failed task history", detail: failedTasks.error.message.slice(0, 240), recommendation: "Check table grants and schema migrations." });
+      if (automations.error) findings.push({ severity: "medium", area: "automation", location: "public.agent_automations", title: "Could not inspect automation health", detail: automations.error.message.slice(0, 240), recommendation: "Check the agent automation migration and permissions." });
+      const rank = { critical: 0, high: 1, medium: 2, info: 3 };
+      findings.sort((a, b) => rank[a.severity] - rank[b.severity]);
+      if (!findings.length) findings.push({ severity: "info", area: "system", location: "database, agent tasks, automations", title: "No issues detected in the checked systems", detail: `All ${tables.length} table probes and recent operational error checks completed without findings for the last ${hours} hours.`, recommendation: "Continue monitoring. Browser-side JavaScript errors, broken visual layouts, and external HTTP route availability are not measured by this server-side diagnostic yet." });
+      return {
+        status: findings.some((f) => f.severity === "critical" || f.severity === "high") ? "issues_found" : findings.some((f) => f.severity === "medium") ? "warnings" : "healthy",
+        checked_at: new Date().toISOString(), window_hours: hours,
+        summary: { table_probes: tables.length, tables_unavailable: unavailable.length, findings: findings.length, high_or_critical: findings.filter((f) => f.severity === "high" || f.severity === "critical").length },
+        table_health: probes.map((p) => ({ table: p.table, reachable: !p.error, row_count: p.count, error: p.error })),
+        findings
+      };
+    } },
   { name: "search_users", description: "Search users by display name or email (partial match).", agentTypes: ["admin"], input: z.object({ query: z.string() }), risk: "LOW", requiresApproval: false,
     handler: async (ctx, i) => {
       const q = i.query.trim().toLowerCase();
