@@ -35,46 +35,70 @@ function RoomMesh({ r, ox, oz, y, fin, showFurniture, bn, cutaway, showOpenings 
   const t = 0.12, wallH = FLOOR_H - 0.15, f = FINISHES[fin];
   const key = Object.keys(FURN).find((k) => r.name.includes(k));
   const fu = key ? FURN[key] : null;
-  const walls: [number, number, number, number][] = [
-    [cx, cz - d / 2, w, t], [cx, cz + d / 2, w, t], [cx - w / 2, cz, t, d], [cx + w / 2, cz, t, d],
-  ];
+  const doorW = Math.min(3 * FT, w * 0.42);
+  const doorH = Math.min(6.8 * FT, wallH * 0.78);
+  const windowW = Math.min(4 * FT, w * 0.55);
+  const windowH = Math.min(3.2 * FT, wallH * 0.38);
+  const windowSill = Math.min(3.2 * FT, wallH - windowH - 0.1);
+  // Segment tuple: center X, center Y above floor, center Z, width, height, depth.
+  const walls: [number, number, number, number, number, number][] = [];
+  const addWall = (x: number, cy: number, z: number, ww: number, hh: number, dd: number) => {
+    if (ww > 0.025 && hh > 0.025) walls.push([x, cy, z, ww, hh, dd]);
+  };
+  if (!showOpenings) {
+    addWall(cx, wallH / 2 + 0.1, cz - d / 2, w, wallH, t);
+    addWall(cx, wallH / 2 + 0.1, cz + d / 2, w, wallH, t);
+  } else {
+    const doorSideW = Math.max(0, (w - doorW) / 2);
+    addWall(cx - doorW / 2 - doorSideW / 2, wallH / 2 + 0.1, cz + d / 2, doorSideW, wallH, t);
+    addWall(cx + doorW / 2 + doorSideW / 2, wallH / 2 + 0.1, cz + d / 2, doorSideW, wallH, t);
+    addWall(cx, doorH + (wallH - doorH) / 2 + 0.1, cz + d / 2, doorW, wallH - doorH, t);
+    const windowSideW = Math.max(0, (w - windowW) / 2);
+    addWall(cx - windowW / 2 - windowSideW / 2, wallH / 2 + 0.1, cz - d / 2, windowSideW, wallH, t);
+    addWall(cx + windowW / 2 + windowSideW / 2, wallH / 2 + 0.1, cz - d / 2, windowSideW, wallH, t);
+    addWall(cx, windowSill / 2 + 0.1, cz - d / 2, windowW, windowSill, t);
+    const upperH = Math.max(0, wallH - windowSill - windowH);
+    addWall(cx, windowSill + windowH + upperH / 2 + 0.1, cz - d / 2, windowW, upperH, t);
+  }
+  addWall(cx - w / 2, wallH / 2 + 0.1, cz, t, wallH, d);
+  addWall(cx + w / 2, wallH / 2 + 0.1, cz, t, wallH, d);
   return (
     <group>
       <mesh position={[cx, y + 0.05, cz]} receiveShadow>
         <boxGeometry args={[w, 0.1, d]} /><meshStandardMaterial color={f.floor} />
       </mesh>
-      {walls.map(([x, z, ww, dd], i) => (
-        <mesh key={i} position={[x, y + wallH / 2 + 0.1, z]} castShadow>
-          <boxGeometry args={[ww, wallH, dd]} /><meshStandardMaterial color={f.wall} transparent opacity={cutaway ? 0.22 : 0.85} depthWrite={!cutaway} />
+      {walls.map(([x, cy, z, ww, hh, dd], i) => (
+        <mesh key={i} position={[x, y + cy, z]} castShadow>
+          <boxGeometry args={[ww, hh, dd]} /><meshStandardMaterial color={f.wall} transparent opacity={cutaway ? 0.22 : 0.85} depthWrite={!cutaway} />
           <Edges color="#0f172a" />
         </mesh>
       ))}
       {showOpenings && (
         <group>
-          {/* Visual door panel on the room's front wall; this is a concept detail, not a wall-cut boolean. */}
-          <mesh position={[cx, y + 0.1 + 1.05 * FT, cz + d / 2 + 0.012]}>
-            <boxGeometry args={[Math.min(3 * FT, w * 0.42), 2.1 * FT, 0.035]} />
+          {/* Door leaf sits inside the wall gap. */}
+          <mesh position={[cx, y + 0.1 + doorH / 2, cz + d / 2 + 0.012]}>
+            <boxGeometry args={[doorW * 0.92, doorH * 0.96, 0.035]} />
             <meshStandardMaterial color="#8b5e3c" roughness={0.72} />
           </mesh>
-          <mesh position={[cx, y + 0.1 + 1.05 * FT, cz + d / 2 + 0.034]}>
-            <boxGeometry args={[Math.min(2.85 * FT, w * 0.4), 1.95 * FT, 0.012]} />
+          <mesh position={[cx, y + 0.1 + doorH / 2, cz + d / 2 + 0.034]}>
+            <boxGeometry args={[doorW * 0.86, doorH * 0.91, 0.012]} />
             <meshStandardMaterial color="#b8895d" roughness={0.68} />
           </mesh>
-          <mesh position={[cx + Math.min(1.1 * FT, w * 0.12), y + 0.1 + 1.05 * FT, cz + d / 2 + 0.045]}>
+          <mesh position={[cx + Math.min(1.1 * FT, doorW * 0.35), y + 0.1 + doorH / 2, cz + d / 2 + 0.045]}>
             <sphereGeometry args={[0.025, 10, 8]} />
             <meshStandardMaterial color="#fbbf24" metalness={0.65} roughness={0.3} />
           </mesh>
           {/* Blue glazed window detail on the opposite wall. */}
-          <mesh position={[cx, y + 0.1 + 5.7 * FT, cz - d / 2 - 0.014]}>
-            <boxGeometry args={[Math.min(4 * FT, w * 0.55), 2.2 * FT, 0.035]} />
+          <mesh position={[cx, y + 0.1 + windowSill + windowH / 2, cz - d / 2 - 0.014]}>
+            <boxGeometry args={[windowW * 1.04, windowH * 1.04, 0.035]} />
             <meshStandardMaterial color="#475569" roughness={0.5} />
           </mesh>
-          <mesh position={[cx, y + 0.1 + 5.7 * FT, cz - d / 2 - 0.037]}>
-            <boxGeometry args={[Math.min(3.75 * FT, w * 0.5), 1.95 * FT, 0.012]} />
+          <mesh position={[cx, y + 0.1 + windowSill + windowH / 2, cz - d / 2 - 0.037]}>
+            <boxGeometry args={[windowW * 0.91, windowH * 0.87, 0.012]} />
             <meshStandardMaterial color="#7dd3fc" metalness={0.15} roughness={0.2} />
           </mesh>
-          <mesh position={[cx, y + 0.1 + 5.7 * FT, cz - d / 2 - 0.045]}>
-            <boxGeometry args={[0.025, 2.05 * FT, 0.014]} />
+          <mesh position={[cx, y + 0.1 + windowSill + windowH / 2, cz - d / 2 - 0.045]}>
+            <boxGeometry args={[0.025, windowH * 0.94, 0.014]} />
             <meshStandardMaterial color="#475569" />
           </mesh>
         </group>
