@@ -112,6 +112,45 @@ describe("2D CAD geometry foundation", () => {
     expect(() => deserializeCadDocument("{}")).toThrow(/invalid CAD document format/i);
   });
 
+  it("preserves locked metadata and IDs across multi-object transforms", () => {
+    const entities: CadEntity[] = [
+      { id: "line", layerId: "0", type: "line", start: { x: 0, y: 0 }, end: { x: 2, y: 1 }, locked: true },
+      { id: "wall", layerId: "0", type: "wall", start: { x: 1, y: 1 }, end: { x: 4, y: 1 }, thickness: 0.2, locked: true },
+      { id: "poly", layerId: "0", type: "polyline", points: [{ x: 0, y: 0 }, { x: 2, y: 0 }], closed: false, locked: true },
+      { id: "circle", layerId: "0", type: "circle", center: { x: 2, y: 2 }, radius: 1, locked: true },
+      { id: "ellipse", layerId: "0", type: "ellipse", center: { x: 3, y: 3 }, rx: 2, ry: 1, locked: true },
+      { id: "arc", layerId: "0", type: "arc", center: { x: 4, y: 4 }, radius: 1, startAngle: 0, endAngle: Math.PI / 2, locked: true },
+      { id: "text", layerId: "0", type: "text", at: { x: 5, y: 5 }, text: "A", height: 1, rotation: 0, locked: true },
+    ];
+    const translated = entities.map((entity) => translateEntity(entity, 10, -3));
+    const mirrored = entities.map((entity) => mirrorEntity(entity, 2));
+    for (const [index, entity] of entities.entries()) {
+      expect(translated[index]).toMatchObject({ id: entity.id, layerId: entity.layerId, locked: true });
+      expect(mirrored[index]).toMatchObject({ id: entity.id, layerId: entity.layerId, locked: true });
+    }
+    expect(translated[0]).toMatchObject({ start: { x: 10, y: -3 }, end: { x: 12, y: -2 } });
+    expect(mirrored[0]).toMatchObject({ start: { x: 4, y: 0 }, end: { x: 2, y: 1 } });
+    expect(entities[0]).toMatchObject({ start: { x: 0, y: 0 }, end: { x: 2, y: 1 } });
+  });
+
+  it("rejects malformed coordinates and entity-specific fields for imported entity types", () => {
+    const valid = createEmptyDocument("mm");
+    const invalidEntities: unknown[] = [
+      { id: "line", layerId: "layer-0", type: "line", start: { x: 0, y: 0 }, end: { x: Infinity, y: 1 } },
+      { id: "wall", layerId: "layer-0", type: "wall", start: { x: 0, y: 0 }, end: { x: 1, y: 0 }, thickness: 0 },
+      { id: "poly", layerId: "layer-0", type: "polyline", points: [{ x: 0, y: 0 }, { x: 0, y: 0 }], closed: true },
+      { id: "rect", layerId: "layer-0", type: "rectangle", min: { x: 0, y: 0 }, max: { x: 1, y: 0 } },
+      { id: "circle", layerId: "layer-0", type: "circle", center: { x: 0, y: 0 }, radius: 0 },
+      { id: "ellipse", layerId: "layer-0", type: "ellipse", center: { x: 0, y: 0 }, rx: 1, ry: -1 },
+      { id: "arc", layerId: "layer-0", type: "arc", center: { x: 0, y: 0 }, radius: 1, startAngle: 0, endAngle: 0 },
+      { id: "text", layerId: "layer-0", type: "text", at: { x: 0, y: 0 }, text: "", height: 1, rotation: 0 },
+      { id: "unknown", layerId: "layer-0", type: "spline", points: [] },
+    ];
+    for (const entity of invalidEntities) {
+      expect(() => deserializeCadDocument(JSON.stringify({ ...valid, entities: [entity] }))).toThrow();
+    }
+  });
+
   it("preserves locked state when rotating a rectangle into a polyline", () => {
     const lockedRectangle: CadEntity = {
       id: "locked-rect",
