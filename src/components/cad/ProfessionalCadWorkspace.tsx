@@ -460,11 +460,31 @@ export default function ProfessionalCadWorkspace() {
           layer && typeof layer.id === "string" && typeof layer.name === "string" &&
           typeof layer.visible === "boolean" && typeof layer.color === "string"
         );
-        const validEntities = candidate.entities.every((entity) =>
-          entity && typeof entity === "object" && typeof entity.id === "string" &&
-          typeof entity.layerId === "string" &&
-          ["line", "polyline", "rectangle", "circle", "ellipse", "arc", "wall"].includes((entity as CadEntity).type)
-        );
+        const isFinitePoint = (point: unknown): point is Point2D =>
+          !!point && typeof point === "object" &&
+          Number.isFinite((point as Point2D).x) && Number.isFinite((point as Point2D).y);
+        const validEntities = candidate.entities.every((rawEntity) => {
+          if (!rawEntity || typeof rawEntity !== "object" ||
+              typeof rawEntity.id !== "string" || typeof rawEntity.layerId !== "string") return false;
+          const entity = rawEntity as CadEntity;
+          switch (entity.type) {
+            case "line": return isFinitePoint(entity.start) && isFinitePoint(entity.end) &&
+              Math.hypot(entity.end.x - entity.start.x, entity.end.y - entity.start.y) > 1e-8;
+            case "wall": return isFinitePoint(entity.start) && isFinitePoint(entity.end) &&
+              Number.isFinite(entity.thickness) && entity.thickness > 0 &&
+              Math.hypot(entity.end.x - entity.start.x, entity.end.y - entity.start.y) > 1e-8;
+            case "polyline": return Array.isArray(entity.points) && entity.points.length >= 2 &&
+              entity.points.every(isFinitePoint);
+            case "rectangle": return isFinitePoint(entity.min) && isFinitePoint(entity.max) &&
+              entity.max.x > entity.min.x && entity.max.y > entity.min.y;
+            case "circle": return isFinitePoint(entity.center) && Number.isFinite(entity.radius) && entity.radius > 0;
+            case "ellipse": return isFinitePoint(entity.center) && Number.isFinite(entity.rx) && entity.rx > 0 &&
+              Number.isFinite(entity.ry) && entity.ry > 0;
+            case "arc": return isFinitePoint(entity.center) && Number.isFinite(entity.radius) && entity.radius > 0 &&
+              Number.isFinite(entity.startAngle) && Number.isFinite(entity.endAngle);
+            default: return false;
+          }
+        });
         if (!validLayers || !validEntities) throw new Error("The drawing contains invalid layer or object data.");
         const layerIds = new Set(candidate.layers.map((layer) => layer.id));
         if (candidate.entities.some((entity) => !layerIds.has(entity.layerId))) {
