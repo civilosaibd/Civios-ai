@@ -747,6 +747,10 @@ export default function ProfessionalCadWorkspace() {
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("Drawing backup is too large. Choose a JSON file smaller than 10 MB.");
+        return;
+      }
       try {
         const parsed: unknown = JSON.parse(await file.text());
         if (!parsed || typeof parsed !== "object") throw new Error("The file is not a valid drawing document.");
@@ -814,8 +818,11 @@ export default function ProfessionalCadWorkspace() {
         setLayerName(imported.layers[0].name);
         setSelected([]);
         setStart(null);
+        setArcStart(null);
         setPolylinePoints([]);
         setModifyTargetId(null);
+        setSelectionWindow(null);
+        setCursor(null);
         toast.success(`Imported ${imported.entities.length} drawing object(s).`);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not import this JSON drawing.");
@@ -824,7 +831,7 @@ export default function ProfessionalCadWorkspace() {
     input.click();
   };
   const groups=useMemo(()=>Array.from(new Set(palette.map((p)=>p.group))),[]);
-  const selectTool = (id: CadToolId) => { setTool(id); setStart(null); setPolylinePoints([]); setModifyTargetId(null); setCursor(null); setToolsOpen(false); };
+  const selectTool = (id: CadToolId) => { setTool(id); setStart(null); setArcStart(null); setPolylinePoints([]); setModifyTargetId(null); setSelectionWindow(null); setCursor(null); setToolsOpen(false); };
   const finishPolyline = () => {
     const points = polylinePoints.filter((point, index) => index === 0 ||
       Math.hypot(point.x - polylinePoints[index - 1].x, point.y - polylinePoints[index - 1].y) > 1e-8);
