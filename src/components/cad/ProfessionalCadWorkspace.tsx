@@ -27,7 +27,7 @@ const palette: { id: CadToolId; label: string; group: string }[] = [
   { id: "extend", label: "Extend", group: "Modify" }, { id: "fillet", label: "Fillet", group: "Modify" },
   { id: "dimension", label: "Dimension", group: "Annotate" }, { id: "text", label: "Text", group: "Annotate" },
   { id: "wall", label: "Wall", group: "Architecture" }, { id: "beam", label: "Beam", group: "Architecture" }, { id: "door", label: "Door", group: "Architecture" },
-  { id: "window", label: "Window", group: "Architecture" }, { id: "column", label: "Column", group: "Architecture" },
+  { id: "window", label: "Window", group: "Architecture" }, { id: "column", label: "Column", group: "Architecture" }, { id: "stair", label: "Stair", group: "Architecture" },
 ];
 
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `cad-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -320,6 +320,36 @@ export default function ProfessionalCadWorkspace() {
       commit({ ...doc, entities: [...doc.entities, ...dimensionEntities] });
       setSelected(dimensionEntities.map((item) => item.id));
       toast.success(`Dimension added: ${length.toFixed(2)} ${doc.units}`);
+      setStart(null); setPolylinePoints([]); setCursor(null);
+      return;
+    }
+    if (tool === "stair") {
+      const width = Math.abs(b.x - a.x), depth = Math.abs(b.y - a.y);
+      if (width <= 1e-8 || depth <= 1e-8) {
+        toast.info("A stair footprint needs both a width and a depth.");
+        setStart(null); setCursor(null);
+        return;
+      }
+      const left = Math.min(a.x, b.x), right = Math.max(a.x, b.x);
+      const top = Math.min(a.y, b.y), bottom = Math.max(a.y, b.y);
+      const stepCount = Math.max(3, Math.min(16, Math.round(Math.max(width, depth) / Math.max(Math.min(width, depth) / 5, 1))));
+      const stairEntities: CadEntity[] = [
+        { ...base, id: makeId(), type: "line", start: { x: left, y: top }, end: { x: right, y: top } },
+        { ...base, id: makeId(), type: "line", start: { x: right, y: top }, end: { x: right, y: bottom } },
+        { ...base, id: makeId(), type: "line", start: { x: right, y: bottom }, end: { x: left, y: bottom } },
+        { ...base, id: makeId(), type: "line", start: { x: left, y: bottom }, end: { x: left, y: top } },
+      ];
+      for (let index = 1; index < stepCount; index += 1) {
+        const ratio = index / stepCount;
+        stairEntities.push({
+          ...base, id: makeId(), type: "line",
+          start: { x: left + width * ratio, y: top },
+          end: { x: left + width * ratio, y: bottom },
+        });
+      }
+      commit({ ...doc, entities: [...doc.entities, ...stairEntities] });
+      setSelected(stairEntities.map((item) => item.id));
+      toast.success(`Stair footprint added with ${stepCount} tread divisions.`);
       setStart(null); setPolylinePoints([]); setCursor(null);
       return;
     }
