@@ -244,6 +244,27 @@ export default function ProfessionalCadWorkspace() {
     }
     if (!start) { setStart(p); setCursor(p); return; }
     const a=start, b=p;
+    const deltaX = Math.abs(b.x - a.x), deltaY = Math.abs(b.y - a.y);
+    if ((tool === "line" || tool === "wall") && Math.hypot(deltaX, deltaY) < 1e-8) {
+      toast.info("Choose two different points to create a line or wall.");
+      setStart(null); setCursor(null);
+      return;
+    }
+    if (tool === "rectangle" && (deltaX < 1e-8 || deltaY < 1e-8)) {
+      toast.info("A rectangle needs both a width and a height.");
+      setStart(null); setCursor(null);
+      return;
+    }
+    if (tool === "circle" && Math.hypot(deltaX, deltaY) < 1e-8) {
+      toast.info("Move from the center point to set a circle radius.");
+      setStart(null); setCursor(null);
+      return;
+    }
+    if (tool === "ellipse" && (deltaX < 1e-8 || deltaY < 1e-8)) {
+      toast.info("An ellipse needs a non-zero horizontal and vertical radius.");
+      setStart(null); setCursor(null);
+      return;
+    }
     let entity: CadEntity | null = null;
     const base={ id:makeId(), layerId:activeLayer.id };
     if (tool==="line") entity={...base,type:"line",start:a,end:b};
