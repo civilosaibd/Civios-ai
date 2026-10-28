@@ -218,7 +218,7 @@ export default function ProfessionalCadWorkspace() {
     if (tool === "select") { const id=findHit(p); if (event.shiftKey && id) setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]); else setSelected(id ? [id] : []); return; }
     if (tool === "move" || tool === "copy" || tool === "erase" || tool === "rotate" || tool === "mirror") {
       const id=findHit(p); if (!id) { toast.info("Click an existing object first."); return; }
-      if (tool === "erase") { commit({ ...doc, entities: doc.entities.filter((e)=>e.id!==id) }); setSelected([]); return; }
+      if (tool === "erase") { const idsToErase = selected.includes(id) ? new Set(selected) : new Set([id]); const remaining = doc.entities.filter((entity) => !idsToErase.has(entity.id)); commit({ ...doc, entities: remaining }); setSelected([]); toast.success(`Erased ${doc.entities.length - remaining.length} object(s).`); return; }
       if (tool === "rotate") {
         const entity=doc.entities.find((e)=>e.id===id);
         if (entity) {
