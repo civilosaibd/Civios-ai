@@ -85,6 +85,27 @@ describe("2D CAD geometry foundation", () => {
     expect(() => chamferLines(first, second, 11)).toThrow(/shorter/);
   });
 
+  it("rejects malformed imported geometry, duplicate IDs, and missing layers", () => {
+    const valid = createEmptyDocument("mm");
+    expect(() => deserializeCadDocument(JSON.stringify({ ...valid, units: "yards" }))).toThrow(/format/i);
+    expect(() => deserializeCadDocument(JSON.stringify({ ...valid, layers: [] }))).toThrow(/at least one layer/i);
+    const invalidGeometry = {
+      ...valid,
+      entities: [{ id: "bad", layerId: "layer-0", type: "circle", center: { x: 0, y: 0 }, radius: -2 }],
+    };
+    expect(() => deserializeCadDocument(JSON.stringify(invalidGeometry))).toThrow(/geometry/i);
+    const duplicateLayers = {
+      ...valid,
+      layers: [...valid.layers, { ...valid.layers[0], id: "layer-1" }],
+    };
+    expect(() => deserializeCadDocument(JSON.stringify(duplicateLayers))).toThrow(/unique/i);
+    const missingLayer = {
+      ...valid,
+      entities: [{ id: "line", layerId: "missing", type: "line", start: { x: 0, y: 0 }, end: { x: 1, y: 0 } }],
+    };
+    expect(() => deserializeCadDocument(JSON.stringify(missingLayer))).toThrow(/ID\/layer/i);
+  });
+
   it("round-trips versioned documents", () => {
     const doc = createEmptyDocument("mm");
     expect(deserializeCadDocument(serializeCadDocument(doc))).toEqual(doc);
@@ -127,6 +148,17 @@ describe("2D CAD geometry foundation", () => {
     expect(mirrored.center.y + mirrored.radius * Math.sin(mirrored.startAngle)).toBeCloseTo(7);
     expect(mirrored.center.x + mirrored.radius * Math.cos(mirrored.endAngle)).toBeCloseTo(3);
     expect(mirrored.center.y + mirrored.radius * Math.sin(mirrored.endAngle)).toBeCloseTo(5);
+  });
+
+  it("snaps to the four quadrant points of an ellipse", () => {
+    const ellipse: CadEntity = {
+      id: "ellipse-snap", layerId: "0", type: "ellipse",
+      center: { x: 5, y: 5 }, rx: 3, ry: 2,
+    };
+    expect(nearestEndpoint({ x: 8.02, y: 5 }, [ellipse], 0.1)).toEqual({ x: 8, y: 5 });
+    expect(nearestEndpoint({ x: 5, y: 7.02 }, [ellipse], 0.1)).toEqual({ x: 5, y: 7 });
+    expect(nearestEndpoint({ x: 1.98, y: 5 }, [ellipse], 0.1)).toEqual({ x: 2, y: 5 });
+    expect(nearestEndpoint({ x: 5, y: 2.02 }, [ellipse], 0.1)).toEqual({ x: 5, y: 3 });
   });
 
   it("snaps to both geometric endpoints of an arc, not an arbitrary circle point", () => {
