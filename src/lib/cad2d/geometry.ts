@@ -60,7 +60,12 @@ export function nearestEndpoint(p: Point2D, entities: CadEntity[], tolerance: nu
     if (e.type === "line" || e.type === "wall") candidates.push(e.start, e.end);
     else if (e.type === "polyline") candidates.push(...e.points);
     else if (e.type === "rectangle") candidates.push(e.min, { x: e.max.x, y: e.min.y }, e.max, { x: e.min.x, y: e.max.y });
-    else if (e.type === "circle") candidates.push({ x: e.center.x + e.radius, y: e.center.y });
+    else if (e.type === "arc") {
+      candidates.push(
+        { x: e.center.x + e.radius * Math.cos(e.startAngle), y: e.center.y + e.radius * Math.sin(e.startAngle) },
+        { x: e.center.x + e.radius * Math.cos(e.endAngle), y: e.center.y + e.radius * Math.sin(e.endAngle) },
+      );
+    }
   }
   for (const candidate of candidates) {
     const d = distance(p, candidate);
