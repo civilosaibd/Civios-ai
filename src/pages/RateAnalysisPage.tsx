@@ -23,6 +23,7 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { ExportButtons } from "@/components/ExportButtons";
+import { saveProjectArtifact } from "@/lib/projectArtifacts";
 
 
 type Row = { name: string; qty: number; unit: string; rate: number };
@@ -248,7 +249,9 @@ export default function RateAnalysisPage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<any[]>([]);
-  const [projectId, setProjectId] = useState<string>("local");
+  const [projectId, setProjectId] = useState<string>(() => new URLSearchParams(window.location.search).get("project") || "local");
+  const [savingArtifact, setSavingArtifact] = useState(false);
+  const [savedArtifactId, setSavedArtifactId] = useState<string | null>(null);
   const [setName, setSetName] = useState("My rate set");
   const [analyses, setAnalyses] = useState<Analysis[]>([newAnalysis(CATALOG_KEYS[0])]);
   const [activeId, setActiveId] = useState<string>("");
@@ -341,6 +344,46 @@ export default function RateAnalysisPage() {
       toast.error(e instanceof Error ? e.message : "Save failed");
     } finally { setSaving(false); }
   };
+  const saveRateAnalysisArtifact = async () => {
+    if (!user) return toast.error("Please sign in to save this rate analysis.");
+    if (projectId === "local") return toast.error("Select a project before saving to the project workspace.");
+    setSavingArtifact(true);
+    try {
+      const saved = await saveProjectArtifact({
+        id: savedArtifactId ?? undefined,
+        projectId,
+        artifactType: "rate_analysis",
+        title: setName.trim() || "Rate Analysis",
+        description: `${analyses.length} work type(s) · ${analyses.map(a => a.type).join(", ").slice(0, 350)}`,
+        data: {
+          setName,
+          analyses,
+          summaries: analyses.map(a => {
+            const material = sum(a.materials);
+            const labour = sum(a.labour);
+            const equipment = sum(a.equipment);
+            const base = material + labour + equipment;
+            const overhead = base * (a.overheadPct / 100);
+            const profit = (base + overhead) * (a.profitPct / 100);
+            return {
+              id: a.id, type: a.type, unit: a.unit, material, labour, equipment,
+              base, overhead, profit, finalRate: base + overhead + profit,
+              overheadPct: a.overheadPct, profitPct: a.profitPct,
+            };
+          }),
+          currency: "BDT",
+        },
+        metadata: { sourceModule: "RateAnalysisPage", formatVersion: 1, savedAt: new Date().toISOString() },
+      });
+      setSavedArtifactId(saved.id);
+      toast.success("Rate analysis saved to the project workspace.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save rate analysis.");
+    } finally {
+      setSavingArtifact(false);
+    }
+  };
+
   const loadFromProject = (id: string) => {
     setProjectId(id);
     if (id === "local") return;
@@ -454,7 +497,7 @@ export default function RateAnalysisPage() {
                   <Button className="flex-1" onClick={saveSet} disabled={saving}>
                     {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />} Save
                   </Button>
-                  <Button variant="outline" onClick={exportPDF}><Download className="h-4 w-4 mr-1" /> PDF</Button>
+                  <Button variant="secondary" onClick={saveRateAnalysisArtifact} disabled={savingArtifact || projectId === "local"} title={projectId === "local" ? "Select a project to enable workspace save" : "Save a snapshot to Project Workspace"}>\n                    {savingArtifact ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ClipboardList className="h-4 w-4 mr-1" />} {savedArtifactId ? "Update Workspace" : "Save to Workspace"}\n                  </Button>\n                  <Button variant="outline" onClick={exportPDF}><Download className="h-4 w-4 mr-1" /> PDF</Button>
                 </div>
               </Card>
 
