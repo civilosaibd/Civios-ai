@@ -139,7 +139,8 @@ export default function ProjectDetailPage() {
     }
     setUploading(true);
     try {
-      const path = `${id}/${Date.now()}-${file.name}`;
+      const safeFileName = file.name.replace(/[\\/\\\\\u0000-\\u001f]/g, "_").replace(/\.\./g, "_");
+      const path = `${id}/${Date.now()}-${safeFileName}`;
       const { error: uploadError } = await supabase.storage.from("project-documents").upload(path, file);
       if (uploadError) throw uploadError;
       const { error: recordError } = await (supabase as any).from("project_documents").insert({
@@ -240,12 +241,27 @@ export default function ProjectDetailPage() {
   };
 
   const downloadDoc = async (d: any) => {
+    // Open a window synchronously in the click handler so popup blockers do not
+    // discard the download after the signed-URL request finishes.
+    const downloadWindow = window.open("about:blank", "_blank");
+    if (downloadWindow) downloadWindow.opener = null;
     try {
       const { data, error } = await supabase.storage.from("project-documents").createSignedUrl(d.file_url, 3600);
       if (error) throw error;
       if (!data?.signedUrl) throw new Error("Download link could not be created.");
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      if (downloadWindow) {
+        downloadWindow.location.replace(data.signedUrl);
+      } else {
+        // If the browser blocks popups, leave the user on the page and offer a direct link.
+        const link = document.createElement("a");
+        link.href = data.signedUrl;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.referrerPolicy = "no-referrer";
+        link.click();
+      }
     } catch (error) {
+      downloadWindow?.close();
       console.error("Project document download failed", error);
       toast.error("ফাইল ডাউনলোড লিংক তৈরি করা যায়নি। আবার চেষ্টা করুন।");
     }
