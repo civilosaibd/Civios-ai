@@ -497,7 +497,7 @@ const EstimatePage = () => {
                 <Share2 className="h-4 w-4 mr-1" /> Share Link
               </Button>
               <Button onClick={generatePDF}>
-                <Download className="h-4 w-4 mr-1" /> {t("est.downloadPdf")}
+                <Download className="h-4 w-4 mr-1" /> Professional Report PDF
               </Button>
             </div>
           </div>
