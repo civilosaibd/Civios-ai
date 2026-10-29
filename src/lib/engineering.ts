@@ -332,7 +332,7 @@ export function buildQuotation(estimate: EstimateData): Quotation {
   const justification = [
     { label: "Materials", amount: materialCost, note: "Indicative material allowance; verify quantities and supplier rates against approved drawings and local quotations." },
     { label: "Labor", amount: laborCost, note: "Direct labor allowance from the estimator; scope and crew rates require site verification." },
-    { label: "Civil Work", amount: civil, note: "Provisional earthwork/excavation allowance only. Structural work is not separately priced here because broad material and trade-labor quantities already cover those scopes." },
+    { label: "Earthwork & Excavation", amount: civil, note: "Provisional earthwork/excavation allowance only. Structural work is not separately priced here because broad material and trade-labor quantities already cover those scopes." },
     { label: "Finishing", amount: finishing, note: "Kitchen cabinets/countertop allowance only. Tile/paint materials and labor are itemized elsewhere; bathroom fittings are included in the plumbing package." },
     { label: "Electrical & Plumbing", amount: elec + plumb, note: "Installed-scope allowances (materials and labor together); electrician/plumber labor is not added separately. Confirm points, fixtures, specifications, and quantities." },
     { label: "Transport", amount: transport, note: "≈3% of subtotal for material transport & site logistics." },
