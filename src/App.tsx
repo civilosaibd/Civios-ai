@@ -215,7 +215,7 @@ const App = () => (
                         element={<PlanFeatureGate feature="finance"><FinancePage /></PlanFeatureGate>}
                       />
                       <Route path="/payments" element={<PlanFeatureGate feature="finance"><FinancePage /></PlanFeatureGate>} />
-                      <Route path="/cash-flow" element={<PlanFeatureGate feature="finance"><FinancePage /></PlanFeatureGate>}
+                      <Route path="/cash-flow" element={<PlanFeatureGate feature="finance"><FinancePage /></PlanFeatureGate>} />
 
                       <Route path="/agent" element={<UserAgentPage />} />
                       <Route
