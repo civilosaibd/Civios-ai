@@ -81,8 +81,7 @@ BEGIN
   VALUES (_user_id, v_period, 0)
   ON CONFLICT (user_id, period) DO NOTHING;
 
-  SELECT ur.ai_credits, ur.boq_generations, ur.bbs_generations, ur.drawings, ur.reports
-    INTO v_ai_used, v_feature_used, v_feature_used, v_feature_used, v_feature_used
+  SELECT ur.ai_credits INTO v_ai_used
   FROM public.usage_records ur
   WHERE ur.user_id = _user_id AND ur.period = v_period
   FOR UPDATE;
