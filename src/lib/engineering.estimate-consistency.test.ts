@@ -51,4 +51,34 @@ describe("material BOQ and quotation consistency", () => {
     const breakdownTotal = estimate.costBreakdown.reduce((sum, item) => sum + item.amount, 0);
     expect(breakdownTotal).toBe(estimate.totalCost);
   });
+
+  it("keeps the material BOQ total equal to the estimator's material subtotal, not the full project cost", () => {
+    const boqTotal = buildBOQ(estimate).reduce((sum, item) => sum + item.total, 0);
+    const materialSubtotal = Object.values(estimate.materials).reduce((sum, item) => sum + item.total, 0);
+    expect(boqTotal).toBe(materialSubtotal);
+    expect(boqTotal).toBeLessThan(estimate.totalCost);
+  });
+
+  it("applies selected material and mason rate overrides to the generated estimate", () => {
+    expect(estimate.materials["Cement"].rate).toBe(600);
+    expect(estimate.materials["Steel Rods"].rate).toBe(110);
+    expect(estimate.materials["Bricks"].rate).toBe(13);
+    expect(estimate.materials["Sand"].rate).toBe(50);
+    expect(estimate.materials["Stone Chips"].rate).toBe(220);
+    expect(estimate.labor["Mason"].rate).toBe(850);
+    expect(estimate.materials["Cement"].total).toBe(estimate.materials["Cement"].qty * 600);
+  });
+
+  it("normalizes equivalent feet and meter inputs to the same built-up area", () => {
+    const feetEstimate = generateEstimate({
+      plotLength: 40, plotWidth: 30, floors: 2, floorHeight: 10, wallThickness: 5,
+      quality: "standard", projectType: "single", unit: "feet", fileName: "feet",
+    });
+    const meterEstimate = generateEstimate({
+      plotLength: 12.192, plotWidth: 9.144, floors: 2, floorHeight: 3.048, wallThickness: 5,
+      quality: "standard", projectType: "single", unit: "meters", fileName: "meters",
+    });
+    expect(meterEstimate.totalFloorArea).toBe(feetEstimate.totalFloorArea);
+    expect(meterEstimate.totalCost).toBe(feetEstimate.totalCost);
+  });
 });
