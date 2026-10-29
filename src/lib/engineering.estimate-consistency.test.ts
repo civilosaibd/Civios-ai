@@ -47,6 +47,13 @@ describe("material BOQ and quotation consistency", () => {
     expect(quotation.justification.reduce((sum, row) => sum + row.amount, 0)).toBe(quotation.total);
   });
 
+  it("does not duplicate separately itemized paint materials in the finishing allowance", () => {
+    expect(estimate.materials["Paint (Interior)"]).toBeDefined();
+    expect(estimate.materials["Paint (Exterior)"]).toBeDefined();
+    expect(estimate.finishing).not.toHaveProperty("Interior Paint");
+    expect(estimate.finishing).not.toHaveProperty("Exterior Paint");
+  });
+
   it("keeps the estimate breakdown aligned with the total cost", () => {
     const breakdownTotal = estimate.costBreakdown.reduce((sum, item) => sum + item.amount, 0);
     expect(breakdownTotal).toBe(estimate.totalCost);
