@@ -95,6 +95,10 @@ export function generateEstimate(params: {
   const stone = Math.round(totalFloorArea * 0.61);
   const bricks = Math.round(wallVolume * 13.5);
   const steel = Math.round(totalFloorArea * 4.2 * mult);
+  // Apply the selected quality tier to the itemized paint rates as well.
+  // Paint is listed once in Materials; Finishing must not add another paint allowance.
+  const interiorPaintRate = Math.round(8 * mult);
+  const exteriorPaintRate = Math.round(10 * mult);
 
   const r = {
     cement: rates?.cement ?? 420,
@@ -109,8 +113,8 @@ export function generateEstimate(params: {
     "Stone Chips": { qty: stone, unit: "cft", rate: r.stoneChips, total: stone * r.stoneChips },
     "Bricks": { qty: bricks, unit: "pcs", rate: r.brick, total: bricks * r.brick },
     "Steel Rods": { qty: steel, unit: "kg", rate: r.steel, total: steel * r.steel },
-    "Paint (Interior)": { qty: Math.round(wallArea * 0.8), unit: "sqft", rate: 8, total: Math.round(wallArea * 0.8) * 8 },
-    "Paint (Exterior)": { qty: Math.round(wallArea * 0.3), unit: "sqft", rate: 10, total: Math.round(wallArea * 0.3) * 10 },
+    "Paint (Interior)": { qty: Math.round(wallArea * 0.8), unit: "sqft", rate: interiorPaintRate, total: Math.round(wallArea * 0.8) * interiorPaintRate },
+    "Paint (Exterior)": { qty: Math.round(wallArea * 0.3), unit: "sqft", rate: exteriorPaintRate, total: Math.round(wallArea * 0.3) * exteriorPaintRate },
     "Tiles": { qty: Math.round(totalFloorArea * 1.08), unit: "sqft", rate: Math.round(25 * mult), total: Math.round(totalFloorArea * 1.08) * Math.round(25 * mult) },
     "Doors": { qty: rooms.reduce((s, r) => s + r.doors, 0) * floors, unit: "pcs", rate: Math.round(8000 * mult), total: rooms.reduce((s, r) => s + r.doors, 0) * floors * Math.round(8000 * mult) },
     "Windows": { qty: rooms.reduce((s, r) => s + r.windows, 0) * floors, unit: "pcs", rate: Math.round(5000 * mult), total: rooms.reduce((s, r) => s + r.windows, 0) * floors * Math.round(5000 * mult) },
