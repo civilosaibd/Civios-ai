@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
@@ -117,7 +117,7 @@ const DashboardPage = () => {
     { label: "Storage used", value: `${Math.round(usage.storage_mb)} MB`, hint: "Current storage consumption", icon: Upload, tone: "emerald" },
   ];
 
-  const onSearch = (event: React.FormEvent) => {
+  const onSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const query = search.trim();
     if (query) navigate(`/projects?q=${encodeURIComponent(query)}`);
