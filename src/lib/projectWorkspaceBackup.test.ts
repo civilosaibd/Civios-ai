@@ -36,11 +36,31 @@ const artifact: ProjectArtifact = {
   updated_at: "2026-10-28T10:30:00.000Z",
 };
 
+function readBlobAsArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (reader.result instanceof ArrayBuffer) resolve(reader.result);
+      else reject(new Error("Could not read test ZIP data."));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read test ZIP data."));
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
+function testFile(parts: BlobPart[], name: string) {
+  const file = new File(parts, name, { type: "application/zip" });
+  // jsdom's File/Blob may not implement arrayBuffer(), although browsers do.
+  Object.defineProperty(file, "arrayBuffer", {
+    configurable: true,
+    value: () => readBlobAsArrayBuffer(file),
+  });
+  return file;
+}
+
 async function backupFile(artifacts: ProjectArtifact[] = [artifact]) {
   const backup = createProjectWorkspaceBackup(project, artifacts);
-  return new File([await backup.blob.arrayBuffer()], backup.fileName, {
-    type: "application/zip",
-  });
+  return testFile([await readBlobAsArrayBuffer(backup.blob)], backup.fileName);
 }
 
 describe("project workspace ZIP backup", () => {
@@ -81,16 +101,14 @@ describe("project workspace ZIP backup", () => {
   });
 
   it("rejects files that are not ZIP backups", async () => {
-    const file = new File(["not a zip archive"], "invalid.zip", {
-      type: "application/zip",
-    });
+    const file = testFile(["not a zip archive"], "invalid.zip");
     await expect(readProjectWorkspaceBackup(file)).rejects.toThrow(
       "not a valid CivilOS workspace ZIP backup",
     );
   });
 
   it("rejects empty files with a clear error", async () => {
-    const file = new File([], "empty.zip", { type: "application/zip" });
+    const file = testFile([], "empty.zip");
     await expect(readProjectWorkspaceBackup(file)).rejects.toThrow(
       "between 1 byte and 50 MB",
     );
@@ -109,7 +127,7 @@ describe("project workspace ZIP backup", () => {
     }
     expect(markerOffset).toBeGreaterThanOrEqual(0);
     bytes[markerOffset + marker.length - 2] ^= 1;
-    const corrupted = new File([bytes], "corrupted.zip", { type: "application/zip" });
+    const corrupted = testFile([bytes], "corrupted.zip");
     await expect(readProjectWorkspaceBackup(corrupted)).rejects.toThrow(
       "Checksum validation failed",
     );
@@ -129,7 +147,7 @@ describe("project workspace ZIP backup", () => {
     expect(localHeader).toBeGreaterThanOrEqual(0);
     // Corrupt the local-header compression method while leaving the central directory intact.
     view.setUint16(localHeader + 8, 8, true);
-    const corrupted = new File([bytes], "mismatched-header.zip", { type: "application/zip" });
+    const corrupted = testFile([bytes], "mismatched-header.zip");
     await expect(readProjectWorkspaceBackup(corrupted)).rejects.toThrow(
       "file header does not match its directory entry",
     );
@@ -138,7 +156,7 @@ describe("project workspace ZIP backup", () => {
   it("rejects ZIPs with trailing bytes after the end-of-central-directory record", async () => {
     const original = await backupFile();
     const bytes = new Uint8Array(await original.arrayBuffer());
-    const corrupted = new File([bytes, new Uint8Array([0])], "trailing-data.zip", { type: "application/zip" });
+    const corrupted = testFile([bytes, new Uint8Array([0])], "trailing-data.zip");
     await expect(readProjectWorkspaceBackup(corrupted)).rejects.toThrow(
       "directory is invalid or too large",
     );
