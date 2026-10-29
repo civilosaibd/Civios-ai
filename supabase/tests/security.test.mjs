@@ -53,7 +53,10 @@ async function as(role, uid, email, fn) {
   await db.exec(`RESET ROLE; SELECT set_config('request.jwt.claim.sub', '${uid ?? ""}', false);
     SELECT set_config('request.jwt.claims', '${JSON.stringify(uid ? { sub: uid, email } : {}).replace(/'/g, "''")}', false);
     SET ROLE ${role};`);
-  try { return await fn(); } finally { await db.exec("RESET ROLE"); }
+  try { return await fn(); } finally {
+    // Do not leak a previous test user's JWT claims into later owner-level assertions.
+    await db.exec("RESET ROLE; SELECT set_config('request.jwt.claim.sub', '', false); SELECT set_config('request.jwt.claims', '{}', false);");
+  }
 }
 const alice = (fn) => as("authenticated", ALICE, "alice@example.com", fn);
 const bob   = (fn) => as("authenticated", BOB, "bob@example.com", fn);
@@ -308,7 +311,7 @@ test("AI credit quota: Free plan caps monthly usage at 50", async () => {
   const [blocked] = await as("service_role", AI_FREE, "ai-free@example.com", () =>
     q("SELECT * FROM public.consume_ai_credit($1)", [AI_FREE]));
   assert.equal(blocked.allowed, false);
-  assert.equal(blocked.reason, "quota");
+  assert.equal(blocked.reason, "ai_credits");
   assert.equal(blocked.used, 50);
 });
 
