@@ -77,6 +77,20 @@ describe("material BOQ and quotation consistency", () => {
     }
   });
 
+  it("does not repeat tile installation or wall/ceiling painting as broad finishing packages", () => {
+    expect(estimate.materials["Tiles"]).toBeDefined();
+    expect(estimate.labor["Tiles Worker"]).toBeDefined();
+    expect(estimate.materials["Paint (Interior)"]).toBeDefined();
+    expect(estimate.materials["Paint (Exterior)"]).toBeDefined();
+    expect(estimate.labor["Painter"]).toBeDefined();
+
+    expect(estimate.finishing).not.toHaveProperty("Floor Finish");
+    expect(estimate.finishing).not.toHaveProperty("Wall Finish");
+    expect(estimate.finishing).not.toHaveProperty("Ceiling Finish");
+    expect(estimate.finishing).not.toHaveProperty("Interior Paint");
+    expect(estimate.finishing).not.toHaveProperty("Exterior Paint");
+  });
+
   it("keeps the estimate breakdown aligned with the total cost", () => {
     const breakdownTotal = estimate.costBreakdown.reduce((sum, item) => sum + item.amount, 0);
     expect(breakdownTotal).toBe(estimate.totalCost);
