@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import { saveProjectArtifact } from "@/lib/projectArtifacts";
 import DistrictRates from "@/components/DistrictRates";
 import MaterialAnalysisDashboard from "@/components/estimate/MaterialAnalysisDashboard";
+import BOQReconciliation from "@/components/estimate/BOQReconciliation";
 
 const COLORS = ["#1a3a6b", "#2a5298", "#e67e22", "#27ae60", "#8e44ad", "#e74c3c", "#3498db", "#f39c12", "#1abc9c"];
 
@@ -548,6 +549,7 @@ const EstimatePage = () => {
           </section>
 
           <MaterialAnalysisDashboard materials={data.materials} projectName={projectName} projectCost={data.totalCost} currency={currency} fmt={fmt} />
+          <BOQReconciliation materials={data.materials} boq={boq} fmt={fmt} currency={currency} />
 
           <section id="estimate-upgrade" className="scroll-mt-6 rounded-3xl border border-border/70 bg-card p-6 shadow-sm md:p-8">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
