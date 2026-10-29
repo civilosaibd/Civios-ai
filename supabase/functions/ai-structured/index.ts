@@ -1,5 +1,6 @@
 import { checkAiEndpointRateLimit } from "../_shared/aiRateLimit.ts";
 import { consumeAiCredit } from "../_shared/aiUsageQuota.ts";
+import { requirePlanFeature } from "../_shared/planFeatureAccess.ts";
 // CivilOS AI — structured JSON responses for Tender Analysis & BOQ generation
 import { createClient } from "npm:@supabase/supabase-js@2";
 const corsHeaders = {
@@ -68,9 +69,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    const requiredFeature = mode === "tender" ? "tender" : mode === "insights" ? "ai_insights" : null;
+    if (requiredFeature) {
+      const access = await requirePlanFeature(user.id, requiredFeature);
+      if (access) return new Response(JSON.stringify({ error: access.message }), {
+        status: access.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const rateLimit = await checkAiEndpointRateLimit(user.id, "ai-structured");
     if (rateLimit) return new Response(JSON.stringify({ error: rateLimit.message }), { status: rateLimit.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    const creditQuota = await consumeAiCredit(user.id);
+    const creditQuota = await consumeAiCredit(user.id, mode === "boq" ? "boq_generations" : undefined);
     if (creditQuota) return new Response(JSON.stringify({ error: creditQuota.message }), { status: creditQuota.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
 

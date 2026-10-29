@@ -107,7 +107,9 @@ export function useSubscription() {
   useEffect(() => { load(); }, [load]);
 
   const freePlan = plans.find((p) => p.code === "free") || null;
-  const activeSub = subscription && ["active", "trialing"].includes(subscription.status) ? subscription : null;
+  // Match server-side quota enforcement: an expired renewal date never grants paid entitlements.
+  const renewalExpired = !!subscription?.renewal_date && Date.parse(subscription.renewal_date) <= Date.now();
+  const activeSub = subscription && ["active", "trialing"].includes(subscription.status) && !renewalExpired ? subscription : null;
   const plan = (activeSub ? plans.find((p) => p.id === activeSub.plan_id) : null) || freePlan;
 
   const limitOf = (key: string): number => {

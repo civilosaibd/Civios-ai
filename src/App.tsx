@@ -16,6 +16,7 @@ import UpdateAvailable from "./components/UpdateAvailable";
 import { PwaProvider } from "@/lib/pwa";
 import FloatingAssistant from "@/components/FloatingAssistant";
 import { UnitsProvider } from "@/lib/UnitsContext";
+import PlanFeatureGate from "@/components/PlanFeatureGate";
 
 const Index = lazy(() => import("./pages/Index.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
@@ -134,7 +135,7 @@ const App = () => (
                       <Route path="/dashboard" element={<DashboardPage />} />
 
                       <Route path="/ai-assistant" element={<Navigate to="/ai-engineer" replace />} />
-                      <Route path="/ai-writer" element={<AIWriterPage />} />
+                      <Route path="/ai-writer" element={<PlanFeatureGate feature="ai_writer"><AIWriterPage /></PlanFeatureGate>} />
                       <Route path="/ai-engineer" element={<AIEngineerPage />} />
                       <Route path="/boq-hub" element={<BOQHubPage />} />
                       <Route
@@ -151,12 +152,12 @@ const App = () => (
                         element={<FileAssistantPage />}
                       />
                       <Route path="/boq" element={<BOQGeneratorPage />} />
-                      <Route path="/tender" element={<TenderAnalysisPage />} />
-                      <Route path="/tender-docs" element={<TenderDocumentCheckerPage />} />
-                      <Route path="/bid-prep" element={<BidPreparationPage />} />
-                      <Route path="/analytics" element={<AnalyticsPage />} />
-                      <Route path="/ai-insights" element={<AIInsightsPage />} />
-                      <Route path="/ai-drawing" element={<AIDrawingPage />} />
+                      <Route path="/tender" element={<PlanFeatureGate feature="tender"><TenderAnalysisPage /></PlanFeatureGate>} />
+                      <Route path="/tender-docs" element={<PlanFeatureGate feature="tender"><TenderDocumentCheckerPage /></PlanFeatureGate>} />
+                      <Route path="/bid-prep" element={<PlanFeatureGate feature="tender"><BidPreparationPage /></PlanFeatureGate>} />
+                      <Route path="/analytics" element={<PlanFeatureGate feature="analytics"><AnalyticsPage /></PlanFeatureGate>} />
+                      <Route path="/ai-insights" element={<PlanFeatureGate feature="ai_insights"><AIInsightsPage /></PlanFeatureGate>} />
+                      <Route path="/ai-drawing" element={<PlanFeatureGate feature="ai_drawing"><AIDrawingPage /></PlanFeatureGate>} />
                       <Route path="/site-diary" element={<SiteDiaryPage />} />
                       <Route path="/company-settings" element={<CompanySettingsPage />} />
                       <Route path="/progress-reports" element={<ProgressReportsPage />} />
@@ -179,16 +180,16 @@ const App = () => (
                       <Route path="/site-geo" element={<SiteGeoPage />} />
                       <Route path="/scheduler" element={<SchedulerPage />} />
 
-                      <Route path="/inventory" element={<InventoryPage />} />
+                      <Route path="/inventory" element={<PlanFeatureGate feature="procurement"><InventoryPage /></PlanFeatureGate>} />
                       <Route
                         path="/requisitions"
-                        element={<InventoryPage />}
+                        element={<PlanFeatureGate feature="procurement"><InventoryPage /></PlanFeatureGate>}
                       />
                       <Route
                         path="/purchase-orders"
-                        element={<InventoryPage />}
+                        element={<PlanFeatureGate feature="procurement"><InventoryPage /></PlanFeatureGate>}
                       />
-                      <Route path="/vendors" element={<InventoryPage />} />
+                      <Route path="/vendors" element={<PlanFeatureGate feature="procurement"><InventoryPage /></PlanFeatureGate>} />
                       <Route path="/equipment" element={<EquipmentPage />} />
 
                       <Route
@@ -208,13 +209,13 @@ const App = () => (
                         element={<MaterialCalculatorPage />}
                       />
 
-                      <Route path="/invoices" element={<FinancePage />} />
+                      <Route path="/invoices" element={<PlanFeatureGate feature="finance"><FinancePage /></PlanFeatureGate>} />
                       <Route
                         path="/contractor-bills"
-                        element={<FinancePage />}
+                        element={<PlanFeatureGate feature="finance"><FinancePage /></PlanFeatureGate>}
                       />
-                      <Route path="/payments" element={<FinancePage />} />
-                      <Route path="/cash-flow" element={<FinancePage />} />
+                      <Route path="/payments" element={<PlanFeatureGate feature="finance"><FinancePage /></PlanFeatureGate>} />
+                      <Route path="/cash-flow" element={<PlanFeatureGate feature="finance"><FinancePage /></PlanFeatureGate>} />
 
                       <Route path="/agent" element={<UserAgentPage />} />
                       <Route
@@ -238,7 +239,7 @@ const App = () => (
                         path="/settings/backup"
                         element={<BackupPage />}
                       />
-                      <Route path="/reports" element={<ReportsPage />} />
+                      <Route path="/reports" element={<PlanFeatureGate feature="analytics"><ReportsPage /></PlanFeatureGate>} />
 
                       <Route path="/affiliate" element={<AffiliatePage />} />
                       <Route

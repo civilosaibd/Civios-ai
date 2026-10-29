@@ -333,6 +333,28 @@ test("AI credit quota: active subscription uses plan quota and expires back to F
   assert.equal(expiredResult.quota, 50);
 });
 
+test("BOQ generation quota is enforced atomically with AI credits", async () => {
+  const AI_BOQ_FREE = "00000000-0000-4000-8000-0000000000c8";
+  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'ai-boq-free@example.com')", [AI_BOQ_FREE]);
+  const allowed = await as("service_role", AI_BOQ_FREE, "ai-boq-free@example.com", async () => {
+    const results = [];
+    for (let i = 0; i < 5; i++) {
+      results.push((await q("SELECT * FROM public.consume_ai_credit($1, 'boq_generations')", [AI_BOQ_FREE]))[0]);
+    }
+    return results;
+  });
+  assert.ok(allowed.every((r) => r.allowed === true));
+  const [blocked] = await as("service_role", AI_BOQ_FREE, "ai-boq-free@example.com", () =>
+    q("SELECT * FROM public.consume_ai_credit($1, 'boq_generations')", [AI_BOQ_FREE]));
+  assert.equal(blocked.allowed, false);
+  assert.equal(blocked.reason, "boq_generations");
+  assert.equal(blocked.used, 5);
+  assert.equal(blocked.quota, 5);
+  const [usage] = await q("SELECT ai_credits, boq_generations FROM public.usage_records WHERE user_id=$1", [AI_BOQ_FREE]);
+  assert.equal(usage.ai_credits, 5);
+  assert.equal(usage.boq_generations, 5);
+});
+
 test("AI credit quota: administrators remain operational without a subscription", async () => {
   const [result] = await as("service_role", ADMIN, "zobaerio24@gmail.com", () =>
     q("SELECT * FROM public.consume_ai_credit($1)", [ADMIN]));
@@ -341,6 +363,52 @@ test("AI credit quota: administrators remain operational without a subscription"
   assert.equal(result.quota, -1);
 });
 
+
+test("premium plan feature checks are server-only and follow current, unexpired plan limits", async () => {
+  const AI_FEATURE_FREE = "00000000-0000-4000-8000-0000000000c6";
+  const AI_FEATURE_STARTER = "00000000-0000-4000-8000-0000000000c7";
+  const AI_PRO = "00000000-0000-4000-8000-0000000000c5";
+  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'ai-feature-free@example.com'),($2,'ai-feature-starter@example.com'),($3,'ai-feature-pro@example.com')", [AI_FEATURE_FREE, AI_FEATURE_STARTER, AI_PRO]);
+
+  await alice(() => rejects(
+    () => db.query("SELECT public.user_has_plan_feature($1, 'ai_writer')", [ALICE]),
+    /permission denied/
+  ));
+  await anon(() => rejects(
+    () => db.query("SELECT public.user_has_plan_feature($1, 'ai_writer')", [AI_FREE]),
+    /permission denied/
+  ));
+
+  const [freeWriter] = await as("service_role", AI_FEATURE_FREE, "ai-feature-free@example.com", () =>
+    q("SELECT public.user_has_plan_feature($1, 'ai_writer') AS allowed", [AI_FEATURE_FREE]));
+  assert.equal(freeWriter.allowed, false);
+
+  const [{ id: starter }] = await q("SELECT id FROM public.plans WHERE code='starter'");
+  await db.query(
+    "INSERT INTO public.subscriptions (user_id,plan_id,status,billing_cycle,renewal_date) VALUES ($1,$2,'active','yearly',now() + interval '1 year')",
+    [AI_FEATURE_STARTER, starter]
+  );
+  const [starterTender] = await as("service_role", AI_FEATURE_STARTER, "ai-feature-starter@example.com", () =>
+    q("SELECT public.user_has_plan_feature($1, 'tender') AS allowed", [AI_FEATURE_STARTER]));
+  const [starterWriter] = await as("service_role", AI_FEATURE_STARTER, "ai-feature-starter@example.com", () =>
+    q("SELECT public.user_has_plan_feature($1, 'ai_writer') AS allowed", [AI_FEATURE_STARTER]));
+  assert.equal(starterTender.allowed, true);
+  assert.equal(starterWriter.allowed, false);
+
+  const [{ id: professional }] = await q("SELECT id FROM public.plans WHERE code='professional'");
+  await db.query(
+    "INSERT INTO public.subscriptions (user_id,plan_id,status,billing_cycle,renewal_date) VALUES ($1,$2,'active','yearly',now() + interval '1 year')",
+    [AI_PRO, professional]
+  );
+  const [proWriter] = await as("service_role", AI_PRO, "ai-feature-pro@example.com", () =>
+    q("SELECT public.user_has_plan_feature($1, 'ai_writer') AS allowed", [AI_PRO]));
+  assert.equal(proWriter.allowed, true);
+
+  await db.query("UPDATE public.subscriptions SET renewal_date=now() - interval '1 day' WHERE user_id=$1", [AI_PRO]);
+  const [expiredWriter] = await as("service_role", AI_PRO, "ai-feature-pro@example.com", () =>
+    q("SELECT public.user_has_plan_feature($1, 'ai_writer') AS allowed", [AI_PRO]));
+  assert.equal(expiredWriter.allowed, false);
+});
 
 test("signup never automatically grants admin to an allowlisted email", async () => {
   const candidate = "00000000-0000-4000-8000-0000000000c4";
