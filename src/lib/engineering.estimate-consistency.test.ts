@@ -118,6 +118,7 @@ describe("material BOQ and quotation consistency", () => {
   it("does not count electrician and plumber labor again on top of installed electrical/plumbing allowances", () => {
     expect(estimate.labor).not.toHaveProperty("Electrician");
     expect(estimate.labor).not.toHaveProperty("Plumber");
+    expect(estimate.labor).toHaveProperty("General Labor (excluding excavation, electrical & plumbing)");
     expect(estimate.electrical["Estimated Cost"]).toBeGreaterThan(0);
     expect(estimate.plumbing["Estimated Cost"]).toBeGreaterThan(0);
     expect(estimate.costBreakdown.find((item) => item.category === "Electrical")?.amount)
