@@ -93,7 +93,7 @@ const EstimatePage = () => {
       ["Floors", data.floors],
       ["Built-up floor area (sqft)", data.totalFloorArea],
       ["Quality", data.quality],
-      ["Rate basis", "Indicative BDT rates; verify with local suppliers before procurement"],
+      ["Rate basis", `Indicative ${district} district reference rates; not verified live market quotes. Cement, steel, brick, sand, stone chips and mason labor use the selected reference rates; other allowances may remain model defaults.`],
       [],
       ["Item", "Qty", "Unit", "Rate (BDT)", "Total (BDT)"],
     ];
@@ -111,7 +111,7 @@ const EstimatePage = () => {
       ["CivilOS AI — Preliminary Contractor Quotation (BDT)"],
       ["Project", projectName], ["District", district], ["Plot", data.plotSize],
       ["Built-up floor area (sqft)", data.totalFloorArea], ["Floors", data.floors], ["Quality", data.quality],
-      ["Rate basis", "Indicative planning allowances; not a binding tender or contractor offer"],
+      ["Rate basis", `Indicative ${district} district reference rates and model allowances; not verified live market quotes or a binding tender/contractor offer.`],
       [],
       ["Cost component", "Amount (BDT)", "Scope / justification"],
       ...quotation.justification.map((j) => [j.label, j.amount, j.note]),
@@ -293,7 +293,7 @@ const EstimatePage = () => {
     doc.text(disclaimerLines, 14, y);
     const assumptionsY = y + disclaimerLines.length * 4;
     const assumptionsLines = doc.splitTextToSize(
-      `Rate basis: indicative BDT rates | District: ${district} | Design assumptions: ${zone}, soil ${soil}`,
+      `Rate basis: ${district} indicative reference rates (not live-verified) | Design assumptions: ${zone}, soil ${soil}`,
       180,
     );
     doc.text(assumptionsLines, 14, assumptionsY);
