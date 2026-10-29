@@ -115,4 +115,33 @@ describe("project workspace ZIP backup", () => {
     );
   });
 
+  it("rejects a ZIP whose local header disagrees with its central directory", async () => {
+    const original = await backupFile();
+    const bytes = new Uint8Array(await original.arrayBuffer());
+    const view = new DataView(bytes.buffer);
+    let localHeader = -1;
+    for (let i = 0; i <= bytes.length - 4; i++) {
+      if (view.getUint32(i, true) === 0x04034b50) {
+        localHeader = i;
+        break;
+      }
+    }
+    expect(localHeader).toBeGreaterThanOrEqual(0);
+    // Corrupt the local-header compression method while leaving the central directory intact.
+    view.setUint16(localHeader + 8, 8, true);
+    const corrupted = new File([bytes], "mismatched-header.zip", { type: "application/zip" });
+    await expect(readProjectWorkspaceBackup(corrupted)).rejects.toThrow(
+      "file header does not match its directory entry",
+    );
+  });
+
+  it("rejects ZIPs with trailing bytes after the end-of-central-directory record", async () => {
+    const original = await backupFile();
+    const bytes = new Uint8Array(await original.arrayBuffer());
+    const corrupted = new File([bytes, new Uint8Array([0])], "trailing-data.zip", { type: "application/zip" });
+    await expect(readProjectWorkspaceBackup(corrupted)).rejects.toThrow(
+      "directory is invalid or too large",
+    );
+  });
+
 });
