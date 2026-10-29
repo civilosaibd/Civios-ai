@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 
@@ -76,8 +76,11 @@ export function useSubscription() {
   const [usage, setUsage] = useState<UsageRecord>(EMPTY_USAGE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestId = useRef(0);
 
   const load = useCallback(async () => {
+    const request = ++requestId.current;
+    const isCurrent = () => request === requestId.current;
     setLoading(true);
     setError(null);
     try {
@@ -87,6 +90,7 @@ export function useSubscription() {
         .eq("is_active", true)
         .order("sort_order");
       if (plansError) throw plansError;
+      if (!isCurrent()) return;
 
       const list = ((planRows as any[]) || []).map((p) => ({
         ...p,
@@ -102,6 +106,7 @@ export function useSubscription() {
         ]);
         if (subResult.error) throw subResult.error;
         if (usageResult.error) throw usageResult.error;
+        if (!isCurrent()) return;
         setSubscription((subResult.data as any) || null);
         setUsage(((usageResult.data as any) || EMPTY_USAGE) as UsageRecord);
       } else {
@@ -109,17 +114,21 @@ export function useSubscription() {
         setUsage(EMPTY_USAGE);
       }
     } catch {
+      if (!isCurrent()) return;
       // Never grant paid features when entitlement data could not be verified.
       setPlans([]);
       setSubscription(null);
       setUsage(EMPTY_USAGE);
       setError("We couldn't verify your plan and usage right now. Please retry before using plan-restricted features.");
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [user]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => { requestId.current += 1; };
+  }, [load]);
 
   const freePlan = plans.find((p) => p.code === "free") || null;
   // Match server-side quota enforcement: an expired renewal date never grants paid entitlements.
@@ -167,13 +176,29 @@ export function usePublicPlans() {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let alive = true;
-    (async () => {
-      const { data, error } = await supabase.from("plans").select("*").eq("is_active", true).order("sort_order");
-      if (!alive) return;
-      if (error || !data) setFailed(true);
-      else setPlans((data as unknown as Plan[]).map((p) => ({ ...p, features: Array.isArray(p.features) ? p.features : [], limits: p.limits || {} })));
-      setLoading(false);
-    })();
+    const load = async () => {
+      setLoading(true);
+      setFailed(false);
+      try {
+        const { data, error } = await supabase.from("plans").select("*").eq("is_active", true).order("sort_order");
+        if (error || !data) throw error || new Error("No plan data returned");
+        if (alive) {
+          setPlans((data as unknown as Plan[]).map((p) => ({
+            ...p,
+            features: Array.isArray(p.features) ? p.features : [],
+            limits: p.limits || {},
+          })));
+        }
+      } catch {
+        if (alive) {
+          setPlans([]);
+          setFailed(true);
+        }
+      } finally {
+        if (alive) setLoading(false);
+      }
+    };
+    void load();
     return () => { alive = false; };
   }, []);
   return { plans, loading, failed };
