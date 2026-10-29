@@ -85,26 +85,45 @@ const EstimatePage = () => {
   };
 
   const exportBOQCsv = () => {
-    const rows: (string | number)[][] = [["Material BOQ — indicative take-off (BDT)"], ["Item", "Qty", "Unit", "Rate (BDT)", "Total (BDT)"]];
+    const rows: (string | number)[][] = [
+      ["CivilOS AI — Material BOQ (indicative take-off; not a full project quotation)"],
+      ["Project", projectName],
+      ["District", district],
+      ["Plot", data.plotSize],
+      ["Floors", data.floors],
+      ["Built-up floor area (sqft)", data.totalFloorArea],
+      ["Quality", data.quality],
+      ["Rate basis", "Indicative BDT rates; verify with local suppliers before procurement"],
+      [],
+      ["Item", "Qty", "Unit", "Rate (BDT)", "Total (BDT)"],
+    ];
     boq.forEach((b) => rows.push([b.item, b.qty, b.unit, b.rate, b.total]));
-    rows.push(["", "", "", "TOTAL", boq.reduce((s, b) => s + b.total, 0)]);
-    downloadCSV(`${projectName}_BOQ.csv`, rows);
-    toast.success("BOQ exported as CSV");
+    rows.push(["", "", "", "MATERIAL BOQ TOTAL (BDT)", boq.reduce((s, b) => s + b.total, 0)]);
+    rows.push([]);
+    rows.push(["Scope note", "Material take-off only. Excludes a complete labor, civil-work, finishing, services, transport, overhead, contingency and contractor-profit quotation. Do not treat this total as the full project cost."]);
+    rows.push(["Estimate note", "Area-based preliminary estimate; quantities and rates must be verified against approved drawings, site conditions and current local quotations."]);
+    downloadCSV(`${projectName}_Material_BOQ.csv`, rows);
+    toast.success("Material BOQ exported as CSV");
   };
 
   const exportQuotationCsv = () => {
     const rows: (string | number)[][] = [
-      ["Smart House Estimate AI – Contractor Quotation"],
-      ["Project", projectName], ["Plot", data.plotSize], ["Floors", data.floors], ["Quality", data.quality],
+      ["CivilOS AI — Preliminary Contractor Quotation (BDT)"],
+      ["Project", projectName], ["District", district], ["Plot", data.plotSize],
+      ["Built-up floor area (sqft)", data.totalFloorArea], ["Floors", data.floors], ["Quality", data.quality],
+      ["Rate basis", "Indicative planning allowances; not a binding tender or contractor offer"],
       [],
-      ["Item", "Amount (BDT)", "Justification"],
+      ["Cost component", "Amount (BDT)", "Scope / justification"],
       ...quotation.justification.map((j) => [j.label, j.amount, j.note]),
-      ["Full Project Cost (before profit)", quotation.baseProjectCost, "Materials + Labor + Civil + Finishing + E&P + Transport + Contingency + Overhead"],
-      ["TOTAL (with 10% contractor profit)", quotation.total, "Single profit margin — no double counting"],
+      ["Full Project Cost (before contractor profit)", quotation.baseProjectCost, "Estimator base including direct costs, transport, contingency and overhead; profit excluded."],
+      ["Contractor Profit (10%)", quotation.profit, "Applied once to the full pre-profit project cost."],
+      ["TOTAL PRELIMINARY PROJECT QUOTATION", quotation.total, "Review scope, exclusions, taxes, duties, approvals and current local rates before agreement."],
       [],
       ["Duration (months)", quotation.durationMonths],
       ["Validity (days)", quotation.validityDays],
       ["Payment Terms", quotation.paymentTerms],
+      [],
+      ["Important scope note", "Preliminary area-based estimate only. This is not a signed or binding contractor quotation. Verify quantities, specifications, site conditions, labor scope, taxes/VAT, approvals, utility connections and supplier rates before contract."],
     ];
     downloadCSV(`${projectName}_Quotation.csv`, rows);
     toast.success("Quotation exported as CSV");
@@ -199,9 +218,10 @@ const EstimatePage = () => {
     doc.setFontSize(18);
     doc.text("Smart House Estimate AI - Engineering Report", 14, 20);
     doc.setFontSize(10);
-    doc.text(`Project: ${data.projectName}`, 14, 30);
-    doc.text(`Plot: ${data.plotSize} | Floors: ${data.floors} | Quality: ${data.quality}`, 14, 36);
-    doc.text(`Total Cost: BDT ${new Intl.NumberFormat("en-IN").format(quotation.total)}`, 14, 42);
+    doc.text(`Project: ${projectName}`, 14, 30);
+    doc.text(`District: ${district} | Plot: ${data.plotSize} | Floors: ${data.floors}`, 14, 36);
+    doc.text(`Built-up area: ${new Intl.NumberFormat("en-IN").format(data.totalFloorArea)} sqft | Quality: ${data.quality}`, 14, 42);
+    doc.text(`Preliminary total: BDT ${new Intl.NumberFormat("en-IN").format(quotation.total)} (includes 10% contractor profit)`, 14, 48);
 
     doc.text("BNBC Structural Loads", 14, 52);
     autoTable(doc, {
@@ -229,9 +249,12 @@ const EstimatePage = () => {
       styles: { fontSize: 8 },
     });
     y = (doc as any).lastAutoTable.finalY + 8;
-    doc.text("Bill of Quantities (BOQ)", 14, y);
+    if (y > 245) { doc.addPage(); y = 20; }
+    doc.text("Material BOQ — Indicative Take-off Only", 14, y);
+    doc.setFontSize(8);
+    doc.text("Not the full project quotation. Verify quantities and rates against approved drawings and local supplier quotes.", 14, y + 4);
     autoTable(doc, {
-      startY: y + 4,
+      startY: y + 8,
       head: [["Item", "Qty", "Unit", "Rate (BDT)", "Total (BDT)"]],
       body: boq.map((b) => [
         b.item,
@@ -245,14 +268,17 @@ const EstimatePage = () => {
 
     y = (doc as any).lastAutoTable.finalY + 8;
     if (y > 250) { doc.addPage(); y = 20; }
-    doc.text("Contractor Quotation", 14, y);
+    doc.text("Preliminary Contractor Quotation", 14, y);
+    doc.setFontSize(8);
+    doc.text("Area-based planning estimate only; not a binding tender or signed contractor offer.", 14, y + 4);
     autoTable(doc, {
-      startY: y + 4,
+      startY: y + 8,
       head: [["Item", "Amount (BDT)", "Justification"]],
       body: [
         ...quotation.justification.map((j) => [j.label, new Intl.NumberFormat("en-IN").format(j.amount), j.note]),
-        ["Full Project Cost", new Intl.NumberFormat("en-IN").format(quotation.baseProjectCost), "Sum before contractor profit"],
-        ["TOTAL (with profit)", new Intl.NumberFormat("en-IN").format(quotation.total), "Final quotation"],
+        ["Full Project Cost (before profit)", new Intl.NumberFormat("en-IN").format(quotation.baseProjectCost), "Includes direct costs, transport, contingency and overhead"],
+        ["Contractor Profit (10%)", new Intl.NumberFormat("en-IN").format(quotation.profit), "Applied once to pre-profit project cost"],
+        ["TOTAL PRELIMINARY QUOTATION", new Intl.NumberFormat("en-IN").format(quotation.total), "Verify scope and local rates before agreement"],
       ],
       styles: { fontSize: 9 },
     });
@@ -260,8 +286,9 @@ const EstimatePage = () => {
     y = (doc as any).lastAutoTable.finalY + 8;
     if (y > 270) { doc.addPage(); y = 20; }
     doc.setFontSize(8);
-    doc.text("Disclaimer: AI-based preliminary analysis. Verify with a licensed structural engineer.", 14, y);
-    doc.text("Developed by MD Zobaer Hasan | https://zobaer.vercel.app", 14, y + 5);
+    doc.text("Disclaimer: Preliminary area-based estimate; not tender-ready. Verify quantities, rates, site conditions and structural design with qualified professionals.", 14, y);
+    doc.text(`Rate basis: indicative BDT rates | District: ${district} | Design assumptions: ${zone}, soil ${soil}`, 14, y + 5);
+    doc.text("Developed by MD Zobaer Hasan | https://zobaer.vercel.app", 14, y + 10);
 
     doc.save(`${data.projectName}_EngineeringReport.pdf`);
   };
