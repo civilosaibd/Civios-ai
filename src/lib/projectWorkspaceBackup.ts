@@ -177,10 +177,18 @@ export async function readProjectWorkspaceBackup(file: File): Promise<ParsedWork
     if (offset >= 0 && read32(offset) === eocdSignature) { eocd = offset; break; }
   }
   if (eocd < 0) throw new Error("This file is not a valid CivilOS workspace ZIP backup.");
+  const diskNumber = read16(eocd + 4);
+  const centralDiskNumber = read16(eocd + 6);
+  const entriesOnDisk = read16(eocd + 8);
   const entriesCount = read16(eocd + 10);
   const centralSize = read32(eocd + 12);
   const centralOffset = read32(eocd + 16);
+  const commentLength = read16(eocd + 20);
   if (
+    diskNumber !== 0 ||
+    centralDiskNumber !== 0 ||
+    entriesOnDisk !== entriesCount ||
+    eocd + 22 + commentLength !== bytes.length ||
     entriesCount > MAX_ENTRIES ||
     centralOffset > eocd ||
     centralOffset + centralSize > eocd ||
@@ -213,7 +221,13 @@ export async function readProjectWorkspaceBackup(file: File): Promise<ParsedWork
     const nameBytes = bytes.subarray(cursor + 46, cursor + 46 + nameLength);
     const name = decoder.decode(nameBytes);
     cursor = entryEnd;
-    if (!name || name.startsWith("/") || name.includes("\\\\") || name.split("/").includes("..")) {
+    if (
+      !name ||
+      name.startsWith("/") ||
+      name.includes("\\") ||
+      /^[a-z]:/i.test(name) ||
+      name.split("/").some((part) => part === ".." || part === ".")
+    ) {
       throw new Error("The backup ZIP contains an unsafe file path.");
     }
     if (name.endsWith("/")) continue;
@@ -228,6 +242,9 @@ export async function readProjectWorkspaceBackup(file: File): Promise<ParsedWork
     }
     const localFlags = read16(localOffset + 6);
     const localMethod = read16(localOffset + 8);
+    const localCrc = read32(localOffset + 14);
+    const localCompressedSize = read32(localOffset + 18);
+    const localUncompressedSize = read32(localOffset + 22);
     const localNameLength = read16(localOffset + 26);
     const localExtraLength = read16(localOffset + 28);
     const localNameStart = localOffset + 30;
@@ -238,7 +255,14 @@ export async function readProjectWorkspaceBackup(file: File): Promise<ParsedWork
       throw new Error("The backup ZIP contains a truncated or overlapping file.");
     }
     const localName = decoder.decode(bytes.subarray(localNameStart, localNameEnd));
-    if (localName !== name || localMethod !== method || (localFlags & 0x0001)) {
+    if (
+      localName !== name ||
+      localMethod !== method ||
+      localFlags !== flags ||
+      localCrc !== expectedCrc ||
+      localCompressedSize !== compressedSize ||
+      localUncompressedSize !== uncompressedSize
+    ) {
       throw new Error("The backup ZIP file header does not match its directory entry.");
     }
     const fileBytes = bytes.subarray(dataStart, dataEnd);
