@@ -127,8 +127,8 @@ export function generateEstimate(params: {
     "Mason": { days: Math.round(totalFloorArea * 0.12), rate: lr(1.00), total: Math.round(totalFloorArea * 0.12) * lr(1.00) },
     "Rod Binder": { days: Math.round(totalFloorArea * 0.05), rate: lr(0.88), total: Math.round(totalFloorArea * 0.05) * lr(0.88) },
     "Carpenter": { days: Math.round(totalFloorArea * 0.04), rate: lr(0.94), total: Math.round(totalFloorArea * 0.04) * lr(0.94) },
-    "Electrician": { days: Math.round(totalFloorArea * 0.03), rate: lr(0.88), total: Math.round(totalFloorArea * 0.03) * lr(0.88) },
-    "Plumber": { days: Math.round(totalFloorArea * 0.02), rate: lr(0.88), total: Math.round(totalFloorArea * 0.02) * lr(0.88) },
+    // Electrical and plumbing labor are included in their installed-package allowances below.
+    // Do not also add separate electrician/plumber labor rows to the project subtotal.
     "Painter": { days: Math.round(totalFloorArea * 0.04), rate: lr(0.81), total: Math.round(totalFloorArea * 0.04) * lr(0.81) },
     "Tiles Worker": { days: Math.round(totalFloorArea * 0.03), rate: lr(0.88), total: Math.round(totalFloorArea * 0.03) * lr(0.88) },
     "General Labor": { days: Math.round(totalFloorArea * 0.15), rate: lr(0.63), total: Math.round(totalFloorArea * 0.15) * lr(0.63) },
@@ -142,6 +142,8 @@ export function generateEstimate(params: {
     "Bathroom Finish": Math.round(2 * 18000 * mult),
   };
 
+  // These are installed-scope package allowances (materials + labor), not labor-only rates.
+  // Electrical/plumbing materials are not itemized in the general material take-off.
   const electrical: Record<string, number | string> = {
     "Wiring Points": Math.round(totalFloorArea * 0.08),
     "Switches": Math.round(totalFloorArea * 0.06),
