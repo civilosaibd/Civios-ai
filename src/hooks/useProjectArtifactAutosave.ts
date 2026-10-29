@@ -23,8 +23,9 @@ type AutosaveResult = {
 /**
  * Debounced project artifact autosave.
  *
- * Use only for editors whose state is serializable JSON. File uploads should first
- * upload to private Storage and then save the resulting storage path as artifact metadata.
+ * If the editor changes while a save is in flight, the latest state is queued
+ * and saved immediately after the current request finishes. File uploads should
+ * first upload to private Storage and then save the resulting storage path.
  */
 export function useProjectArtifactAutosave(input: AutosaveInput): AutosaveResult {
   const [status, setStatus] = useState<ProjectAutosaveStatus>("idle");
@@ -32,13 +33,22 @@ export function useProjectArtifactAutosave(input: AutosaveInput): AutosaveResult
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const pendingSave = useRef(false);
+  const artifactIdRef = useRef<string | null>(input.artifactId ?? null);
+  const performSaveRef = useRef<() => Promise<ProjectArtifact | null>>(async () => null);
 
   const serializedData = useMemo(() => JSON.stringify(input.data ?? {}), [input.data]);
   const serializedMetadata = useMemo(() => JSON.stringify(input.metadata ?? {}), [input.metadata]);
 
   const performSave = async (): Promise<ProjectArtifact | null> => {
     if (input.enabled === false || !input.projectId) return null;
-    if (inFlight.current) return null;
+
+    // Never drop an edit just because an earlier request is still running.
+    // The ref calls the newest render's save function after the request completes.
+    if (inFlight.current) {
+      pendingSave.current = true;
+      return null;
+    }
 
     inFlight.current = true;
     setStatus("saving");
@@ -46,7 +56,7 @@ export function useProjectArtifactAutosave(input: AutosaveInput): AutosaveResult
 
     try {
       const saved = await saveProjectArtifact({
-        id: artifactId ?? undefined,
+        id: artifactIdRef.current ?? undefined,
         projectId: input.projectId,
         artifactType: input.artifactType,
         title: input.title,
@@ -57,6 +67,7 @@ export function useProjectArtifactAutosave(input: AutosaveInput): AutosaveResult
         fileName: input.fileName,
         mimeType: input.mimeType,
       });
+      artifactIdRef.current = saved.id;
       setArtifactId(saved.id);
       setLastSavedAt(new Date(saved.updated_at));
       setStatus("saved");
@@ -67,8 +78,16 @@ export function useProjectArtifactAutosave(input: AutosaveInput): AutosaveResult
       return null;
     } finally {
       inFlight.current = false;
+      if (pendingSave.current) {
+        pendingSave.current = false;
+        window.setTimeout(() => {
+          void performSaveRef.current();
+        }, 0);
+      }
     }
   };
+
+  performSaveRef.current = performSave;
 
   useEffect(() => {
     if (input.enabled === false || !input.projectId) {
@@ -77,7 +96,7 @@ export function useProjectArtifactAutosave(input: AutosaveInput): AutosaveResult
     }
 
     const timer = window.setTimeout(() => {
-      void performSave();
+      void performSaveRef.current();
     }, Math.max(500, input.debounceMs ?? 1200));
 
     return () => window.clearTimeout(timer);

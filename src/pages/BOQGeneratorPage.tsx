@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
 import { ExportButtons } from "@/components/ExportButtons";
+import { saveProjectArtifact } from "@/lib/projectArtifacts";
 
 interface BOQItem { item: string; unit: string; qty: number; rate_bdt: number; amount_bdt: number; notes?: string }
 interface BOQResult { summary: string; boq_items: BOQItem[]; total_bdt: number; assumptions: string[] }
@@ -18,6 +19,9 @@ export default function BOQGeneratorPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BOQResult | null>(null);
+  const [savingToProject, setSavingToProject] = useState(false);
+  const [savedArtifactId, setSavedArtifactId] = useState<string | null>(null);
+  const projectId = new URLSearchParams(window.location.search).get("project");
 
   const generate = async () => {
     if (!input.trim()) return toast.error("Project description দিন");
@@ -32,6 +36,28 @@ export default function BOQGeneratorPage() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "BOQ generation failed");
     } finally { setLoading(false); }
+  };
+
+  const saveToProject = async () => {
+    if (!projectId || !result) return;
+    setSavingToProject(true);
+    try {
+      const saved = await saveProjectArtifact({
+        id: savedArtifactId ?? undefined,
+        projectId,
+        artifactType: "boq",
+        title: `BOQ — ${input.trim().slice(0, 100) || "Generated BOQ"}`,
+        description: result.summary,
+        data: { input, result },
+        metadata: { sourceModule: "BOQGeneratorPage", formatVersion: 1 },
+      });
+      setSavedArtifactId(saved.id);
+      toast.success("BOQ project-এ save হয়েছে");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Project-এ BOQ save করা যায়নি");
+    } finally {
+      setSavingToProject(false);
+    }
   };
 
   const exportCSV = () => {
@@ -72,7 +98,12 @@ export default function BOQGeneratorPage() {
               <Card className="p-4 space-y-3">
                 <div className="flex justify-between items-start gap-2">
                   <p className="text-sm">{result.summary}</p>
-                  <Button size="sm" variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" /> CSV</Button>
+                  <div className="flex gap-2 flex-wrap justify-end">
+                    {projectId && <Button size="sm" variant="default" onClick={saveToProject} disabled={savingToProject}>
+                      {savingToProject ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Saving...</> : savedArtifactId ? "Update Project Save" : "Save to Project"}
+                    </Button>}
+                    <Button size="sm" variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" /> CSV</Button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm border-collapse">
