@@ -17,10 +17,13 @@ import {
 import CivilOSLogo from "@/components/CivilOSLogo";
 import InstallCivilOS from "@/components/InstallCivilOS";
 
+const isRouteActive = (pathname: string, url: string) =>
+  pathname === url || (url !== "/" && pathname.startsWith(`${url}/`));
+
 function CategoryGroup({
   cat, collapsed, pathname, locked,
 }: { cat: NavCategory; collapsed: boolean; pathname: string; locked: (f?: string) => boolean }) {
-  const active = cat.items.some((i) => i.url === pathname);
+  const active = cat.items.some((i) => isRouteActive(pathname, i.url));
   const [open, setOpen] = useState(active);
   useEffect(() => { if (active) setOpen(true); }, [active]);
 
@@ -43,7 +46,7 @@ function CategoryGroup({
             <SidebarMenuSub>
               {cat.items.map((item) => (
                 <SidebarMenuSubItem key={item.url + item.title}>
-                  <SidebarMenuSubButton asChild isActive={pathname === item.url}>
+                  <SidebarMenuSubButton asChild isActive={isRouteActive(pathname, item.url)}>
                     <NavLink to={item.url} className="flex items-center justify-between gap-2">
                       <span className="truncate">{item.title}</span>
                       {locked(item.feature) && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />}
