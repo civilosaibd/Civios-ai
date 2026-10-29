@@ -23,7 +23,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Download, Lightbulb, Building, Layers, Hammer, Paintbrush, Zap, Droplets,
-  DollarSign, Activity, Construction, FileText, Calendar, Box, ShieldCheck, Save, Share2
+  DollarSign, Activity, Construction, FileText, Calendar, Box, ShieldCheck, Save, Share2,
+  Sparkles, ArrowRight, CheckCircle2, LockKeyhole, TrendingUp
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid
@@ -290,6 +291,86 @@ const EstimatePage = () => {
       <Navbar />
       <main className="flex-1 py-8">
         <div className="container space-y-6">
+          {/* Premium SaaS demo-estimate overview */}
+          <section className="relative overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-br from-slate-950 via-[#102b50] to-[#164e63] p-6 text-white shadow-xl md:p-9">
+            <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-cyan-400/15 blur-3xl" />
+            <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 h-64 w-64 rounded-full bg-orange-400/10 blur-3xl" />
+            <div className="relative grid gap-8 lg:grid-cols-[1.35fr_0.9fr] lg:items-center">
+              <div className="space-y-5">
+                <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200/25 bg-white/10 px-3 py-1.5 text-xs font-semibold tracking-wide text-cyan-100">
+                  <Sparkles className="h-4 w-4" /> AI-POWERED ESTIMATION WORKSPACE
+                </div>
+                <div className="space-y-3">
+                  <h1 className="max-w-2xl text-3xl font-bold tracking-tight md:text-5xl">From project inputs to a clearer construction estimate.</h1>
+                  <p className="max-w-2xl text-sm leading-6 text-slate-200 md:text-base">
+                    Explore a sample engineering workflow with cost analytics, quantity breakdowns, BOQ, structural indicators and reporting tools—all in one workspace.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button onClick={() => document.getElementById("estimate-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" })} className="bg-orange-500 text-white hover:bg-orange-600">
+                    Explore full estimate <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" onClick={() => document.getElementById("estimate-upgrade")?.scrollIntoView({ behavior: "smooth", block: "center" })} className="border-white/30 bg-white/5 text-white hover:bg-white/15 hover:text-white">
+                    Explore premium tools
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-300">
+                  <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-cyan-300" /> Transparent estimate breakdown</span>
+                  <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-cyan-300" /> Engineering-focused workflow</span>
+                  <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-cyan-300" /> Responsive workspace</span>
+                </div>
+              </div>
+              <div className="relative rounded-2xl border border-white/15 bg-white/[0.07] p-5 shadow-2xl backdrop-blur-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-300">Project snapshot</p>
+                    <h2 className="mt-2 text-xl font-semibold">{data.projectName || projectName}</h2>
+                    <p className="mt-1 text-sm text-slate-300">{data.plotSize} · {data.floors} floor(s) · {data.quality} quality</p>
+                  </div>
+                  <span className="rounded-full border border-amber-200/25 bg-amber-300/10 px-2.5 py-1 text-[11px] font-semibold text-amber-100">DEMO PREVIEW</span>
+                </div>
+                <div className="my-5 h-px bg-white/15" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-white/10 bg-slate-950/30 p-3">
+                    <p className="text-xs text-slate-300">Total floor area</p>
+                    <p className="mt-1 text-xl font-bold">{fmt(data.totalFloorArea)} <span className="text-xs font-medium text-slate-300">sqft</span></p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-slate-950/30 p-3">
+                    <p className="text-xs text-slate-300">Estimated project cost</p>
+                    <p className="mt-1 text-xl font-bold">{currency(quotation.total)}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-slate-950/30 p-3">
+                    <p className="text-xs text-slate-300">Cost per sqft</p>
+                    <p className="mt-1 text-lg font-bold">{currency(Math.round(quotation.total / Math.max(data.totalFloorArea, 1)))}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-slate-950/30 p-3">
+                    <p className="text-xs text-slate-300">Indicative duration</p>
+                    <p className="mt-1 text-lg font-bold">~{data.completionMonths} months</p>
+                  </div>
+                </div>
+                <p className="mt-4 text-[11px] leading-5 text-slate-300">Planning estimate only. Verify quantities, local rates, design assumptions and structural calculations with qualified professionals before construction.</p>
+              </div>
+            </div>
+          </section>
+
+          <section aria-label="Estimate workflow" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { step: "01", title: "Project inputs", detail: "Review project size, floors and assumptions", icon: Building },
+              { step: "02", title: "Cost analytics", detail: "Understand the cost distribution and drivers", icon: TrendingUp },
+              { step: "03", title: "BOQ & quantities", detail: "Inspect item quantities, units and rates", icon: FileText },
+              { step: "04", title: "Reports & planning", detail: "Explore schedules and estimate outputs", icon: Calendar },
+            ].map((item) => (
+              <div key={item.step} className="group rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold tracking-widest text-muted-foreground">{item.step}</span>
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary"><item.icon className="h-4 w-4" /></span>
+                </div>
+                <h3 className="mt-3 font-semibold">{item.title}</h3>
+                <p className="mt-1 text-sm leading-5 text-muted-foreground">{item.detail}</p>
+              </div>
+            ))}
+          </section>
+          <div id="estimate-workspace" className="scroll-mt-6" />
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="space-y-1">
               <Input
@@ -335,6 +416,33 @@ const EstimatePage = () => {
             district={district}
             onChange={(d, r) => { setDistrict(d); setRates(r); }}
           />
+
+          <section id="estimate-upgrade" className="scroll-mt-6 rounded-3xl border border-border/70 bg-card p-6 shadow-sm md:p-8">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-2xl space-y-2">
+                <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"><LockKeyhole className="h-3.5 w-3.5" /> EXPAND YOUR WORKFLOW</div>
+                <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Ready to work on your own project?</h2>
+                <p className="text-sm leading-6 text-muted-foreground">Explore the plans to find the right level of project capacity, advanced tools and reporting for your workflow. Available features and limits depend on the selected plan.</p>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-3">
+                <Button variant="outline" onClick={() => window.location.assign("/billing")}>Compare plans <ArrowRight className="ml-2 h-4 w-4" /></Button>
+                <Button onClick={() => window.location.assign("/upload")}>Start with your project</Button>
+              </div>
+            </div>
+            <div className="mt-6 grid gap-3 md:grid-cols-3">
+              {[
+                { title: "Your project workspace", detail: "Organize project inputs and keep estimate work together." },
+                { title: "More detailed analysis", detail: "Explore available quantity, BOQ and rate-analysis tools." },
+                { title: "Professional outputs", detail: "Review reporting and export options available to your plan." },
+              ].map((item) => (
+                <div key={item.title} className="rounded-2xl border border-border/70 bg-muted/30 p-4">
+                  <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><CheckCircle2 className="h-4 w-4" /></div>
+                  <h3 className="font-semibold">{item.title}</h3>
+                  <p className="mt-1 text-sm leading-5 text-muted-foreground">{item.detail}</p>
+                </div>
+              ))}
+            </div>
+          </section>
 
           <Tabs defaultValue="estimate" className="space-y-6">
             <div className="overflow-x-auto">
