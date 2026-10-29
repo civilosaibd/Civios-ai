@@ -12,9 +12,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { Loader2, Upload, Trash2, UserPlus, Lock, FileText, ArrowLeft, Users, Activity } from "lucide-react";
+import { Loader2, Upload, Trash2, UserPlus, Lock, FileText, ArrowLeft, Users, Activity, Archive } from "lucide-react";
 import { toast } from "sonner";
 import { listProjectArtifacts, createProjectArtifactDownloadUrl, type ProjectArtifact } from "@/lib/projectArtifacts";
+import { createProjectWorkspaceBackup } from "@/lib/projectWorkspaceBackup";
 
 type Role = "admin" | "engineer" | "viewer";
 const roleColor: Record<Role, string> = {
@@ -98,6 +99,25 @@ export default function ProjectDetailPage() {
       load();
     } catch (err: any) { toast.error(err.message); }
     finally { setUploading(false); e.target.value = ""; }
+  };
+
+  const exportWorkspaceZip = async () => {
+    if (!project || !id) return;
+    try {
+      const backup = createProjectWorkspaceBackup(project, artifacts);
+      const url = URL.createObjectURL(backup.blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = backup.fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success(`Workspace backup created with ${backup.artifactCount} artifact(s).`);
+      await logActivity("workspace_backup_exported", { artifact_count: backup.artifactCount, format_version: 1 });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not export workspace backup.");
+    }
   };
 
   const downloadDoc = async (d: any) => {
@@ -225,11 +245,11 @@ export default function ProjectDetailPage() {
             <TabsContent value="artifacts" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Unified Project Workspace</CardTitle>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><CardTitle>Unified Project Workspace</CardTitle><Button variant="outline" size="sm" onClick={exportWorkspaceZip} disabled={artifactsLoading || !project}><Archive className="mr-2 h-4 w-4" /> Export ZIP Backup</Button></div>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <p className="text-sm text-muted-foreground">
-                    Saved outputs from connected engineering modules will appear here. Access is controlled by your project membership.
+                    Saved outputs from connected engineering modules will appear here. Export creates a ZIP containing project metadata and structured artifacts; private uploaded documents are not embedded.
                   </p>
                   <div className="flex flex-wrap gap-2 text-xs">
                     <Badge variant="outline">Saved artifacts: {artifacts.length}</Badge>
