@@ -317,7 +317,7 @@ test("AI credit quota: active subscription uses plan quota and expires back to F
   const [{ id: starter }] = await q("SELECT id FROM public.plans WHERE code='starter'");
   await db.query(
     "INSERT INTO public.subscriptions (user_id,plan_id,status,billing_cycle,renewal_date) VALUES ($1,$2,'active','yearly',now() + interval '1 year')",
-    [AI_FEATURE_STARTER, starter]
+    [AI_STARTER, starter]
   );
   const [starterResult] = await as("service_role", AI_STARTER, "ai-starter@example.com", () =>
     q("SELECT * FROM public.consume_ai_credit($1)", [AI_STARTER]));
@@ -364,7 +364,7 @@ test("premium plan feature checks are server-only and follow current, unexpired 
   const [{ id: starter }] = await q("SELECT id FROM public.plans WHERE code='starter'");
   await db.query(
     "INSERT INTO public.subscriptions (user_id,plan_id,status,billing_cycle,renewal_date) VALUES ($1,$2,'active','yearly',now() + interval '1 year')",
-    [AI_STARTER, starter]
+    [AI_FEATURE_STARTER, starter]
   );
   const [starterTender] = await as("service_role", AI_FEATURE_STARTER, "ai-feature-starter@example.com", () =>
     q("SELECT public.user_has_plan_feature($1, 'tender') AS allowed", [AI_FEATURE_STARTER]));
