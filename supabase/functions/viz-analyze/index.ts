@@ -1,5 +1,6 @@
 import { checkAiEndpointRateLimit } from "../_shared/aiRateLimit.ts";
 import { consumeAiCredit } from "../_shared/aiUsageQuota.ts";
+import { requirePlanFeature } from "../_shared/planFeatureAccess.ts";
 // viz-analyze — asynchronous drawing analysis job for the 3D Construction Visualization module.
 //
 //   POST { visualization_id }  →  202 { job_id }   (work continues in the background)
@@ -94,6 +95,9 @@ Deno.serve(async (req) => {
   let body: any; try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
   const vizId = body?.visualization_id;
   if (typeof vizId !== "string" || !UUID.test(vizId)) return json({ error: "visualization_id (uuid) required" }, 400);
+
+  const planAccess = await requirePlanFeature(user.id, "ai_drawing");
+  if (planAccess) return json({ error: planAccess.message }, planAccess.status);
 
   const db = createClient(url, svcKey);
   const { data: canWrite } = await db.rpc("viz_can_write", { _viz: vizId, _user: user.id });
