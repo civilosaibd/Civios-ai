@@ -77,6 +77,15 @@ describe("material BOQ and quotation consistency", () => {
     }
   });
 
+  it("does not add separate masonry/plaster lump sums on top of itemized materials and mason labor", () => {
+    expect(estimate.materials["Bricks"]).toBeDefined();
+    expect(estimate.materials["Cement"]).toBeDefined();
+    expect(estimate.materials["Sand"]).toBeDefined();
+    expect(estimate.labor["Mason"]).toBeDefined();
+    expect(estimate.civilWork).not.toHaveProperty("Masonry Work");
+    expect(estimate.civilWork).not.toHaveProperty("Plaster Work");
+  });
+
   it("does not repeat tile installation or wall/ceiling painting as broad finishing packages", () => {
     expect(estimate.materials["Tiles"]).toBeDefined();
     expect(estimate.labor["Tiles Worker"]).toBeDefined();
