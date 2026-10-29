@@ -44,40 +44,62 @@ export default function ProjectDetailPage() {
   const [inviteRole, setInviteRole] = useState<Role>("viewer");
 
   const load = async () => {
-    if (!id || !user) return;
-    const { data: proj, error } = await supabase.from("projects").select("*").eq("id", id).single();
-    if (error) { toast.error("Project not found"); navigate("/projects"); return; }
-    setProject(proj);
-    // resolve role
-    if (proj.user_id === user.id) setRole("admin");
-    else {
-      const { data: mem } = await (supabase as any).from("project_members")
-        .select("role").eq("project_id", id).eq("user_id", user.id).maybeSingle();
-      setRole((mem?.role as Role) || null);
+    if (!id || !user) {
+      setLoading(false);
+      return;
     }
-    const [d, m, iv, act] = await Promise.all([
-      (supabase as any).from("project_documents").select("*").eq("project_id", id).order("created_at",{ascending:false}),
-      (supabase as any).from("project_members").select("*, profiles:user_id(display_name, avatar_url)").eq("project_id", id),
-      (supabase as any).from("invitations").select("*").eq("project_id", id).eq("status","pending"),
-      (supabase as any).from("project_activity").select("*, profiles:user_id(display_name)").eq("project_id", id).order("created_at",{ascending:false}).limit(50),
-    ]);
-    setDocs(d.data || []); setMembers(m.data || []); setInvites(iv.data || []); setActivity(act.data || []);
-    setArtifactsLoading(true);
+    setLoading(true);
     try {
-      const savedArtifacts = await listProjectArtifacts(id);
-      setArtifacts(savedArtifacts);
-      setArtifactsError(null);
-    } catch (artifactError) {
-      // The migration may not have been applied to this environment yet.
-      console.error("Could not load project artifacts", artifactError);
-      setArtifacts([]);
-      setArtifactsError(artifactError instanceof Error ? artifactError.message : "Workspace files could not be loaded.");
+      const { data: proj, error } = await supabase.from("projects").select("*").eq("id", id).single();
+      if (error || !proj) {
+        console.error("Project load failed", error);
+        toast.error("প্রজেক্টটি পাওয়া যায়নি অথবা আপনার অ্যাক্সেস নেই।");
+        navigate("/projects");
+        return;
+      }
+      setProject(proj);
+      if (proj.user_id === user.id) setRole("admin");
+      else {
+        const { data: mem, error: memberError } = await (supabase as any).from("project_members")
+          .select("role").eq("project_id", id).eq("user_id", user.id).maybeSingle();
+        if (memberError) console.error("Project membership lookup failed", memberError);
+        setRole((mem?.role as Role) || null);
+      }
+
+      const [d, m, iv, act] = await Promise.all([
+        (supabase as any).from("project_documents").select("*").eq("project_id", id).order("created_at", { ascending: false }),
+        (supabase as any).from("project_members").select("*, profiles:user_id(display_name, avatar_url)").eq("project_id", id),
+        (supabase as any).from("invitations").select("*").eq("project_id", id).eq("status", "pending"),
+        (supabase as any).from("project_activity").select("*, profiles:user_id(display_name)").eq("project_id", id).order("created_at", { ascending: false }).limit(50),
+      ]);
+      if (d.error) toast.error("Project documents could not be loaded.");
+      if (m.error) console.error("Project members could not be loaded", m.error);
+      if (iv.error) console.error("Project invitations could not be loaded", iv.error);
+      if (act.error) console.error("Project activity could not be loaded", act.error);
+      setDocs(d.data || []);
+      setMembers(m.data || []);
+      setInvites(iv.data || []);
+      setActivity(act.data || []);
+
+      setArtifactsLoading(true);
+      try {
+        setArtifacts(await listProjectArtifacts(id));
+        setArtifactsError(null);
+      } catch (artifactError) {
+        console.error("Could not load project artifacts", artifactError);
+        setArtifacts([]);
+        setArtifactsError(artifactError instanceof Error ? artifactError.message : "Workspace files could not be loaded.");
+      } finally {
+        setArtifactsLoading(false);
+      }
+    } catch (error) {
+      console.error("Unexpected project detail load error", error);
+      toast.error("প্রজেক্ট লোড করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।");
     } finally {
-      setArtifactsLoading(false);
+      setLoading(false);
     }
-    setLoading(false);
   };
-  useEffect(() => { load(); }, [id, user]);
+  useEffect(() => { void load(); }, [id, user]);
 
   const retryLoadArtifacts = async () => {
     if (!id) return;
@@ -105,16 +127,25 @@ export default function ProjectDetailPage() {
     setUploading(true);
     try {
       const path = `${id}/${Date.now()}-${file.name}`;
-      const { error } = await supabase.storage.from("project-documents").upload(path, file);
-      if (error) throw error;
-      const { data: signed } = await supabase.storage.from("project-documents").createSignedUrl(path, 60 * 60 * 24 * 365);
-      await (supabase as any).from("project_documents").insert({
-        project_id: id, file_name: file.name, file_url: path, file_type: file.type, file_size: file.size, uploaded_by: user.id,
+      const { error: uploadError } = await supabase.storage.from("project-documents").upload(path, file);
+      if (uploadError) throw uploadError;
+      const { error: recordError } = await (supabase as any).from("project_documents").insert({
+        project_id: id, file_name: file.name, file_url: path, file_type: file.type || "application/octet-stream",
+        file_size: file.size, uploaded_by: user.id,
       });
+      if (recordError) {
+        // Roll back the uploaded object if its database record could not be created.
+        const { error: cleanupError } = await supabase.storage.from("project-documents").remove([path]);
+        if (cleanupError) console.error("Could not clean up orphaned project upload", cleanupError);
+        throw recordError;
+      }
       await logActivity("document_uploaded", { file_name: file.name });
       toast.success("ফাইল আপলোড সফল");
-      load();
-    } catch (err: any) { toast.error(err.message); }
+      await load();
+    } catch (err) {
+      console.error("Project document upload failed", err);
+      toast.error(err instanceof Error ? err.message : "ফাইল আপলোড করা যায়নি। আবার চেষ্টা করুন।");
+    }
     finally { setUploading(false); e.target.value = ""; }
   };
 
@@ -196,14 +227,30 @@ export default function ProjectDetailPage() {
   };
 
   const downloadDoc = async (d: any) => {
-    const { data } = await supabase.storage.from("project-documents").createSignedUrl(d.file_url, 3600);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    try {
+      const { data, error } = await supabase.storage.from("project-documents").createSignedUrl(d.file_url, 3600);
+      if (error) throw error;
+      if (!data?.signedUrl) throw new Error("Download link could not be created.");
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.error("Project document download failed", error);
+      toast.error("ফাইল ডাউনলোড লিংক তৈরি করা যায়নি। আবার চেষ্টা করুন।");
+    }
   };
 
   const deleteDoc = async (d: any) => {
-    await supabase.storage.from("project-documents").remove([d.file_url]);
-    await (supabase as any).from("project_documents").delete().eq("id", d.id);
-    toast.success("Deleted"); load();
+    if (!window.confirm(`“${d.file_name}” ফাইলটি মুছে ফেলবেন?`)) return;
+    try {
+      const { error: recordError } = await (supabase as any).from("project_documents").delete().eq("id", d.id);
+      if (recordError) throw recordError;
+      const { error: storageError } = await supabase.storage.from("project-documents").remove([d.file_url]);
+      if (storageError) console.error("Project document record deleted but storage cleanup failed", storageError);
+      toast.success("ফাইল মুছে ফেলা হয়েছে");
+      await load();
+    } catch (error) {
+      console.error("Project document deletion failed", error);
+      toast.error("ফাইল মুছে ফেলা যায়নি। আবার চেষ্টা করুন।");
+    }
   };
 
   const sendInvite = async () => {
@@ -238,9 +285,19 @@ export default function ProjectDetailPage() {
   };
 
   const updateStatus = async (status: string) => {
-    await supabase.from("projects").update({ status } as any).eq("id", id!);
+    if (!id || !project || !isAdmin || !["planning", "active", "completed"].includes(status)) return;
+    const previousStatus = project.status;
     setProject({ ...project, status });
-    await logActivity("status_changed", { status });
+    try {
+      const { error } = await supabase.from("projects").update({ status } as any).eq("id", id);
+      if (error) throw error;
+      await logActivity("status_changed", { status });
+      toast.success("Project status updated");
+    } catch (error) {
+      console.error("Project status update failed", error);
+      setProject((current: any) => current ? { ...current, status: previousStatus } : current);
+      toast.error("Project status update failed. Please try again.");
+    }
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin"/></div>;
