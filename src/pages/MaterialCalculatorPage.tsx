@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calculator, RotateCcw, Download, Info } from "lucide-react";
+import { Calculator, RotateCcw, Download, Info, Save, Loader2 } from "lucide-react";
+import { saveProjectArtifact } from "@/lib/projectArtifacts";
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -37,6 +39,8 @@ export default function MaterialCalculatorPage() {
   const [barLength, setBarLength] = useState("12");
   const [barCount, setBarCount] = useState("10");
   const [waste, setWaste] = useState("5");
+  const [savingToProject, setSavingToProject] = useState(false);
+  const projectId = new URLSearchParams(window.location.search).get("project");
 
   const concrete = useMemo(() => {
     const wet = Math.max(0, number(volume));
@@ -82,6 +86,50 @@ export default function MaterialCalculatorPage() {
     setBarDiameter("12"); setBarLength("12"); setBarCount("10"); setWaste("5");
   };
 
+  const saveToProject = async () => {
+    if (!projectId) {
+      toast.error("Open Material Calculator from a project to save these results to its workspace.");
+      return;
+    }
+    setSavingToProject(true);
+    try {
+      await saveProjectArtifact({
+        projectId,
+        artifactType: "material_calculation",
+        title: "Construction Material Quantity Estimate",
+        description: `Concrete ${fmt(concrete.wet)} m³ · Steel ${fmt(steel.withWaste)} kg including waste`,
+        data: {
+          inputs: {
+            concreteVolumeM3: number(volume),
+            concreteMixRatio: { cement: number(cementRatio), sand: number(sandRatio), aggregate: number(aggregateRatio) },
+            brickworkVolumeM3: number(brickVolume),
+            brickworkCementSandRatio: number(brickRatio),
+            plasterAreaSqFt: number(plasterArea),
+            plasterThicknessMm: number(plasterThickness),
+            plasterCementSandRatio: number(plasterRatio),
+            steelBarDiameterMm: number(barDiameter),
+            steelBarLengthM: number(barLength),
+            steelBarCount: number(barCount),
+            wastagePercent: number(waste),
+          },
+          results: {
+            concrete: { wetVolumeM3: concrete.wet, dryVolumeM3: concrete.dry, cementBags: concrete.cementBags, sandCft: concrete.sand, aggregateCft: concrete.aggregate },
+            brickwork: { bricksApprox: brickwork.bricks, mortarWetM3: brickwork.mortarWet, cementBags: brickwork.cementBags, sandCft: brickwork.sandCft },
+            plaster: { wetVolumeM3: plaster.wetM3, cementBags: plaster.cementBags, sandCft: plaster.sandCft },
+            steel: { unitWeightKgPerM: steel.unit, totalLengthM: steel.totalLength, weightKg: steel.weight, weightWithWasteKg: steel.withWaste },
+          },
+          units: { volume: "m³", sandAndAggregate: "CFT", steelWeight: "kg", plasterArea: "sq ft" },
+        },
+        metadata: { sourceModule: "MaterialCalculatorPage", formatVersion: 1, savedAt: new Date().toISOString(), disclaimer: "Preliminary quantity estimate; verify assumptions and project specifications." },
+      });
+      toast.success("Material calculation saved to Project Workspace.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save material calculation.");
+    } finally {
+      setSavingToProject(false);
+    }
+  };
+
   const exportResults = () => {
     const rows = [
       ["CivilOS AI Material Calculator", "Estimated quantity"],
@@ -112,7 +160,7 @@ export default function MaterialCalculatorPage() {
         <div className="min-w-0 flex-1">
           <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/95 px-3 backdrop-blur md:px-6">
             <div className="flex items-center gap-2"><SidebarTrigger /><Calculator className="h-4 w-4 text-accent" /><h1 className="font-heading font-semibold">Material Calculator</h1></div>
-            <div className="flex items-center gap-2"><Button size="sm" variant="outline" onClick={exportResults}><Download className="mr-1 h-4 w-4" /> Export CSV</Button><ThemeToggle /></div>
+            <div className="flex items-center gap-2"><Button size="sm" variant="secondary" onClick={saveToProject} disabled={savingToProject || !projectId} title={!projectId ? "Open this tool from a project to enable saving" : "Save results to project workspace"}>{savingToProject ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />} Save to Project</Button><Button size="sm" variant="outline" onClick={exportResults}><Download className="mr-1 h-4 w-4" /> Export CSV</Button><ThemeToggle /></div>
           </header>
           <main className="mx-auto w-full max-w-6xl space-y-5 p-4 md:p-6">
             <div><h2 className="text-2xl font-bold">Construction material quantities</h2><p className="mt-1 text-sm text-muted-foreground">Quick, transparent estimates for common civil engineering work. All values can be edited.</p></div>
