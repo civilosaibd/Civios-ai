@@ -135,8 +135,9 @@ export function generateEstimate(params: {
     "Ceiling Finish": Math.round(totalFloorArea * 8 * mult),
     "Kitchen Finish": Math.round(25000 * mult),
     "Bathroom Finish": Math.round(2 * 18000 * mult),
-    "Exterior Paint": Math.round(wallArea * 0.3 * 10 * mult),
-    "Interior Paint": Math.round(wallArea * 0.8 * 8 * mult),
+    // Paint material costs are already itemized in the Materials schedule above.
+    // Do not repeat those same paint allowances inside Finishing.
+
   };
 
   const electrical: Record<string, number | string> = {
