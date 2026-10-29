@@ -1,20 +1,17 @@
-// Bangladesh district-wise market rates with daily auto-update.
-// Rates in BDT. Base rates reflect typical Bangladesh market (2025).
-// A deterministic daily delta (±3%) is applied so values feel "live" but
-// stay consistent throughout the day and recalculation is reproducible.
-
+// Bangladesh district-wise indicative reference rates (BDT).
+// These are manually maintained baseline estimates, NOT a live supplier feed.
+// Do not add synthetic daily movement: apparent price changes must reflect verified data.
 export interface DistrictRates {
   cement: number;      // per 50kg bag
   steel: number;       // per kg (60-grade deformed bar)
   brick: number;       // per piece (1st class)
-  sand: number;        // per cft (Sylhet)
+  sand: number;        // per cft
   stoneChips: number;  // per cft
-  labor: number;       // per mason day (skilled)
+  labor: number;       // per skilled mason day
 }
 
-// District base rates — calibrated for Bangladesh local markets.
-// Dhaka = baseline; remote / transport-heavy districts are higher,
-// quarry-near districts (Sylhet) are cheaper for sand/stone.
+// Indicative planning baselines only. Confirm current prices with local suppliers
+// before using an estimate for procurement, tendering, or a construction contract.
 const BASE: Record<string, DistrictRates> = {
   Dhaka:       { cement: 580, steel: 105, brick: 13, sand: 48, stoneChips: 220, labor: 900 },
   Chattogram:  { cement: 560, steel: 102, brick: 13, sand: 52, stoneChips: 210, labor: 880 },
@@ -38,47 +35,15 @@ const BASE: Record<string, DistrictRates> = {
 
 export const DISTRICTS = Object.keys(BASE).sort();
 
-// Daily seed — same across the day, changes at midnight local.
-function todaySeed(): number {
-  const d = new Date();
-  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-}
-
-// Deterministic pseudo-random in [-1, 1] from a seed + key.
-function jitter(seed: number, key: string): number {
-  let h = seed;
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
-  const x = Math.sin(h) * 10000;
-  return (x - Math.floor(x)) * 2 - 1;
-}
-
+// Keep these functions stable for existing callers. Until a verified market-data
+// source is connected, "today" and "yesterday" intentionally return the same
+// indicative baseline instead of inventing daily price changes.
 export function getTodayRates(district: string): DistrictRates {
-  const base = BASE[district] || BASE.Dhaka;
-  const seed = todaySeed();
-  const adj = (key: string, v: number) => Math.round(v * (1 + jitter(seed, district + key) * 0.03));
-  return {
-    cement: adj("cem", base.cement),
-    steel: adj("ste", base.steel),
-    brick: adj("brk", base.brick),
-    sand: adj("snd", base.sand),
-    stoneChips: adj("stn", base.stoneChips),
-    labor: adj("lbr", base.labor),
-  };
+  return { ...(BASE[district] ?? BASE.Dhaka) };
 }
 
-// Yesterday's rates — used to show ▲/▼ change indicator.
 export function getYesterdayRates(district: string): DistrictRates {
-  const base = BASE[district] || BASE.Dhaka;
-  const seed = todaySeed() - 1;
-  const adj = (key: string, v: number) => Math.round(v * (1 + jitter(seed, district + key) * 0.03));
-  return {
-    cement: adj("cem", base.cement),
-    steel: adj("ste", base.steel),
-    brick: adj("brk", base.brick),
-    sand: adj("snd", base.sand),
-    stoneChips: adj("stn", base.stoneChips),
-    labor: adj("lbr", base.labor),
-  };
+  return { ...(BASE[district] ?? BASE.Dhaka) };
 }
 
 // Reverse geocode latitude/longitude → BD district using free Nominatim.
