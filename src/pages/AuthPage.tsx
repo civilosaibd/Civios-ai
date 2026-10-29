@@ -26,6 +26,7 @@ const AuthPage = () => {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [verificationPending, setVerificationPending] = useState<string | null>(null);
 
   // Supabase normally restores the OAuth session automatically. On custom domains,
   // explicitly complete a pending PKCE callback if the automatic URL handler did
@@ -92,17 +93,26 @@ const AuthPage = () => {
       if (mode === "signup") {
         // ?ref= from the URL, or the code remembered from an earlier landing page (civilos_referral_code)
         const ref = referralForSignup(window.location.search);
-        const { error } = await supabase.auth.signUp({
-          email,
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
           password,
           options: {
             emailRedirectTo: `${window.location.origin}${safeRedirect(params.get("redirect"))}`,
-            data: { display_name: displayName || email.split("@")[0], ref },
+            data: { display_name: displayName || email.trim().split("@")[0], ref },
           },
         });
         if (error) throw error;
         clearStoredReferral();
-        toast.success("Account created — you're signed in.");
+
+        // With Supabase email confirmations enabled, signUp succeeds without a session.
+        // Never tell users they are signed in until they verify their mailbox.
+        if (!data.session) {
+          setVerificationPending(email.trim());
+          toast.success("Verification email sent. Check your inbox to activate your account.");
+        } else {
+          setVerificationPending(null);
+          toast.success("Account created successfully.");
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -110,6 +120,26 @@ const AuthPage = () => {
       }
     } catch (err: any) {
       toast.error(err.message || "Authentication failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resendVerificationEmail = async () => {
+    if (!verificationPending) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: verificationPending,
+        options: {
+          emailRedirectTo: `${window.location.origin}${safeRedirect(params.get("redirect"))}`,
+        },
+      });
+      if (error) throw error;
+      toast.success("A new verification email has been sent.");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Could not resend verification email.");
     } finally {
       setLoading(false);
     }
@@ -129,6 +159,19 @@ const AuthPage = () => {
               Save your house designs, estimates, and BNBC reports.
             </p>
           </div>
+
+          {verificationPending && mode === "signup" && (
+            <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-4" role="status" aria-live="polite">
+              <h2 className="font-semibold">Verify your email address</h2>
+              <p className="text-sm text-muted-foreground">
+                We sent a verification link to <strong className="break-all">{verificationPending}</strong>.
+                Open that email and click the link before signing in. Check your spam/junk folder too.
+              </p>
+              <Button type="button" variant="outline" className="w-full" onClick={resendVerificationEmail} disabled={loading}>
+                {loading ? "Sending…" : "Resend verification email"}
+              </Button>
+            </div>
+          )}
 
           <form onSubmit={submit} className="space-y-4">
             {mode === "signup" && (
