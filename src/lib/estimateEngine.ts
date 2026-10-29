@@ -170,7 +170,7 @@ export function generateEstimate(params: {
   const totalCost = subtotal + transport + overhead + contingency;
 
   const costBreakdown = [
-    { category: "Civil Work", amount: civilTotal },
+    { category: "Earthwork & Excavation", amount: civilTotal },
     { category: "Materials", amount: materialTotal },
     { category: "Labor", amount: laborTotal },
     { category: "Finishing", amount: finishingTotal },
