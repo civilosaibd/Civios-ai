@@ -180,7 +180,12 @@ export async function readProjectWorkspaceBackup(file: File): Promise<ParsedWork
   const entriesCount = read16(eocd + 10);
   const centralSize = read32(eocd + 12);
   const centralOffset = read32(eocd + 16);
-  if (entriesCount > MAX_ENTRIES || centralOffset + centralSize > bytes.length) {
+  if (
+    entriesCount > MAX_ENTRIES ||
+    centralOffset > eocd ||
+    centralOffset + centralSize > eocd ||
+    centralOffset + centralSize !== eocd
+  ) {
     throw new Error("The backup ZIP directory is invalid or too large.");
   }
 
@@ -192,17 +197,27 @@ export async function readProjectWorkspaceBackup(file: File): Promise<ParsedWork
     if (cursor + 46 > bytes.length || read32(cursor) !== 0x02014b50) {
       throw new Error("The backup ZIP contains an invalid directory entry.");
     }
+    const flags = read16(cursor + 8);
     const method = read16(cursor + 10);
+    const expectedCrc = read32(cursor + 16);
     const compressedSize = read32(cursor + 20);
     const uncompressedSize = read32(cursor + 24);
     const nameLength = read16(cursor + 28);
     const extraLength = read16(cursor + 30);
     const commentLength = read16(cursor + 32);
     const localOffset = read32(cursor + 42);
-    const name = decoder.decode(bytes.subarray(cursor + 46, cursor + 46 + nameLength));
-    cursor += 46 + nameLength + extraLength + commentLength;
-    if (!name || name.startsWith("/") || name.split("/").includes("..")) continue;
+    const entryEnd = cursor + 46 + nameLength + extraLength + commentLength;
+    if (entryEnd > centralOffset + centralSize) {
+      throw new Error("The backup ZIP contains a truncated directory entry.");
+    }
+    const nameBytes = bytes.subarray(cursor + 46, cursor + 46 + nameLength);
+    const name = decoder.decode(nameBytes);
+    cursor = entryEnd;
+    if (!name || name.startsWith("/") || name.includes("\\\\") || name.split("/").includes("..")) {
+      throw new Error("The backup ZIP contains an unsafe file path.");
+    }
     if (name.endsWith("/")) continue;
+    if (flags & 0x0001) throw new Error("Encrypted ZIP entries are not supported.");
     if (method !== 0) throw new Error("This ZIP uses compression not supported by the CivilOS workspace importer.");
     totalUncompressed += uncompressedSize;
     if (totalUncompressed > MAX_BYTES || compressedSize !== uncompressedSize) {
@@ -211,13 +226,28 @@ export async function readProjectWorkspaceBackup(file: File): Promise<ParsedWork
     if (localOffset + 30 > bytes.length || read32(localOffset) !== 0x04034b50) {
       throw new Error("The backup ZIP contains an invalid file header.");
     }
+    const localFlags = read16(localOffset + 6);
+    const localMethod = read16(localOffset + 8);
     const localNameLength = read16(localOffset + 26);
     const localExtraLength = read16(localOffset + 28);
-    const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+    const localNameStart = localOffset + 30;
+    const localNameEnd = localNameStart + localNameLength;
+    const dataStart = localNameEnd + localExtraLength;
     const dataEnd = dataStart + compressedSize;
-    if (dataEnd > bytes.length) throw new Error("The backup ZIP contains a truncated file.");
+    if (dataStart > bytes.length || dataEnd > centralOffset) {
+      throw new Error("The backup ZIP contains a truncated or overlapping file.");
+    }
+    const localName = decoder.decode(bytes.subarray(localNameStart, localNameEnd));
+    if (localName !== name || localMethod !== method || (localFlags & 0x0001)) {
+      throw new Error("The backup ZIP file header does not match its directory entry.");
+    }
+    const fileBytes = bytes.subarray(dataStart, dataEnd);
+    if (crc32(fileBytes) !== expectedCrc) {
+      throw new Error(`Checksum validation failed for ${name}.`);
+    }
     if (name === "manifest.json" || name.startsWith("artifacts/") && name.endsWith(".json")) {
-      files.set(name, decoder.decode(bytes.subarray(dataStart, dataEnd)));
+      if (files.has(name)) throw new Error(`The backup ZIP contains duplicate entry ${name}.`);
+      files.set(name, decoder.decode(fileBytes));
     }
   }
 
