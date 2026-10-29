@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
-import { ArrowRight, BookOpen, CheckCircle2, Clock3, Mail, MapPin, MessageCircle, Send, ShieldCheck, Loader2 } from "lucide-react";
+import { ArrowRight, BookOpen, CheckCircle2, Clock3, Mail, MessageCircle, Send, ShieldCheck, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const WHATSAPP_NUMBER = "8801832313998";
