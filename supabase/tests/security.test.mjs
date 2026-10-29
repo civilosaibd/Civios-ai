@@ -333,6 +333,28 @@ test("AI credit quota: active subscription uses plan quota and expires back to F
   assert.equal(expiredResult.quota, 50);
 });
 
+test("BOQ generation quota is enforced atomically with AI credits", async () => {
+  const AI_BOQ_FREE = "00000000-0000-4000-8000-0000000000c8";
+  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'ai-boq-free@example.com')", [AI_BOQ_FREE]);
+  const allowed = await as("service_role", AI_BOQ_FREE, "ai-boq-free@example.com", async () => {
+    const results = [];
+    for (let i = 0; i < 5; i++) {
+      results.push((await q("SELECT * FROM public.consume_ai_credit($1, 'boq_generations')", [AI_BOQ_FREE]))[0]);
+    }
+    return results;
+  });
+  assert.ok(allowed.every((r) => r.allowed === true));
+  const [blocked] = await as("service_role", AI_BOQ_FREE, "ai-boq-free@example.com", () =>
+    q("SELECT * FROM public.consume_ai_credit($1, 'boq_generations')", [AI_BOQ_FREE]));
+  assert.equal(blocked.allowed, false);
+  assert.equal(blocked.reason, "boq_generations");
+  assert.equal(blocked.used, 5);
+  assert.equal(blocked.quota, 5);
+  const [usage] = await q("SELECT ai_credits, boq_generations FROM public.usage_records WHERE user_id=$1", [AI_BOQ_FREE]);
+  assert.equal(usage.ai_credits, 5);
+  assert.equal(usage.boq_generations, 5);
+});
+
 test("AI credit quota: administrators remain operational without a subscription", async () => {
   const [result] = await as("service_role", ADMIN, "zobaerio24@gmail.com", () =>
     q("SELECT * FROM public.consume_ai_credit($1)", [ADMIN]));
