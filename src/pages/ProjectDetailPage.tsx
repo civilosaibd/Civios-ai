@@ -37,6 +37,7 @@ export default function ProjectDetailPage() {
   const [activity, setActivity] = useState<any[]>([]);
   const [artifacts, setArtifacts] = useState<ProjectArtifact[]>([]);
   const [artifactsLoading, setArtifactsLoading] = useState(false);
+  const [artifactsError, setArtifactsError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [importingBackup, setImportingBackup] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -65,16 +66,31 @@ export default function ProjectDetailPage() {
     try {
       const savedArtifacts = await listProjectArtifacts(id);
       setArtifacts(savedArtifacts);
+      setArtifactsError(null);
     } catch (artifactError) {
       // The migration may not have been applied to this environment yet.
       console.error("Could not load project artifacts", artifactError);
       setArtifacts([]);
+      setArtifactsError(artifactError instanceof Error ? artifactError.message : "Workspace files could not be loaded.");
     } finally {
       setArtifactsLoading(false);
     }
     setLoading(false);
   };
   useEffect(() => { load(); }, [id, user]);
+
+  const retryLoadArtifacts = async () => {
+    if (!id) return;
+    setArtifactsLoading(true);
+    try {
+      setArtifacts(await listProjectArtifacts(id));
+      setArtifactsError(null);
+    } catch (error) {
+      setArtifactsError(error instanceof Error ? error.message : "Workspace files could not be loaded.");
+    } finally {
+      setArtifactsLoading(false);
+    }
+  };
 
   const canEdit = role === "admin" || role === "engineer";
   const isAdmin = role === "admin";
@@ -137,15 +153,21 @@ export default function ProjectDetailPage() {
       )) return;
       let created = 0;
       let updated = 0;
+      // Keep a map for this import so repeated type/title pairs in one archive update
+      // the artifact created earlier in this same restore instead of duplicating it.
+      const artifactByKey = new Map(
+        artifacts.map((artifact) => [`${artifact.artifact_type}\\u0000${artifact.title}`, artifact] as const),
+      );
       for (const item of backup.artifacts) {
-        const existing = artifacts.find((a) => a.artifact_type === item.artifact_type && a.title === item.title);
+        const key = `${item.artifact_type}\\u0000${item.title}`;
+        const existing = artifactByKey.get(key);
         const metadata = {
           ...(item.metadata || {}),
           importedFromBackup: true,
           originalArtifactId: item.id ?? null,
           importedAt: new Date().toISOString(),
         };
-        await saveProjectArtifact({
+        const savedArtifact = await saveProjectArtifact({
           ...(existing ? { id: existing.id } : {}),
           projectId: id,
           artifactType: item.artifact_type,
@@ -154,6 +176,7 @@ export default function ProjectDetailPage() {
           data: item.data ?? {},
           metadata,
         });
+        artifactByKey.set(key, savedArtifact);
         if (existing) updated++; else created++;
       }
       await logActivity("workspace_backup_imported", {
@@ -311,6 +334,13 @@ export default function ProjectDetailPage() {
               </Card>
               {artifactsLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+              ) : artifactsError ? (
+                <Card><CardContent className="py-8 text-center space-y-3">
+                  <p className="font-medium">Workspace files could not be loaded</p>
+                  <p className="text-sm text-muted-foreground break-words">{artifactsError}</p>
+                  <p className="text-xs text-muted-foreground">If this is a new environment, confirm the workspace database migration and project permissions are configured.</p>
+                  <Button variant="outline" size="sm" onClick={retryLoadArtifacts}>Retry</Button>
+                </CardContent></Card>
               ) : artifacts.length === 0 ? (
                 <Card><CardContent className="py-10 text-center space-y-2">
                   <FileText className="h-8 w-8 mx-auto text-muted-foreground" />
