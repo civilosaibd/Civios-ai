@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Loader2, Upload, Trash2, UserPlus, Lock, FileText, ArrowLeft, Users, Activity } from "lucide-react";
 import { toast } from "sonner";
+import { listProjectArtifacts, createProjectArtifactDownloadUrl, type ProjectArtifact } from "@/lib/projectArtifacts";
 
 type Role = "admin" | "engineer" | "viewer";
 const roleColor: Record<Role, string> = {
@@ -33,6 +34,8 @@ export default function ProjectDetailPage() {
   const [members, setMembers] = useState<any[]>([]);
   const [invites, setInvites] = useState<any[]>([]);
   const [activity, setActivity] = useState<any[]>([]);
+  const [artifacts, setArtifacts] = useState<ProjectArtifact[]>([]);
+  const [artifactsLoading, setArtifactsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Role>("viewer");
@@ -56,6 +59,17 @@ export default function ProjectDetailPage() {
       (supabase as any).from("project_activity").select("*, profiles:user_id(display_name)").eq("project_id", id).order("created_at",{ascending:false}).limit(50),
     ]);
     setDocs(d.data || []); setMembers(m.data || []); setInvites(iv.data || []); setActivity(act.data || []);
+    setArtifactsLoading(true);
+    try {
+      const savedArtifacts = await listProjectArtifacts(id);
+      setArtifacts(savedArtifacts);
+    } catch (artifactError) {
+      // The migration may not have been applied to this environment yet.
+      console.error("Could not load project artifacts", artifactError);
+      setArtifacts([]);
+    } finally {
+      setArtifactsLoading(false);
+    }
     setLoading(false);
   };
   useEffect(() => { load(); }, [id, user]);
@@ -171,6 +185,7 @@ export default function ProjectDetailPage() {
               <TabsTrigger value="boq">BOQ</TabsTrigger>
               <TabsTrigger value="bbs">BBS</TabsTrigger>
               <TabsTrigger value="estimates">Estimates</TabsTrigger>
+              <TabsTrigger value="artifacts">Workspace Files</TabsTrigger>
               <TabsTrigger value="documents">Documents</TabsTrigger>
               <TabsTrigger value="team">Team</TabsTrigger>
               <TabsTrigger value="activity">Activity Log</TabsTrigger>
@@ -206,6 +221,60 @@ export default function ProjectDetailPage() {
                 </CardContent></Card>
               </TabsContent>
             ))}
+
+            <TabsContent value="artifacts" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Unified Project Workspace</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Saved outputs from connected engineering modules will appear here. Access is controlled by your project membership.
+                  </p>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <Badge variant="outline">Saved artifacts: {artifacts.length}</Badge>
+                    <Badge variant="outline">Role: {role}</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+              {artifactsLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+              ) : artifacts.length === 0 ? (
+                <Card><CardContent className="py-10 text-center space-y-2">
+                  <FileText className="h-8 w-8 mx-auto text-muted-foreground" />
+                  <p className="font-medium">No saved workspace artifacts yet</p>
+                  <p className="text-sm text-muted-foreground">Once an engineering module saves its output to this project, it will be listed here.</p>
+                </CardContent></Card>
+              ) : (
+                <div className="border rounded-lg divide-y">
+                  {artifacts.map((artifact) => (
+                    <div key={artifact.id} className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                      <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{artifact.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {artifact.artifact_type} · Updated {new Date(artifact.updated_at).toLocaleString()}
+                        </p>
+                        {artifact.description && <p className="text-sm text-muted-foreground mt-1">{artifact.description}</p>}
+                        {artifact.file_name && <p className="text-xs mt-1">{artifact.file_name}</p>}
+                      </div>
+                      {artifact.storage_path && (
+                        <Button size="sm" variant="outline" onClick={async () => {
+                          try {
+                            const url = await createProjectArtifactDownloadUrl(artifact.storage_path!);
+                            window.open(url, "_blank", "noopener,noreferrer");
+                          } catch (downloadError) {
+                            toast.error(downloadError instanceof Error ? downloadError.message : "Download failed");
+                          }
+                        }}>
+                          Download file
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
 
             <TabsContent value="documents" className="space-y-4">
               {canEdit && (
