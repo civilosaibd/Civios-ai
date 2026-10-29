@@ -123,7 +123,20 @@ export default function ProjectDetailPage() {
   };
 
   const uploadDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file || !id || !user) return;
+    const file = e.target.files?.[0];
+    if (!file || !id || !user) return;
+    const allowedExtensions = /\.(pdf|dwg|dxf|png|jpe?g|gif|webp|docx?|xlsx?)$/i;
+    const maxFileSize = 25 * 1024 * 1024;
+    if (!allowedExtensions.test(file.name)) {
+      toast.error("Supported files: PDF, DWG, DXF, images, DOC/DOCX and XLS/XLSX.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > maxFileSize) {
+      toast.error("ফাইলের আকার সর্বোচ্চ ২৫ MB হতে পারবে।");
+      e.target.value = "";
+      return;
+    }
     setUploading(true);
     try {
       const path = `${id}/${Date.now()}-${file.name}`;
