@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
 
     const rateLimit = await checkAiEndpointRateLimit(user.id, "ai-structured");
     if (rateLimit) return new Response(JSON.stringify({ error: rateLimit.message }), { status: rateLimit.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    const creditQuota = await consumeAiCredit(user.id);
+    const creditQuota = await consumeAiCredit(user.id, mode === "boq" ? "boq_generations" : undefined);
     if (creditQuota) return new Response(JSON.stringify({ error: creditQuota.message }), { status: creditQuota.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
 
