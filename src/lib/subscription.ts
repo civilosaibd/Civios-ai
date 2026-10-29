@@ -49,8 +49,7 @@ export interface UsageRecord {
 }
 
 export const EMPTY_USAGE: UsageRecord = {
-  ai_credits: 0, projects: 0, boq_generations: 0, bbs_generations: 0,
-  drawings: 0, reports: 0, storage_mb: 0,
+  ai_credits: 0, projects: 0, boq_generations: 0, bbs_generations: 0, drawings: 0, reports: 0, storage_mb: 0,
 };
 
 export const currentPeriod = () => new Date().toISOString().slice(0, 7);
@@ -68,6 +67,7 @@ export const formatLimit = (v: number | boolean | undefined) => {
 /**
  * Central subscription/plan/usage state.
  * Plan capability is always read from the database, never from local state.
+ * Any read failure fails closed and is exposed to the UI so it can offer a retry.
  */
 export function useSubscription() {
   const { user } = useAuth();
@@ -75,36 +75,51 @@ export function useSubscription() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [usage, setUsage] = useState<UsageRecord>(EMPTY_USAGE);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data: planRows } = await supabase
-      .from("plans")
-      .select("*")
-      .eq("is_active", true)
-      .order("sort_order");
-    const list = ((planRows as any[]) || []).map((p) => ({
-      ...p,
-      features: Array.isArray(p.features) ? p.features : [],
-      limits: (p.limits || {}) as PlanLimits,
-    })) as Plan[];
-    setPlans(list);
+    setError(null);
+    try {
+      const { data: planRows, error: plansError } = await supabase
+        .from("plans")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order");
+      if (plansError) throw plansError;
 
-    if (user) {
-      const [{ data: sub }, { data: use }] = await Promise.all([
-        supabase.from("subscriptions").select("*").eq("user_id", user.id).maybeSingle(),
-        supabase.from("usage_records").select("*").eq("user_id", user.id).eq("period", currentPeriod()).maybeSingle(),
-      ]);
-      setSubscription((sub as any) || null);
-      setUsage(((use as any) || EMPTY_USAGE) as UsageRecord);
-    } else {
+      const list = ((planRows as any[]) || []).map((p) => ({
+        ...p,
+        features: Array.isArray(p.features) ? p.features : [],
+        limits: (p.limits || {}) as PlanLimits,
+      })) as Plan[];
+      setPlans(list);
+
+      if (user) {
+        const [subResult, usageResult] = await Promise.all([
+          supabase.from("subscriptions").select("*").eq("user_id", user.id).maybeSingle(),
+          supabase.from("usage_records").select("*").eq("user_id", user.id).eq("period", currentPeriod()).maybeSingle(),
+        ]);
+        if (subResult.error) throw subResult.error;
+        if (usageResult.error) throw usageResult.error;
+        setSubscription((subResult.data as any) || null);
+        setUsage(((usageResult.data as any) || EMPTY_USAGE) as UsageRecord);
+      } else {
+        setSubscription(null);
+        setUsage(EMPTY_USAGE);
+      }
+    } catch {
+      // Never grant paid features when entitlement data could not be verified.
+      setPlans([]);
       setSubscription(null);
       setUsage(EMPTY_USAGE);
+      setError("We couldn't verify your plan and usage right now. Please retry before using plan-restricted features.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [user]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const freePlan = plans.find((p) => p.code === "free") || null;
   // Match server-side quota enforcement: an expired renewal date never grants paid entitlements.
@@ -140,7 +155,7 @@ export function useSubscription() {
   };
 
   return {
-    loading, plans, plan, subscription, activeSub, usage,
+    loading, error, plans, plan, subscription, activeSub, usage,
     limitOf, hasFeature, usageOf, percentUsed, isOverLimit, reload: load,
   };
 }
