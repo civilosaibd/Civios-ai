@@ -417,6 +417,116 @@ const EstimatePage = () => {
             onChange={(d, r) => { setDistrict(d); setRates(r); }}
           />
 
+          {/* Step 2: data-backed cost analytics dashboard */}
+          <section aria-labelledby="cost-analytics-title" className="scroll-mt-6 space-y-5 rounded-3xl border border-border/70 bg-card p-5 shadow-sm md:p-7">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                  <TrendingUp className="h-3.5 w-3.5" /> LIVE FROM CURRENT ESTIMATE
+                </div>
+                <h2 id="cost-analytics-title" className="text-2xl font-bold tracking-tight md:text-3xl">Cost analytics</h2>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  Understand where the current preliminary budget is allocated. Figures update when project inputs or district rates change.
+                </p>
+              </div>
+              <Badge variant="outline" className="w-fit">BDT · Estimate snapshot</Badge>
+            </div>
+
+            {(() => {
+              const breakdownTotal = data.costBreakdown.reduce((sum, item) => sum + item.amount, 0);
+              const topCategory = [...data.costBreakdown].sort((a, b) => b.amount - a.amount)[0];
+              const categoryCount = data.costBreakdown.filter((item) => item.amount > 0).length;
+              const averageCategory = categoryCount ? breakdownTotal / categoryCount : 0;
+              const topShare = breakdownTotal > 0 && topCategory ? (topCategory.amount / breakdownTotal) * 100 : 0;
+              const formatMoney = (value: number) => `৳${fmt(Math.round(value))}`;
+              return (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {[
+                      { label: "Estimated total", value: currency(quotation.total), note: "Quotation total including configured margin", icon: DollarSign },
+                      { label: "Largest cost driver", value: topCategory?.category ?? "Not available", note: topCategory ? `${topShare.toFixed(1)}% of listed cost breakdown` : "No breakdown available", icon: TrendingUp },
+                      { label: "Cost categories", value: String(categoryCount), note: "Categories with a positive amount", icon: Layers },
+                      { label: "Average per category", value: formatMoney(averageCategory), note: "Average of positive breakdown items", icon: Activity },
+                    ].map((metric) => (
+                      <div key={metric.label} className="rounded-2xl border border-border/70 bg-background p-4">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
+                          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary"><metric.icon className="h-4 w-4" /></span>
+                        </div>
+                        <p className="mt-3 break-words text-xl font-bold tracking-tight">{metric.value}</p>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{metric.note}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+                    <div className="rounded-2xl border border-border/70 p-4 md:p-5">
+                      <div className="mb-4 flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-semibold">Budget allocation</h3>
+                          <p className="mt-1 text-xs text-muted-foreground">Share of the estimate engine's cost breakdown</p>
+                        </div>
+                        <span className="rounded-lg bg-muted px-2 py-1 text-xs font-medium">{categoryCount} categories</span>
+                      </div>
+                      {categoryCount > 0 ? (
+                        <div className="space-y-4">
+                          {[...data.costBreakdown].filter((item) => item.amount > 0).sort((a, b) => b.amount - a.amount).map((item, index) => {
+                            const share = breakdownTotal > 0 ? (item.amount / breakdownTotal) * 100 : 0;
+                            return (
+                              <div key={item.category}>
+                                <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+                                  <span className="min-w-0 truncate font-medium">{item.category}</span>
+                                  <span className="shrink-0 text-right text-muted-foreground">{share.toFixed(1)}% <span className="ml-1 font-semibold text-foreground">{formatMoney(item.amount)}</span></span>
+                                </div>
+                                <div
+                                  className="h-2.5 overflow-hidden rounded-full bg-muted"
+                                  role="progressbar"
+                                  aria-label={`${item.category} budget share`}
+                                  aria-valuemin={0}
+                                  aria-valuemax={100}
+                                  aria-valuenow={Number(share.toFixed(1))}
+                                >
+                                  <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.min(100, Math.max(0, share))}%`, backgroundColor: COLORS[index % COLORS.length] }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="rounded-xl bg-muted/40 p-4 text-sm text-muted-foreground">No positive cost categories are available for this estimate yet.</p>
+                      )}
+                      <p className="mt-4 border-t border-border/60 pt-3 text-xs leading-5 text-muted-foreground">
+                        Allocation percentages are calculated from the listed cost categories and may not equal the quotation total when the estimate engine applies separate overhead, contingency or profit adjustments.
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-border/70 p-4 md:p-5">
+                      <div className="mb-3">
+                        <h3 className="font-semibold">Cost distribution chart</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">Compare category amounts at a glance</p>
+                      </div>
+                      <div className="h-72 min-w-0" role="img" aria-label="Bar chart comparing estimated costs by category">
+                        {categoryCount > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={[...data.costBreakdown].filter((item) => item.amount > 0).sort((a, b) => b.amount - a.amount)} layout="vertical" margin={{ top: 4, right: 12, bottom: 4, left: 4 }}>
+                              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                              <XAxis type="number" tickFormatter={(value) => value >= 100000 ? `৳${(value / 100000).toFixed(1)}L` : `৳${(value / 1000).toFixed(0)}k`} fontSize={10} />
+                              <YAxis type="category" dataKey="category" width={94} fontSize={10} tick={{ fill: "currentColor" }} />
+                              <Tooltip formatter={(value: number) => [currency(value), "Estimated cost"]} />
+                              <Bar dataKey="amount" name="Estimated cost" fill="hsl(220, 70%, 32%)" radius={[0, 5, 5, 0]} maxBarSize={22} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="flex h-full items-center justify-center rounded-xl bg-muted/40 p-4 text-center text-sm text-muted-foreground">Cost chart will appear when estimate data is available.</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+          </section>
+
           <section id="estimate-upgrade" className="scroll-mt-6 rounded-3xl border border-border/70 bg-card p-6 shadow-sm md:p-8">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-2xl space-y-2">
