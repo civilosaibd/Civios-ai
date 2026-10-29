@@ -157,7 +157,7 @@ const ProfilePage = () => {
   }
   if (!user) return null;
 
-  const initials = displayName.trim().split(/\\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || user.email?.[0]?.toUpperCase() || "U";
+  const initials = displayName.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || user.email?.[0]?.toUpperCase() || "U";
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/20">
