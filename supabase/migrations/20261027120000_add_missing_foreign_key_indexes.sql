@@ -21,7 +21,7 @@ BEGIN
       ON public.knowledge_resources (created_by);
   END IF;
 END;
-$;
+$$;
 CREATE INDEX IF NOT EXISTS idx_notifications_project_id
   ON public.notifications (project_id);
 CREATE INDEX IF NOT EXISTS idx_payments_plan_id
