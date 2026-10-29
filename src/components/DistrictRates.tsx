@@ -4,7 +4,6 @@ import { MapPin, Loader2 } from "lucide-react";
 import {
   DISTRICTS,
   getTodayRates,
-  getYesterdayRates,
   detectDistrict,
   type DistrictRates,
 } from "@/lib/marketRates";
@@ -61,7 +60,7 @@ const DistrictRates = ({ district, onChange }: Props) => {
             District Market Rates · জেলা-ভিত্তিক বাজার দর
           </h3>
           <p className="text-xs text-muted-foreground mt-1">
-            Live daily rates · প্রতিদিন স্বয়ংক্রিয় আপডেট হয় ও এস্টিমেট পুনঃহিসাব হয়।
+            Indicative reference rates · এগুলো লাইভ বাজারদর নয়; কেনার আগে স্থানীয় সরবরাহকারীর কাছ থেকে দর যাচাই করুন।
           </p>
         </div>
         <div className="flex items-center gap-2">
