@@ -236,7 +236,7 @@ const UploadPage = () => {
                 <input className={inputClass} type="number" value={floorHeight} onChange={(e) => setFloorHeight(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">{t("upload.wallThickness")}</label>
+                <label className="text-sm font-medium">{t("upload.wallThickness")} (inches / ইঞ্চি)</label>
                 <input className={inputClass} type="number" value={wallThickness} onChange={(e) => setWallThickness(e.target.value)} />
               </div>
               <div className="space-y-1.5">
