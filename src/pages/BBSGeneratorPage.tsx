@@ -12,6 +12,7 @@ import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
 import { ClipboardList, Plus, Trash2, Download, RotateCcw, Info, Save, FolderOpen, History } from "lucide-react";
 import { toast } from "sonner";
+import { saveProjectArtifact } from "@/lib/projectArtifacts";
 
 type Shape = "straight" | "L-bar" | "U-bar" | "stirrup";
 type BarRow = { id: string; mark: string; diameter: number; shape: Shape; a: number; b: number; hook: number; qty: number; note: string };
@@ -35,6 +36,9 @@ export default function BBSGeneratorPage() {
   const [member, setMember] = useState("Beam / Column / Slab");
   const [savedSchedules, setSavedSchedules, syncingSchedules] = useCloudState<SavedSchedule[]>("civilos.bbs-schedules", []);
   const [scheduleName, setScheduleName] = useState("Main reinforcement schedule");
+  const [savingToProject, setSavingToProject] = useState(false);
+  const [projectArtifactId, setProjectArtifactId] = useState<string | null>(null);
+  const projectId = new URLSearchParams(window.location.search).get("project");
   const computed = useMemo(() => rows.map(row => {
     const length = cuttingLength(row);
     const totalLength = length * num(row.qty);
@@ -57,6 +61,33 @@ export default function BBSGeneratorPage() {
     const record: SavedSchedule = { id: existing?.id ?? ("bbs-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8)), name: cleanName, project: cleanProject, member: member.trim(), waste, rows: rows.map(row => ({ ...row })), updatedAt: new Date().toISOString() };
     setSavedSchedules(current => [record, ...current.filter(s => s.id !== record.id)]);
     toast.success(existing ? "Saved schedule updated." : "Schedule saved to your workspace.");
+  };
+  const saveToProject = async () => {
+    if (!projectId) return;
+    if (rows.length === 0) { toast.error("Add at least one bar row before saving."); return; }
+    setSavingToProject(true);
+    try {
+      const saved = await saveProjectArtifact({
+        id: projectArtifactId ?? undefined,
+        projectId,
+        artifactType: "bbs",
+        title: `BBS — ${scheduleName.trim() || member.trim() || "Reinforcement Schedule"}`,
+        description: `${project.trim()} · ${member.trim()} · ${rows.length} bar marks · ${fmt(netWeight)} kg net steel`,
+        data: {
+          projectName: project,
+          scheduleName,
+          structuralMember: member,
+          wastagePercent: waste,
+          rows: computed,
+          totals: { barMarks: rows.length, totalPieces: totalBars, netWeightKg: netWeight, weightWithWastageKg: netWeight * (1 + num(waste) / 100) },
+        },
+        metadata: { sourceModule: "BBSGeneratorPage", formatVersion: 1, units: { dimensions: "m", barDiameter: "mm", weight: "kg" } },
+      });
+      setProjectArtifactId(saved.id);
+      toast.success("BBS Project Workspace-এ save হয়েছে");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Project-এ BBS save করা যায়নি");
+    } finally { setSavingToProject(false); }
   };
   const loadSchedule = (schedule: SavedSchedule) => { setProject(schedule.project); setMember(schedule.member); setWaste(schedule.waste); setRows(schedule.rows.map(row => ({ ...row }))); setScheduleName(schedule.name); toast.success("Loaded " + schedule.name); };
   const deleteSchedule = (id: string) => { setSavedSchedules(current => current.filter(s => s.id !== id)); toast.success("Saved schedule deleted."); };
@@ -94,7 +125,7 @@ export default function BBSGeneratorPage() {
               <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
                 <div className="space-y-1.5"><Label>Schedule name</Label><Input value={scheduleName} maxLength={100} onChange={e=>setScheduleName(e.target.value)} placeholder="e.g. Ground floor columns" /></div>
                 <div className="space-y-1.5"><Label>Project name</Label><Input value={project} maxLength={120} onChange={e=>setProject(e.target.value)} placeholder="Project name" /></div>
-                <div className="flex items-end"><Button className="w-full sm:w-auto" onClick={saveSchedule}><Save className="mr-2 h-4 w-4"/>Save schedule</Button></div>
+                <div className="flex items-end gap-2 flex-wrap"><Button className="w-full sm:w-auto" onClick={saveSchedule}><Save className="mr-2 h-4 w-4"/>Save schedule</Button>{projectId && <Button className="w-full sm:w-auto" variant="outline" onClick={saveToProject} disabled={savingToProject}>{savingToProject ? "Saving..." : projectArtifactId ? "Update Project" : "Save to Project"}</Button>}</div>
               </div>
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-medium">Saved schedules ({savedSchedules.length})</h4><span className="text-xs text-muted-foreground">Most recently updated first</span></div>
