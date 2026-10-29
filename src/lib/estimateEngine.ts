@@ -126,7 +126,8 @@ export function generateEstimate(params: {
     // Do not also add separate electrician/plumber labor rows to the project subtotal.
     "Painter": { days: Math.round(totalFloorArea * 0.04), rate: lr(0.81), total: Math.round(totalFloorArea * 0.04) * lr(0.81) },
     "Tiles Worker": { days: Math.round(totalFloorArea * 0.03), rate: lr(0.88), total: Math.round(totalFloorArea * 0.03) * lr(0.88) },
-    "General Labor": { days: Math.round(totalFloorArea * 0.15), rate: lr(0.63), total: Math.round(totalFloorArea * 0.15) * lr(0.63) },
+    // Separate excavation and installed electrical/plumbing packages are priced elsewhere.
+    "General Labor (excluding excavation, electrical & plumbing)": { days: Math.round(totalFloorArea * 0.15), rate: lr(0.63), total: Math.round(totalFloorArea * 0.15) * lr(0.63) },
   };
 
   const finishing: Record<string, number> = {
