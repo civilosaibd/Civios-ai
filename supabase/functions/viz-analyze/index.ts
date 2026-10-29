@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
 
   const rateLimit = await checkAiEndpointRateLimit(user.id, "viz-analyze");
   if (rateLimit) return json({ error: rateLimit.message }, rateLimit.status);
-    const creditQuota = await consumeAiCredit(user.id);
+    const creditQuota = await consumeAiCredit(user.id, "drawings");
     if (creditQuota) return json({ error: creditQuota.message }, creditQuota.status);
 
 
