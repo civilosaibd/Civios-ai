@@ -105,6 +105,8 @@ export interface TimelinePhase {
 export interface Quotation {
   materialCost: number;
   laborCost: number;
+  civilWorkCost: number;
+  finishingCost: number;
   electricalPlumbing: number;
   transport: number;
   contingency: number;
@@ -274,16 +276,16 @@ export function designSlabs(estimate: EstimateData): SlabDesign[] {
 
 export function buildBOQ(estimate: EstimateData): BOQItem[] {
   const m = estimate.materials;
-  const concreteVol = Math.round(estimate.totalFloorArea * 0.45); // cft
   const steelKg = m["Steel Rods"].qty;
+  // This is a material take-off BOQ. Do not add composite work-package rows
+  // (RCC concrete or plastering) alongside their constituent materials,
+  // otherwise the BOQ total charges for the same scope twice.
   const items: BOQItem[] = [
-    { item: "RCC Concrete (1:2:4)", qty: concreteVol, unit: "cft", rate: 280, total: concreteVol * 280 },
     { item: "Steel Reinforcement", qty: steelKg, unit: "kg", rate: m["Steel Rods"].rate, total: m["Steel Rods"].total },
     { item: "Brick (1st class)", qty: m["Bricks"].qty, unit: "pcs", rate: m["Bricks"].rate, total: m["Bricks"].total },
     { item: "Cement (50 kg bag)", qty: m["Cement"].qty, unit: "bag", rate: m["Cement"].rate, total: m["Cement"].total },
-    { item: "Sand (Sylhet)", qty: m["Sand"].qty, unit: "cft", rate: m["Sand"].rate, total: m["Sand"].total },
+    { item: "Sand", qty: m["Sand"].qty, unit: "cft", rate: m["Sand"].rate, total: m["Sand"].total },
     { item: "Stone Chips", qty: m["Stone Chips"].qty, unit: "cft", rate: m["Stone Chips"].rate, total: m["Stone Chips"].total },
-    { item: "Plaster Work", qty: Math.round(estimate.totalFloorArea * 2.4), unit: "sft", rate: 35, total: Math.round(estimate.totalFloorArea * 2.4) * 35 },
     { item: "Paint (Interior)", qty: m["Paint (Interior)"].qty, unit: "sft", rate: m["Paint (Interior)"].rate, total: m["Paint (Interior)"].total },
     { item: "Paint (Exterior)", qty: m["Paint (Exterior)"].qty, unit: "sft", rate: m["Paint (Exterior)"].rate, total: m["Paint (Exterior)"].total },
     { item: "Floor Tiles", qty: m["Tiles"].qty, unit: "sft", rate: m["Tiles"].rate, total: m["Tiles"].total },
@@ -328,9 +330,11 @@ export function buildQuotation(estimate: EstimateData): Quotation {
   const total = baseProjectCost + profit;
 
   const justification = [
-    { label: "Materials", amount: materialCost, note: "Cement, steel, brick, sand, stone, tiles, paint, doors, windows — quantities derived from built-up area & wall volume." },
-    { label: "Labor", amount: laborCost + civil + finishing, note: "Mason, rod-binder, carpenter, electrician, plumber, painter, tiles & general labor — civil + finishing crews included." },
-    { label: "Electrical & Plumbing", amount: elec + plumb, note: "Wiring, switches, DB box, fan/light points, pipes, water tank, fittings as per total floor area." },
+    { label: "Materials", amount: materialCost, note: "Indicative material allowance; verify quantities and supplier rates against approved drawings and local quotations." },
+    { label: "Labor", amount: laborCost, note: "Direct labor allowance from the estimator; scope and crew rates require site verification." },
+    { label: "Earthwork & Excavation", amount: civil, note: "Provisional earthwork/excavation allowance only. Structural work is not separately priced here because broad material and trade-labor quantities already cover those scopes." },
+    { label: "Finishing", amount: finishing, note: "Kitchen cabinets/countertop allowance only. Tile/paint materials and labor are itemized elsewhere; bathroom fittings are included in the plumbing package." },
+    { label: "Electrical & Plumbing", amount: elec + plumb, note: "Installed-scope allowances (materials and labor together); electrician/plumber labor is not added separately. Confirm points, fixtures, specifications, and quantities." },
     { label: "Transport", amount: transport, note: "≈3% of subtotal for material transport & site logistics." },
     { label: "Contingency", amount: contingency, note: "≈5% safety buffer for price fluctuation & unforeseen work." },
     { label: "Overhead", amount: overhead, note: "≈8% for site supervision, equipment, scaffolding, utilities." },
@@ -339,7 +343,9 @@ export function buildQuotation(estimate: EstimateData): Quotation {
 
   return {
     materialCost,
-    laborCost: laborCost + civil + finishing,
+    laborCost,
+    civilWorkCost: civil,
+    finishingCost: finishing,
     electricalPlumbing: elec + plumb,
     transport,
     contingency,

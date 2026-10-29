@@ -77,16 +77,12 @@ export function generateEstimate(params: {
     { name: "Veranda", length: plotLength * 0.6, width: 6, area: plotLength * 0.6 * 6, doors: 0, windows: 0 },
   ];
 
-  // Civil work costs
+  // Keep only excavation as a distinct provisional package. The model's broad
+  // material take-off and trade labor already cover the building as a whole; it cannot
+  // reliably isolate foundation/footing/column/beam/slab quantities from those totals.
+  // Adding structural lump sums on top would risk charging the same materials/labor twice.
   const civilWork: Record<string, number> = {
     "Earthwork & Excavation": Math.round(plotArea * 12 * mult),
-    "Foundation": Math.round(plotArea * 45 * mult),
-    "Footing": Math.round(plotArea * 18 * mult),
-    "Columns": Math.round(floors * 8 * 3500 * mult),
-    "Beams": Math.round(floors * 12 * 2800 * mult),
-    "Slab / Roof Casting": Math.round(builtUpArea * floors * 35 * mult),
-    "Masonry Work": Math.round(wallVolume * 8 * mult),
-    "Plaster Work": Math.round(wallArea * 2 * 6 * mult),
   };
 
   // Materials
@@ -95,6 +91,10 @@ export function generateEstimate(params: {
   const stone = Math.round(totalFloorArea * 0.61);
   const bricks = Math.round(wallVolume * 13.5);
   const steel = Math.round(totalFloorArea * 4.2 * mult);
+  // Apply the selected quality tier to the itemized paint rates as well.
+  // Paint is listed once in Materials; Finishing must not add another paint allowance.
+  const interiorPaintRate = Math.round(8 * mult);
+  const exteriorPaintRate = Math.round(10 * mult);
 
   const r = {
     cement: rates?.cement ?? 420,
@@ -109,8 +109,8 @@ export function generateEstimate(params: {
     "Stone Chips": { qty: stone, unit: "cft", rate: r.stoneChips, total: stone * r.stoneChips },
     "Bricks": { qty: bricks, unit: "pcs", rate: r.brick, total: bricks * r.brick },
     "Steel Rods": { qty: steel, unit: "kg", rate: r.steel, total: steel * r.steel },
-    "Paint (Interior)": { qty: Math.round(wallArea * 0.8), unit: "sqft", rate: 8, total: Math.round(wallArea * 0.8) * 8 },
-    "Paint (Exterior)": { qty: Math.round(wallArea * 0.3), unit: "sqft", rate: 10, total: Math.round(wallArea * 0.3) * 10 },
+    "Paint (Interior)": { qty: Math.round(wallArea * 0.8), unit: "sqft", rate: interiorPaintRate, total: Math.round(wallArea * 0.8) * interiorPaintRate },
+    "Paint (Exterior)": { qty: Math.round(wallArea * 0.3), unit: "sqft", rate: exteriorPaintRate, total: Math.round(wallArea * 0.3) * exteriorPaintRate },
     "Tiles": { qty: Math.round(totalFloorArea * 1.08), unit: "sqft", rate: Math.round(25 * mult), total: Math.round(totalFloorArea * 1.08) * Math.round(25 * mult) },
     "Doors": { qty: rooms.reduce((s, r) => s + r.doors, 0) * floors, unit: "pcs", rate: Math.round(8000 * mult), total: rooms.reduce((s, r) => s + r.doors, 0) * floors * Math.round(8000 * mult) },
     "Windows": { qty: rooms.reduce((s, r) => s + r.windows, 0) * floors, unit: "pcs", rate: Math.round(5000 * mult), total: rooms.reduce((s, r) => s + r.windows, 0) * floors * Math.round(5000 * mult) },
@@ -122,23 +122,24 @@ export function generateEstimate(params: {
     "Mason": { days: Math.round(totalFloorArea * 0.12), rate: lr(1.00), total: Math.round(totalFloorArea * 0.12) * lr(1.00) },
     "Rod Binder": { days: Math.round(totalFloorArea * 0.05), rate: lr(0.88), total: Math.round(totalFloorArea * 0.05) * lr(0.88) },
     "Carpenter": { days: Math.round(totalFloorArea * 0.04), rate: lr(0.94), total: Math.round(totalFloorArea * 0.04) * lr(0.94) },
-    "Electrician": { days: Math.round(totalFloorArea * 0.03), rate: lr(0.88), total: Math.round(totalFloorArea * 0.03) * lr(0.88) },
-    "Plumber": { days: Math.round(totalFloorArea * 0.02), rate: lr(0.88), total: Math.round(totalFloorArea * 0.02) * lr(0.88) },
+    // Electrical and plumbing labor are included in their installed-package allowances below.
+    // Do not also add separate electrician/plumber labor rows to the project subtotal.
     "Painter": { days: Math.round(totalFloorArea * 0.04), rate: lr(0.81), total: Math.round(totalFloorArea * 0.04) * lr(0.81) },
     "Tiles Worker": { days: Math.round(totalFloorArea * 0.03), rate: lr(0.88), total: Math.round(totalFloorArea * 0.03) * lr(0.88) },
-    "General Labor": { days: Math.round(totalFloorArea * 0.15), rate: lr(0.63), total: Math.round(totalFloorArea * 0.15) * lr(0.63) },
+    // Separate excavation and installed electrical/plumbing packages are priced elsewhere.
+    "General Labor (excluding excavation, electrical & plumbing)": { days: Math.round(totalFloorArea * 0.15), rate: lr(0.63), total: Math.round(totalFloorArea * 0.15) * lr(0.63) },
   };
 
   const finishing: Record<string, number> = {
-    "Floor Finish": Math.round(totalFloorArea * 28 * mult),
-    "Wall Finish": Math.round(wallArea * 12 * mult),
-    "Ceiling Finish": Math.round(totalFloorArea * 8 * mult),
-    "Kitchen Finish": Math.round(25000 * mult),
-    "Bathroom Finish": Math.round(2 * 18000 * mult),
-    "Exterior Paint": Math.round(wallArea * 0.3 * 10 * mult),
-    "Interior Paint": Math.round(wallArea * 0.8 * 8 * mult),
+    // Tile/paint materials and their installation labor are itemized separately.
+    // Plumbing is an installed package and includes bathroom fittings, so do not add
+    // another broad bathroom finish allowance. Kitchen cabinetry/countertop is a
+    // distinct scope not represented by any current itemized material line.
+    "Kitchen Cabinets & Countertop Allowance": Math.round(25000 * mult),
   };
 
+  // These are installed-scope package allowances (materials + labor), not labor-only rates.
+  // Electrical/plumbing materials are not itemized in the general material take-off.
   const electrical: Record<string, number | string> = {
     "Wiring Points": Math.round(totalFloorArea * 0.08),
     "Switches": Math.round(totalFloorArea * 0.06),
@@ -170,7 +171,7 @@ export function generateEstimate(params: {
   const totalCost = subtotal + transport + overhead + contingency;
 
   const costBreakdown = [
-    { category: "Civil Work", amount: civilTotal },
+    { category: "Earthwork & Excavation", amount: civilTotal },
     { category: "Materials", amount: materialTotal },
     { category: "Labor", amount: laborTotal },
     { category: "Finishing", amount: finishingTotal },
