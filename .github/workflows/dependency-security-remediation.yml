@@ -1,12 +1,12 @@
 name: Dependency Security Remediation
 
 on:
-  push:
-    branches:
-      - security/dependency-remediation-2026-10-25
   pull_request:
     branches:
       - main
+  push:
+    branches:
+      - security/dependency-remediation-2026-10-25
   workflow_dispatch:
 
 permissions:
@@ -14,11 +14,63 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: dependency-security-remediation
+  group: dependency-security-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
+  validate-pr:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout pull request code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Audit dependencies and report findings
+        id: audit
+        continue-on-error: true
+        run: |
+          npm audit --json > dependency-audit.json || true
+          node <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('dependency-audit.json', 'utf8'));
+          const counts = report.metadata?.vulnerabilities ?? {};
+          console.log('Dependency audit summary:', JSON.stringify(counts));
+          for (const [name, item] of Object.entries(report.vulnerabilities ?? {})) {
+            console.log(`- ${name}: ${item.severity}; fixAvailable=${JSON.stringify(item.fixAvailable)}`);
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            '## Dependency audit\n\n' +
+            '| Severity | Count |\n|---|---:|\n' +
+            ['critical','high','moderate','low','info'].map(k => `| ${k} | ${counts[k] ?? 0} |`).join('\n') +
+            '\n\nFull JSON report was generated during the job.\n');
+          NODE
+
+      - name: Run unit tests
+        env:
+          VITE_SUPABASE_URL: https://unit-test.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: unit-test-publishable-key
+          VITE_SUPABASE_PROJECT_ID: unit-test
+        run: npm test -- --run
+
+      - name: Run production build
+        env:
+          VITE_SUPABASE_URL: https://unit-test.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: unit-test-publishable-key
+          VITE_SUPABASE_PROJECT_ID: unit-test
+        run: npm run build
+
   remediate:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -47,7 +99,7 @@ jobs:
         continue-on-error: true
         run: |
           npm audit --json > dependency-audit.json || true
-          node -e "const fs=require('fs');const a=JSON.parse(fs.readFileSync('dependency-audit.json','utf8'));console.log(JSON.stringify({metadata:a.metadata?.vulnerabilities,findings:Object.entries(a.vulnerabilities||{}).map(([name,v])=>({name,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable}))},null,2))"
+          node -e "const fs=require('node:fs');const a=JSON.parse(fs.readFileSync('dependency-audit.json','utf8'));console.log(JSON.stringify({metadata:a.metadata?.vulnerabilities,findings:Object.entries(a.vulnerabilities||{}).map(([name,v])=>({name,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable}))},null,2))"
 
       - name: Run unit tests
         id: tests
@@ -90,7 +142,6 @@ jobs:
               --base main \
               --head security/dependency-remediation-2026-10-25 \
               --title "Security: remediate vulnerable npm dependencies" \
-              --body "Automated non-breaking dependency remediation for the 2026-10-24 security scan. The workflow runs npm audit fix without --force, records remaining audit findings, and runs tests/build. Review the CI results and dependency-audit.json before merging. Test outcome: ${TEST_OUTCOME}; build outcome: ${BUILD_OUTCOME}; npm audit fix outcome: ${AUDIT_FIX_OUTCOME}. Breaking upgrades are intentionally not forced." \
+              --body "Automated non-breaking dependency remediation. Review the audit findings and CI results before merging. Test outcome: ${TEST_OUTCOME}; build outcome: ${BUILD_OUTCOME}; npm audit fix outcome: ${AUDIT_FIX_OUTCOME}. Breaking upgrades are intentionally not forced." \
               || echo "::warning::Could not create the PR automatically. Check repository Actions permissions and open the security branch manually."
           fi
-          
