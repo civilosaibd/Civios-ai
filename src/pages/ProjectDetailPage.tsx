@@ -12,9 +12,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { Loader2, Upload, Trash2, UserPlus, Lock, FileText, ArrowLeft, Users, Activity } from "lucide-react";
+import { Loader2, Upload, Trash2, UserPlus, Lock, FileText, ArrowLeft, Users, Activity, Archive } from "lucide-react";
 import { toast } from "sonner";
-import { listProjectArtifacts, createProjectArtifactDownloadUrl, type ProjectArtifact } from "@/lib/projectArtifacts";
+import { listProjectArtifacts, createProjectArtifactDownloadUrl, saveProjectArtifact, type ProjectArtifact } from "@/lib/projectArtifacts";
+import { createProjectWorkspaceBackup, readProjectWorkspaceBackup } from "@/lib/projectWorkspaceBackup";
 
 type Role = "admin" | "engineer" | "viewer";
 const roleColor: Record<Role, string> = {
@@ -37,6 +38,7 @@ export default function ProjectDetailPage() {
   const [artifacts, setArtifacts] = useState<ProjectArtifact[]>([]);
   const [artifactsLoading, setArtifactsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [importingBackup, setImportingBackup] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Role>("viewer");
 
@@ -98,6 +100,76 @@ export default function ProjectDetailPage() {
       load();
     } catch (err: any) { toast.error(err.message); }
     finally { setUploading(false); e.target.value = ""; }
+  };
+
+  const exportWorkspaceZip = async () => {
+    if (!project || !id) return;
+    try {
+      const backup = createProjectWorkspaceBackup(project, artifacts);
+      const url = URL.createObjectURL(backup.blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = backup.fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success(`Workspace backup created with ${backup.artifactCount} artifact(s).`);
+      await logActivity("workspace_backup_exported", { artifact_count: backup.artifactCount, format_version: 1 });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not export workspace backup.");
+    }
+  };
+
+  const importWorkspaceZip = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id || !user) return;
+    if (!canEdit) {
+      toast.error("Only project admins and engineers can restore workspace artifacts.");
+      e.target.value = "";
+      return;
+    }
+    setImportingBackup(true);
+    try {
+      const backup = await readProjectWorkspaceBackup(file);
+      if (!window.confirm(
+        `Import ${backup.artifacts.length} artifact(s) from "${backup.manifest.project?.name || "another project"}" into this project? Existing artifacts with the same type and title will be updated. Project details and uploaded documents will not be overwritten.`
+      )) return;
+      let created = 0;
+      let updated = 0;
+      for (const item of backup.artifacts) {
+        const existing = artifacts.find((a) => a.artifact_type === item.artifact_type && a.title === item.title);
+        const metadata = {
+          ...(item.metadata || {}),
+          importedFromBackup: true,
+          originalArtifactId: item.id ?? null,
+          importedAt: new Date().toISOString(),
+        };
+        await saveProjectArtifact({
+          ...(existing ? { id: existing.id } : {}),
+          projectId: id,
+          artifactType: item.artifact_type,
+          title: item.title,
+          description: item.description ?? null,
+          data: item.data ?? {},
+          metadata,
+        });
+        if (existing) updated++; else created++;
+      }
+      await logActivity("workspace_backup_imported", {
+        source_project_id: backup.manifest.project?.id ?? null,
+        source_project_name: backup.manifest.project?.name ?? null,
+        created_artifacts: created,
+        updated_artifacts: updated,
+      });
+      toast.success(`Restore complete: ${created} new, ${updated} updated artifact(s).`);
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not import workspace backup.");
+    } finally {
+      setImportingBackup(false);
+      e.target.value = "";
+    }
   };
 
   const downloadDoc = async (d: any) => {
@@ -225,11 +297,11 @@ export default function ProjectDetailPage() {
             <TabsContent value="artifacts" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Unified Project Workspace</CardTitle>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><CardTitle>Unified Project Workspace</CardTitle><div className="flex flex-wrap gap-2"><input type="file" accept=".zip,application/zip" className="hidden" id="workspace-backup-import" onChange={importWorkspaceZip} /><Button variant="outline" size="sm" onClick={() => document.getElementById("workspace-backup-import")?.click()} disabled={importingBackup || !canEdit}><Upload className="mr-2 h-4 w-4" /> {importingBackup ? "Restoring…" : "Import ZIP"}</Button><Button variant="outline" size="sm" onClick={exportWorkspaceZip} disabled={artifactsLoading || !project}><Archive className="mr-2 h-4 w-4" /> Export ZIP Backup</Button></div></div>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <p className="text-sm text-muted-foreground">
-                    Saved outputs from connected engineering modules will appear here. Access is controlled by your project membership.
+                    Saved outputs from connected engineering modules will appear here. Export creates a ZIP containing project metadata and structured artifacts; private uploaded documents are not embedded.
                   </p>
                   <div className="flex flex-wrap gap-2 text-xs">
                     <Badge variant="outline">Saved artifacts: {artifacts.length}</Badge>
