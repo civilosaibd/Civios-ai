@@ -62,6 +62,8 @@ const EstimatePage = () => {
   const [projectName, setProjectName] = useState<string>(params._projectName || params.fileName || "House Project");
   const [district, setDistrict] = useState<string>(params.district || "Dhaka");
   const [rates, setRates] = useState(params.rates || undefined);
+  const [boqSearch, setBoqSearch] = useState("");
+  const [boqCategory, setBoqCategory] = useState("all");
 
   const data = useMemo(() => generateEstimate({ ...params, rates }), [rates, district]);
   const loads = useMemo(() => computeBNBCLoads(data, zone, soil, importance), [data, zone, soil, importance]);
@@ -84,12 +86,29 @@ const EstimatePage = () => {
     URL.revokeObjectURL(url);
   };
 
-  const exportBOQCsv = () => {
-    const rows: (string | number)[][] = [["Item", "Qty", "Unit", "Rate (BDT)", "Total (BDT)"]];
-    boq.forEach((b) => rows.push([b.item, b.qty, b.unit, b.rate, b.total]));
-    rows.push(["", "", "", "TOTAL", boq.reduce((s, b) => s + b.total, 0)]);
-    downloadCSV(`${projectName}_BOQ.csv`, rows);
-    toast.success("BOQ exported as CSV");
+  const getBOQCategory = (item: string) => {
+    const value = item.toLowerCase();
+    if (/foundation|excavat|earthwork|pile|footing|backfill/.test(value)) return "Foundation & Earthwork";
+    if (/concrete|rcc|reinforc|steel|rebar|beam|column|slab|formwork|shutter/.test(value)) return "RCC & Structure";
+    if (/brick|block|masonry|wall|plaster|pointing/.test(value)) return "Masonry & Plaster";
+    if (/paint|tile|flooring|door|window|finish|ceiling|sanitary/.test(value)) return "Finishing";
+    if (/electrical|wire|cable|light|switch|socket|power/.test(value)) return "Electrical";
+    if (/plumb|pipe|water|drain|sewer|bathroom/.test(value)) return "Plumbing";
+    return "Other works";
+  };
+
+  const filteredBOQ = boq.filter((item) => {
+    const matchesSearch = `${item.item} ${item.unit}`.toLowerCase().includes(boqSearch.trim().toLowerCase());
+    const matchesCategory = boqCategory === "all" || getBOQCategory(item.item) === boqCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const exportBOQCsv = (items = boq, suffix = "") => {
+    const rows: (string | number)[][] = [["Item", "Category", "Qty", "Unit", "Rate (BDT)", "Total (BDT)"]];
+    items.forEach((b) => rows.push([b.item, getBOQCategory(b.item), b.qty, b.unit, b.rate, b.total]));
+    rows.push(["", "", "", "", "TOTAL", items.reduce((s, b) => s + b.total, 0)]);
+    downloadCSV(`${projectName}_BOQ${suffix}.csv`, rows);
+    toast.success(`BOQ exported as CSV (${items.length} items)`);
   };
 
   const exportQuotationCsv = () => {
@@ -940,36 +959,96 @@ const EstimatePage = () => {
 
             {/* BOQ TAB */}
             <TabsContent value="boq" className="space-y-6">
-              <SectionCard title="Bill of Quantities (BOQ)" icon={FileText} action={
-                <Button size="sm" variant="outline" onClick={exportBOQCsv}><Download className="h-4 w-4 mr-1" /> CSV</Button>
-              }>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead><tr className="border-b text-muted-foreground">
-                      <th className="text-left py-2">Item</th>
-                      <th className="text-right py-2">Qty</th>
-                      <th className="text-right py-2">Unit</th>
-                      <th className="text-right py-2">Rate (৳)</th>
-                      <th className="text-right py-2">Total (৳)</th>
-                    </tr></thead>
-                    <tbody>
-                      {boq.map((b, i) => (
-                        <tr key={i} className="border-b border-border/50">
-                          <td className="py-2">{b.item}</td>
-                          <td className="text-right">{fmt(b.qty)}</td>
-                          <td className="text-right">{b.unit}</td>
-                          <td className="text-right">{fmt(b.rate)}</td>
-                          <td className="text-right font-semibold">{fmt(b.total)}</td>
-                        </tr>
+              {(() => {
+                const fullTotal = boq.reduce((sum, item) => sum + item.total, 0);
+                const filteredTotal = filteredBOQ.reduce((sum, item) => sum + item.total, 0);
+                const categories = Array.from(new Set(boq.map((item) => getBOQCategory(item.item)))).sort();
+                return (
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      {[
+                        { label: "BOQ line items", value: String(boq.length), note: "All generated quantity items" },
+                        { label: "Visible items", value: String(filteredBOQ.length), note: "Matching current filters" },
+                        { label: "Full BOQ value", value: currency(fullTotal), note: "All generated BOQ items" },
+                        { label: "Filtered value", value: currency(filteredTotal), note: "Sum of visible rows only" },
+                      ].map((metric) => (
+                        <div key={metric.label} className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
+                          <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
+                          <p className="mt-2 break-words text-xl font-bold tracking-tight">{metric.value}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{metric.note}</p>
+                        </div>
                       ))}
-                      <tr className="bg-muted/40">
-                        <td colSpan={4} className="py-3 text-right font-bold">BOQ TOTAL</td>
-                        <td className="text-right font-bold text-accent py-3">৳{fmt(boq.reduce((s, b) => s + b.total, 0))}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </SectionCard>
+                    </div>
+
+                    <SectionCard title="Detailed Bill of Quantities" icon={FileText} action={
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={() => exportBOQCsv(filteredBOQ, "_filtered")} disabled={filteredBOQ.length === 0}>
+                          <Download className="mr-1 h-4 w-4" /> Export filtered
+                        </Button>
+                        <Button size="sm" onClick={() => exportBOQCsv()}>
+                          <Download className="mr-1 h-4 w-4" /> Export all
+                        </Button>
+                      </div>
+                    }>
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_240px_auto] md:items-end">
+                        <div className="space-y-1.5">
+                          <label htmlFor="boq-search" className="text-xs font-medium text-muted-foreground">Search BOQ items</label>
+                          <Input id="boq-search" value={boqSearch} onChange={(event) => setBoqSearch(event.target.value)} placeholder="Search item or unit…" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label htmlFor="boq-category" className="text-xs font-medium text-muted-foreground">Work category</label>
+                          <select id="boq-category" value={boqCategory} onChange={(event) => setBoqCategory(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                            <option value="all">All categories</option>
+                            {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+                          </select>
+                        </div>
+                        <Button type="button" variant="ghost" onClick={() => { setBoqSearch(""); setBoqCategory("all"); }}>Reset filters</Button>
+                      </div>
+
+                      <div className="mt-4 overflow-x-auto rounded-xl border border-border/70">
+                        <table className="w-full min-w-[700px] text-sm">
+                          <thead className="sticky top-0 bg-muted/80 text-muted-foreground">
+                            <tr className="border-b">
+                              <th scope="col" className="px-3 py-3 text-left font-medium">Description</th>
+                              <th scope="col" className="px-3 py-3 text-left font-medium">Category</th>
+                              <th scope="col" className="px-3 py-3 text-right font-medium">Quantity</th>
+                              <th scope="col" className="px-3 py-3 text-left font-medium">Unit</th>
+                              <th scope="col" className="px-3 py-3 text-right font-medium">Rate (৳)</th>
+                              <th scope="col" className="px-3 py-3 text-right font-medium">Amount (৳)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredBOQ.map((item, index) => (
+                              <tr key={`${item.item}-${index}`} className="border-b border-border/50 transition-colors hover:bg-muted/30">
+                                <td className="px-3 py-3 font-medium">{item.item}</td>
+                                <td className="px-3 py-3"><Badge variant="secondary" className="whitespace-nowrap">{getBOQCategory(item.item)}</Badge></td>
+                                <td className="px-3 py-3 text-right tabular-nums">{fmt(item.qty)}</td>
+                                <td className="px-3 py-3">{item.unit}</td>
+                                <td className="px-3 py-3 text-right tabular-nums">{fmt(item.rate)}</td>
+                                <td className="px-3 py-3 text-right font-semibold tabular-nums">{currency(item.total)}</td>
+                              </tr>
+                            ))}
+                            {filteredBOQ.length === 0 && (
+                              <tr><td colSpan={6} className="px-3 py-10 text-center text-muted-foreground">No BOQ items match these filters. Try a different search or reset the filters.</td></tr>
+                            )}
+                          </tbody>
+                          <tfoot className="bg-muted/50">
+                            <tr>
+                              <td colSpan={5} className="px-3 py-3 text-right font-bold">VISIBLE SUBTOTAL</td>
+                              <td className="px-3 py-3 text-right font-bold text-accent tabular-nums">{currency(filteredTotal)}</td>
+                            </tr>
+                            <tr>
+                              <td colSpan={5} className="px-3 pb-3 text-right text-xs text-muted-foreground">Full BOQ total (unfiltered)</td>
+                              <td className="px-3 pb-3 text-right text-xs font-semibold text-muted-foreground tabular-nums">{currency(fullTotal)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                      <p className="mt-3 text-xs leading-5 text-muted-foreground">Quantities and rates are generated from the current preliminary estimate inputs. Category labels are keyword-based grouping for navigation, not a certified work breakdown structure. Confirm quantities against approved drawings and current local rates before procurement.</p>
+                    </SectionCard>
+                  </>
+                );
+              })()}
             </TabsContent>
 
             {/* 3D VIEW TAB */}
