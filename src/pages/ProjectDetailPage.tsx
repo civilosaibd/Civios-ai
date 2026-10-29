@@ -37,6 +37,7 @@ export default function ProjectDetailPage() {
   const [activity, setActivity] = useState<any[]>([]);
   const [artifacts, setArtifacts] = useState<ProjectArtifact[]>([]);
   const [artifactsLoading, setArtifactsLoading] = useState(false);
+  const [artifactsError, setArtifactsError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [importingBackup, setImportingBackup] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -65,10 +66,15 @@ export default function ProjectDetailPage() {
     try {
       const savedArtifacts = await listProjectArtifacts(id);
       setArtifacts(savedArtifacts);
+      setArtifactsError(null);
     } catch (artifactError) {
-      // The migration may not have been applied to this environment yet.
       console.error("Could not load project artifacts", artifactError);
       setArtifacts([]);
+      setArtifactsError(
+        artifactError instanceof Error
+          ? artifactError.message
+          : "Could not load workspace files. Check the database migration and project permissions.",
+      );
     } finally {
       setArtifactsLoading(false);
     }
@@ -78,6 +84,24 @@ export default function ProjectDetailPage() {
 
   const canEdit = role === "admin" || role === "engineer";
   const isAdmin = role === "admin";
+
+  const retryLoadArtifacts = async () => {
+    if (!id) return;
+    setArtifactsLoading(true);
+    try {
+      const savedArtifacts = await listProjectArtifacts(id);
+      setArtifacts(savedArtifacts);
+      setArtifactsError(null);
+    } catch (artifactError) {
+      setArtifactsError(
+        artifactError instanceof Error
+          ? artifactError.message
+          : "Could not load workspace files. Check the database migration and project permissions.",
+      );
+    } finally {
+      setArtifactsLoading(false);
+    }
+  };
 
   const logActivity = async (action: string, details: any = {}) => {
     if (!user || !id) return;
@@ -319,6 +343,17 @@ export default function ProjectDetailPage() {
               </Card>
               {artifactsLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+              ) : artifactsError ? (
+                <Card>
+                  <CardContent className="py-8 text-center space-y-3">
+                    <p className="font-medium">Workspace files could not be loaded</p>
+                    <p className="text-sm text-muted-foreground break-words">{artifactsError}</p>
+                    <p className="text-xs text-muted-foreground">
+                      If this is a new environment, confirm the project workspace database migration has been applied and that your role has access.
+                    </p>
+                    <Button variant="outline" size="sm" onClick={retryLoadArtifacts}>Retry</Button>
+                  </CardContent>
+                </Card>
               ) : artifacts.length === 0 ? (
                 <Card><CardContent className="py-10 text-center space-y-2">
                   <FileText className="h-8 w-8 mx-auto text-muted-foreground" />
