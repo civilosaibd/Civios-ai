@@ -85,8 +85,9 @@ export function generateEstimate(params: {
     "Columns": Math.round(floors * 8 * 3500 * mult),
     "Beams": Math.round(floors * 12 * 2800 * mult),
     "Slab / Roof Casting": Math.round(builtUpArea * floors * 35 * mult),
-    "Masonry Work": Math.round(wallVolume * 8 * mult),
-    "Plaster Work": Math.round(wallArea * 2 * 6 * mult),
+    // Masonry/plaster allowances are excluded here because bricks/cement/sand and
+    // general mason labor are separately itemized in Materials and Labor. The current
+    // demo model cannot prove those lump sums are scope-exclusive, so don't add them twice.
   };
 
   // Materials
