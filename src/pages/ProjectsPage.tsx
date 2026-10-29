@@ -67,26 +67,67 @@ const ProjectsPage = () => {
   };
 
   const create = async () => {
-    if (!user || !form.name.trim()) return toast.error("Project name required");
+    if (saving) return;
+    if (!user) {
+      toast.error("প্রজেক্ট তৈরি করতে আবার সাইন ইন করুন।");
+      navigate("/auth");
+      return;
+    }
+
+    const name = form.name.trim();
+    if (!name) {
+      toast.error("Project name required");
+      return;
+    }
+
+    const budget = form.budget.trim() ? Number(form.budget) : null;
+    if (budget !== null && (!Number.isFinite(budget) || budget < 0)) {
+      toast.error("Budget must be a valid non-negative amount.");
+      return;
+    }
+    if (form.start_date && form.end_date && form.end_date < form.start_date) {
+      toast.error("End date cannot be earlier than the start date.");
+      return;
+    }
+
     setSaving(true);
-    const payload: any = {
-      user_id: user.id,
-      name: form.name.trim(),
-      client_name: form.client_name || null,
-      location: form.location || null,
-      project_type: form.project_type,
-      status: "planning",
-      budget: form.budget ? Number(form.budget) : null,
-      start_date: form.start_date || null,
-      end_date: form.end_date || null,
-      inputs: {},
-    };
-    const { data, error } = await supabase.from("projects").insert(payload).select("id").single();
-    setSaving(false);
-    if (error) return toast.error(error.message);
-    toast.success("প্রজেক্ট তৈরি হয়েছে");
-    setOpen(false);
-    navigate(`/projects/${data!.id}`);
+    try {
+      const payload = {
+        user_id: user.id,
+        name,
+        client_name: form.client_name.trim() || null,
+        location: form.location.trim() || null,
+        project_type: form.project_type,
+        status: "planning",
+        budget,
+        start_date: form.start_date || null,
+        end_date: form.end_date || null,
+        inputs: {},
+      };
+      const { data, error } = await supabase.from("projects").insert(payload).select("id").single();
+      if (error) {
+        console.error("Project creation failed", error);
+        toast.error("প্রজেক্ট তৈরি করা যায়নি। তথ্য যাচাই করে আবার চেষ্টা করুন।");
+        return;
+      }
+      if (!data?.id) {
+        toast.error("প্রজেক্ট তৈরি হয়েছে কি না নিশ্চিত করা যায়নি। Projects তালিকা রিফ্রেশ করুন।");
+        return;
+      }
+
+      toast.success("প্রজেক্ট তৈরি হয়েছে");
+      setOpen(false);
+      setForm({
+        name: "", client_name: "", location: "", project_type: "Residential",
+        start_date: "", end_date: "", budget: "",
+      });
+      navigate(`/projects/${data.id}`);
+    } catch (error) {
+      console.error("Unexpected project creation error", error);
+      toast.error("নেটওয়ার্ক সমস্যার কারণে প্রজেক্ট তৈরি করা যায়নি। আবার চেষ্টা করুন।");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -112,10 +153,10 @@ const ProjectsPage = () => {
               <DialogContent className="max-w-lg">
                 <DialogHeader><DialogTitle>Create New Project</DialogTitle></DialogHeader>
                 <div className="space-y-3">
-                  <div><Label>Project Name *</Label><Input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} /></div>
+                  <div><Label htmlFor="project-name">Project Name *</Label><Input id="project-name" value={form.name} maxLength={120} required onChange={e=>setForm({...form,name:e.target.value})} /></div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Client Name</Label><Input value={form.client_name} onChange={e=>setForm({...form,client_name:e.target.value})} /></div>
-                    <div><Label>Location</Label><Input value={form.location} onChange={e=>setForm({...form,location:e.target.value})} placeholder="Dhaka, BD" /></div>
+                    <div><Label htmlFor="project-client">Client Name</Label><Input id="project-client" value={form.client_name} maxLength={120} onChange={e=>setForm({...form,client_name:e.target.value})} /></div>
+                    <div><Label htmlFor="project-location">Location</Label><Input id="project-location" value={form.location} maxLength={160} onChange={e=>setForm({...form,location:e.target.value})} placeholder="Dhaka, BD" /></div>
                   </div>
                   <div>
                     <Label>Project Type</Label>
@@ -130,10 +171,10 @@ const ProjectsPage = () => {
                     </Select>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Start Date</Label><Input type="date" value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})} /></div>
-                    <div><Label>End Date</Label><Input type="date" value={form.end_date} onChange={e=>setForm({...form,end_date:e.target.value})} /></div>
+                    <div><Label htmlFor="project-start-date">Start Date</Label><Input id="project-start-date" type="date" value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})} /></div>
+                    <div><Label htmlFor="project-end-date">End Date</Label><Input id="project-end-date" type="date" min={form.start_date || undefined} value={form.end_date} onChange={e=>setForm({...form,end_date:e.target.value})} /></div>
                   </div>
-                  <div><Label>Budget (BDT ৳)</Label><Input type="number" value={form.budget} onChange={e=>setForm({...form,budget:e.target.value})} /></div>
+                  <div><Label htmlFor="project-budget">Budget (BDT ৳)</Label><Input id="project-budget" type="number" min="0" step="0.01" inputMode="decimal" value={form.budget} onChange={e=>setForm({...form,budget:e.target.value})} /></div>
                   <Button onClick={create} disabled={saving} className="w-full">
                     {saving ? <Loader2 className="h-4 w-4 animate-spin"/> : "Create Project"}
                   </Button>
