@@ -100,6 +100,17 @@ describe("material BOQ and quotation consistency", () => {
     expect(estimate.finishing).not.toHaveProperty("Exterior Paint");
   });
 
+  it("does not count electrician and plumber labor again on top of installed electrical/plumbing allowances", () => {
+    expect(estimate.labor).not.toHaveProperty("Electrician");
+    expect(estimate.labor).not.toHaveProperty("Plumber");
+    expect(estimate.electrical["Estimated Cost"]).toBeGreaterThan(0);
+    expect(estimate.plumbing["Estimated Cost"]).toBeGreaterThan(0);
+    expect(estimate.costBreakdown.find((item) => item.category === "Electrical")?.amount)
+      .toBe(estimate.electrical["Estimated Cost"]);
+    expect(estimate.costBreakdown.find((item) => item.category === "Plumbing")?.amount)
+      .toBe(estimate.plumbing["Estimated Cost"]);
+  });
+
   it("keeps the estimate breakdown aligned with the total cost", () => {
     const breakdownTotal = estimate.costBreakdown.reduce((sum, item) => sum + item.amount, 0);
     expect(breakdownTotal).toBe(estimate.totalCost);
