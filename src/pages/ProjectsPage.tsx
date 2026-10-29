@@ -46,13 +46,30 @@ const ProjectsPage = () => {
   useEffect(() => { if (!authLoading && !user) navigate("/auth"); }, [user, authLoading, navigate]);
 
   const load = async () => {
-    const { data, error } = await supabase.from("projects")
-      .select("id,name,client_name,location,project_type,status,budget,start_date,end_date,updated_at")
-      .order("updated_at", { ascending: false });
-    if (error) toast.error(error.message); else setItems((data as any) || []);
-    setLoading(false);
+    if (!user) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.from("projects")
+        .select("id,name,client_name,location,project_type,status,budget,start_date,end_date,updated_at")
+        .order("updated_at", { ascending: false });
+      if (error) {
+        console.error("Project list load failed", error);
+        toast.error("প্রজেক্ট তালিকা লোড করা যায়নি। আবার চেষ্টা করুন।");
+        return;
+      }
+      setItems((data as ProjectRow[]) || []);
+    } catch (error) {
+      console.error("Unexpected project list error", error);
+      toast.error("নেটওয়ার্ক সমস্যার কারণে প্রজেক্ট তালিকা লোড হয়নি।");
+    } finally {
+      setLoading(false);
+    }
   };
-  useEffect(() => { if (user) load(); }, [user]);
+  useEffect(() => { if (user) void load(); }, [user]);
 
   const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
   const filteredItems = normalizedQuery
