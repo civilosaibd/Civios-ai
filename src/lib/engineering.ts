@@ -274,16 +274,16 @@ export function designSlabs(estimate: EstimateData): SlabDesign[] {
 
 export function buildBOQ(estimate: EstimateData): BOQItem[] {
   const m = estimate.materials;
-  const concreteVol = Math.round(estimate.totalFloorArea * 0.45); // cft
   const steelKg = m["Steel Rods"].qty;
+  // This is a material take-off BOQ. Do not add composite work-package rows
+  // (RCC concrete or plastering) alongside their constituent materials,
+  // otherwise the BOQ total charges for the same scope twice.
   const items: BOQItem[] = [
-    { item: "RCC Concrete (1:2:4)", qty: concreteVol, unit: "cft", rate: 280, total: concreteVol * 280 },
     { item: "Steel Reinforcement", qty: steelKg, unit: "kg", rate: m["Steel Rods"].rate, total: m["Steel Rods"].total },
     { item: "Brick (1st class)", qty: m["Bricks"].qty, unit: "pcs", rate: m["Bricks"].rate, total: m["Bricks"].total },
     { item: "Cement (50 kg bag)", qty: m["Cement"].qty, unit: "bag", rate: m["Cement"].rate, total: m["Cement"].total },
-    { item: "Sand (Sylhet)", qty: m["Sand"].qty, unit: "cft", rate: m["Sand"].rate, total: m["Sand"].total },
+    { item: "Sand", qty: m["Sand"].qty, unit: "cft", rate: m["Sand"].rate, total: m["Sand"].total },
     { item: "Stone Chips", qty: m["Stone Chips"].qty, unit: "cft", rate: m["Stone Chips"].rate, total: m["Stone Chips"].total },
-    { item: "Plaster Work", qty: Math.round(estimate.totalFloorArea * 2.4), unit: "sft", rate: 35, total: Math.round(estimate.totalFloorArea * 2.4) * 35 },
     { item: "Paint (Interior)", qty: m["Paint (Interior)"].qty, unit: "sft", rate: m["Paint (Interior)"].rate, total: m["Paint (Interior)"].total },
     { item: "Paint (Exterior)", qty: m["Paint (Exterior)"].qty, unit: "sft", rate: m["Paint (Exterior)"].rate, total: m["Paint (Exterior)"].total },
     { item: "Floor Tiles", qty: m["Tiles"].qty, unit: "sft", rate: m["Tiles"].rate, total: m["Tiles"].total },
