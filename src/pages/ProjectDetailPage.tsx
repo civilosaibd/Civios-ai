@@ -137,15 +137,22 @@ export default function ProjectDetailPage() {
       )) return;
       let created = 0;
       let updated = 0;
+      // Track writes during this import too; the React state snapshot above is stale
+      // until load() completes and would otherwise create duplicates for repeated keys.
+      const artifactKey = (type: string, title: string) => JSON.stringify([type, title]);
+      const destinationArtifacts = new Map(
+        artifacts.map((artifact) => [artifactKey(artifact.artifact_type, artifact.title), artifact]),
+      );
       for (const item of backup.artifacts) {
-        const existing = artifacts.find((a) => a.artifact_type === item.artifact_type && a.title === item.title);
+        const key = artifactKey(item.artifact_type, item.title);
+        const existing = destinationArtifacts.get(key);
         const metadata = {
           ...(item.metadata || {}),
           importedFromBackup: true,
           originalArtifactId: item.id ?? null,
           importedAt: new Date().toISOString(),
         };
-        await saveProjectArtifact({
+        const saved = await saveProjectArtifact({
           ...(existing ? { id: existing.id } : {}),
           projectId: id,
           artifactType: item.artifact_type,
@@ -154,6 +161,7 @@ export default function ProjectDetailPage() {
           data: item.data ?? {},
           metadata,
         });
+        destinationArtifacts.set(key, saved);
         if (existing) updated++; else created++;
       }
       await logActivity("workspace_backup_imported", {
