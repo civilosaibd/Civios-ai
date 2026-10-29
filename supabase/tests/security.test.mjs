@@ -317,7 +317,7 @@ test("AI credit quota: active subscription uses plan quota and expires back to F
   const [{ id: starter }] = await q("SELECT id FROM public.plans WHERE code='starter'");
   await db.query(
     "INSERT INTO public.subscriptions (user_id,plan_id,status,billing_cycle,renewal_date) VALUES ($1,$2,'active','yearly',now() + interval '1 year')",
-    [AI_STARTER, starter]
+    [AI_FEATURE_STARTER, starter]
   );
   const [starterResult] = await as("service_role", AI_STARTER, "ai-starter@example.com", () =>
     q("SELECT * FROM public.consume_ai_credit($1)", [AI_STARTER]));
@@ -343,8 +343,10 @@ test("AI credit quota: administrators remain operational without a subscription"
 
 
 test("premium plan feature checks are server-only and follow current, unexpired plan limits", async () => {
+  const AI_FEATURE_FREE = "00000000-0000-4000-8000-0000000000c6";
+  const AI_FEATURE_STARTER = "00000000-0000-4000-8000-0000000000c7";
   const AI_PRO = "00000000-0000-4000-8000-0000000000c5";
-  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'ai-feature-free@example.com'),($2,'ai-feature-pro@example.com')", [AI_FREE, AI_PRO]);
+  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'ai-feature-free@example.com'),($2,'ai-feature-starter@example.com'),($3,'ai-feature-pro@example.com')", [AI_FEATURE_FREE, AI_FEATURE_STARTER, AI_PRO]);
 
   await alice(() => rejects(
     () => db.query("SELECT public.user_has_plan_feature($1, 'ai_writer')", [ALICE]),
@@ -355,8 +357,8 @@ test("premium plan feature checks are server-only and follow current, unexpired 
     /permission denied/
   ));
 
-  const [freeWriter] = await as("service_role", AI_FREE, "ai-feature-free@example.com", () =>
-    q("SELECT public.user_has_plan_feature($1, 'ai_writer') AS allowed", [AI_FREE]));
+  const [freeWriter] = await as("service_role", AI_FEATURE_FREE, "ai-feature-free@example.com", () =>
+    q("SELECT public.user_has_plan_feature($1, 'ai_writer') AS allowed", [AI_FEATURE_FREE]));
   assert.equal(freeWriter.allowed, false);
 
   const [{ id: starter }] = await q("SELECT id FROM public.plans WHERE code='starter'");
@@ -364,10 +366,10 @@ test("premium plan feature checks are server-only and follow current, unexpired 
     "INSERT INTO public.subscriptions (user_id,plan_id,status,billing_cycle,renewal_date) VALUES ($1,$2,'active','yearly',now() + interval '1 year')",
     [AI_STARTER, starter]
   );
-  const [starterTender] = await as("service_role", AI_STARTER, "ai-starter@example.com", () =>
-    q("SELECT public.user_has_plan_feature($1, 'tender') AS allowed", [AI_STARTER]));
-  const [starterWriter] = await as("service_role", AI_STARTER, "ai-starter@example.com", () =>
-    q("SELECT public.user_has_plan_feature($1, 'ai_writer') AS allowed", [AI_STARTER]));
+  const [starterTender] = await as("service_role", AI_FEATURE_STARTER, "ai-feature-starter@example.com", () =>
+    q("SELECT public.user_has_plan_feature($1, 'tender') AS allowed", [AI_FEATURE_STARTER]));
+  const [starterWriter] = await as("service_role", AI_FEATURE_STARTER, "ai-feature-starter@example.com", () =>
+    q("SELECT public.user_has_plan_feature($1, 'ai_writer') AS allowed", [AI_FEATURE_STARTER]));
   assert.equal(starterTender.allowed, true);
   assert.equal(starterWriter.allowed, false);
 
