@@ -134,14 +134,11 @@ export function generateEstimate(params: {
   };
 
   const finishing: Record<string, number> = {
-    "Floor Finish": Math.round(totalFloorArea * 28 * mult),
-    "Wall Finish": Math.round(wallArea * 12 * mult),
-    "Ceiling Finish": Math.round(totalFloorArea * 8 * mult),
+    // Floor installation is represented by the itemized tile material and tiles-worker labor.
+    // Wall/ceiling painting is represented by itemized paint materials and painter labor.
+    // Exclude broad packages here to avoid charging those scopes a second time.
     "Kitchen Finish": Math.round(25000 * mult),
     "Bathroom Finish": Math.round(2 * 18000 * mult),
-    // Paint material costs are already itemized in the Materials schedule above.
-    // Do not repeat those same paint allowances inside Finishing.
-
   };
 
   const electrical: Record<string, number | string> = {
