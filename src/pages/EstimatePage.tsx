@@ -216,7 +216,7 @@ const EstimatePage = () => {
   const generatePDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(18);
-    doc.text("Smart House Estimate AI - Engineering Report", 14, 20);
+    doc.text("CivilOS AI — Engineering Estimate Report", 14, 20);
     doc.setFontSize(10);
     doc.text(`Project: ${projectName}`, 14, 30);
     doc.text(`District: ${district} | Plot: ${data.plotSize} | Floors: ${data.floors}`, 14, 36);
@@ -297,7 +297,7 @@ const EstimatePage = () => {
       180,
     );
     doc.text(assumptionsLines, 14, assumptionsY);
-    doc.text("Developed by MD Zobaer Hasan | https://zobaer.vercel.app", 14, assumptionsY + assumptionsLines.length * 4);
+    doc.text("CivilOS AI | AI Civil Engineering OS", 14, assumptionsY + assumptionsLines.length * 4);
 
     doc.save(`${data.projectName}_EngineeringReport.pdf`);
   };
