@@ -495,6 +495,10 @@ const EstimatePage = () => {
 
             {/* ESTIMATE TAB */}
             <TabsContent value="estimate" className="space-y-6">
+              <div role="note" aria-label="Estimate scope limitation" className="rounded-lg border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700/70 dark:bg-amber-950/30 dark:text-amber-100">
+                <p className="font-semibold">Preliminary demo estimate — review overlapping allowances</p>
+                <p className="mt-1">Civil-work and finishing package allowances may overlap with separately listed materials and labor. This area-based total is not a tender-ready BOQ or a verified contractor quote. Have a qualified estimator reconcile each work package against drawings, measured quantities, and local rates before relying on the total.</p>
+              </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <SectionCard title={t("est.costDist")} icon={DollarSign}>
                   <div className="h-64">
