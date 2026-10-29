@@ -35,6 +35,7 @@ import { suggestionsBn } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { saveProjectArtifact } from "@/lib/projectArtifacts";
 import DistrictRates from "@/components/DistrictRates";
 
 const COLORS = ["#1a3a6b", "#2a5298", "#e67e22", "#27ae60", "#8e44ad", "#e74c3c", "#3498db", "#f39c12", "#1abc9c"];
@@ -55,6 +56,8 @@ const EstimatePage = () => {
   const [soil, setSoil] = useState<string>("SC");
   const [importance, setImportance] = useState<number>(1.0);
   const [saving, setSaving] = useState(false);
+  const [savingWorkspace, setSavingWorkspace] = useState(false);
+  const [workspaceArtifactId, setWorkspaceArtifactId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState<string>(params._projectName || params.fileName || "House Project");
   const [district, setDistrict] = useState<string>(params.district || "Dhaka");
   const [rates, setRates] = useState(params.rates || undefined);
@@ -130,6 +133,47 @@ const EstimatePage = () => {
       toast.error(e.message || "Could not save");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveEstimateToWorkspace = async () => {
+    if (!user) { toast.info("Please sign in to save this estimate."); return; }
+    const targetProjectId = (params as any)._projectId || new URLSearchParams(window.location.search).get("project");
+    if (!targetProjectId) {
+      toast.info("Save this project first to create a Project Workspace, then open the estimate from that project.");
+      return;
+    }
+    setSavingWorkspace(true);
+    try {
+      const saved = await saveProjectArtifact({
+        id: workspaceArtifactId ?? undefined,
+        projectId: targetProjectId,
+        artifactType: "construction_estimate",
+        title: projectName.trim() || data.projectName || "Construction Estimate",
+        description: `${data.totalFloorArea.toLocaleString("en-BD")} sqft · BDT ${quotation.total.toLocaleString("en-BD")} · ${data.floors} floor(s)`,
+        data: {
+          projectName,
+          inputs: { ...params, district, rates, seismicZone: zone, soilType: soil, importanceFactor: importance },
+          estimate: data,
+          structural: { loads, beams, columns, slabs },
+          boq,
+          timeline,
+          quotation,
+          recommendations: aiRecs,
+          assumptions: {
+            currency: "BDT",
+            designCode: "BNBC 2022",
+            notice: "Preliminary planning estimate only. Structural design and quantities must be verified by a qualified engineer against approved drawings, site conditions, and applicable codes.",
+          },
+        },
+        metadata: { sourceModule: "EstimatePage", formatVersion: 1, savedAt: new Date().toISOString(), district, designCode: "BNBC 2022" },
+      });
+      setWorkspaceArtifactId(saved.id);
+      toast.success("Full construction estimate saved to Project Workspace.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save estimate to Project Workspace.");
+    } finally {
+      setSavingWorkspace(false);
     }
   };
 
@@ -260,6 +304,9 @@ const EstimatePage = () => {
             <div className="flex gap-2 flex-wrap">
               <Button variant="outline" onClick={saveProject} disabled={saving}>
                 <Save className="h-4 w-4 mr-1" /> {saving ? "Saving…" : user ? "Save Project" : "Sign in to Save"}
+              </Button>
+              <Button variant="secondary" onClick={saveEstimateToWorkspace} disabled={savingWorkspace || !user || !((params as any)._projectId || new URLSearchParams(window.location.search).get("project"))} title={!((params as any)._projectId || new URLSearchParams(window.location.search).get("project")) ? "Save the project first to enable workspace save" : "Save full estimate snapshot to Project Workspace"}>
+                {savingWorkspace ? <Activity className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />} {workspaceArtifactId ? "Update Workspace Estimate" : "Save to Workspace"}
               </Button>
               <Button variant="outline" onClick={shareProject}>
                 <Share2 className="h-4 w-4 mr-1" /> Share Link
