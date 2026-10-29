@@ -74,7 +74,7 @@ const AboutPage = () => {
               </p>
               <div className="flex flex-col gap-3 pt-1 sm:flex-row">
                 <Button asChild size="lg" className="gap-2">
-                  <Link to="/signup">Get started <ArrowRight className="h-4 w-4" /></Link>
+                  <Link to="/auth?mode=signup">Get started <ArrowRight className="h-4 w-4" /></Link>
                 </Button>
                 <Button asChild size="lg" variant="outline">
                   <Link to="/contact">Talk to our team</Link>
@@ -162,7 +162,7 @@ const AboutPage = () => {
               <p className="mt-3 leading-7 text-primary-foreground/80">Explore the workspace or contact us with questions, feedback and ideas.</p>
             </div>
             <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
-              <Button asChild variant="secondary" size="lg"><Link to="/signup">Create an account</Link></Button>
+              <Button asChild variant="secondary" size="lg"><Link to="/auth?mode=signup">Create an account</Link></Button>
               <Button asChild variant="outline" size="lg" className="border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"><Link to="/contact">Contact us</Link></Button>
             </div>
           </div>
