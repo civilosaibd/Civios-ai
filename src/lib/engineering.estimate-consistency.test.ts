@@ -42,7 +42,7 @@ describe("material BOQ and quotation consistency", () => {
     const quotation = buildQuotation(estimate);
     const rows = Object.fromEntries(quotation.justification.map((row) => [row.label, row.amount]));
     expect(rows["Labor"]).toBe(quotation.laborCost);
-    expect(rows["Civil Work"]).toBe(quotation.civilWorkCost);
+    expect(rows["Earthwork & Excavation"]).toBe(quotation.civilWorkCost);
     expect(rows["Finishing"]).toBe(quotation.finishingCost);
     expect(quotation.justification.reduce((sum, row) => sum + row.amount, 0)).toBe(quotation.total);
   });
