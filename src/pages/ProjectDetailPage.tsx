@@ -139,7 +139,7 @@ export default function ProjectDetailPage() {
     }
     setUploading(true);
     try {
-      const safeFileName = file.name.replace(/[\\/\\\\\u0000-\\u001f]/g, "_").replace(/\.\./g, "_");
+      const safeFileName = file.name.replace(/[\/\\\u0000-\u001f]/g, "_").replace(/\.\./g, "_");
       const path = `${id}/${Date.now()}-${safeFileName}`;
       const { error: uploadError } = await supabase.storage.from("project-documents").upload(path, file);
       if (uploadError) throw uploadError;
