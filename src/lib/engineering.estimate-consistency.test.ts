@@ -77,13 +77,19 @@ describe("material BOQ and quotation consistency", () => {
     }
   });
 
-  it("does not add separate masonry/plaster lump sums on top of itemized materials and mason labor", () => {
+  it("keeps structural material/labor scopes from being charged again as civil-work lump sums", () => {
     expect(estimate.materials["Bricks"]).toBeDefined();
     expect(estimate.materials["Cement"]).toBeDefined();
     expect(estimate.materials["Sand"]).toBeDefined();
+    expect(estimate.materials["Steel Rods"]).toBeDefined();
     expect(estimate.labor["Mason"]).toBeDefined();
-    expect(estimate.civilWork).not.toHaveProperty("Masonry Work");
-    expect(estimate.civilWork).not.toHaveProperty("Plaster Work");
+    expect(estimate.labor["Rod Binder"]).toBeDefined();
+    expect(estimate.labor["Carpenter"]).toBeDefined();
+
+    expect(Object.keys(estimate.civilWork)).toEqual(["Earthwork & Excavation"]);
+    for (const duplicateScope of ["Foundation", "Footing", "Columns", "Beams", "Slab / Roof Casting", "Masonry Work", "Plaster Work"]) {
+      expect(estimate.civilWork).not.toHaveProperty(duplicateScope);
+    }
   });
 
   it("does not repeat tile installation or wall/ceiling painting as broad finishing packages", () => {
@@ -98,6 +104,15 @@ describe("material BOQ and quotation consistency", () => {
     expect(estimate.finishing).not.toHaveProperty("Ceiling Finish");
     expect(estimate.finishing).not.toHaveProperty("Interior Paint");
     expect(estimate.finishing).not.toHaveProperty("Exterior Paint");
+    expect(estimate.finishing).not.toHaveProperty("Bathroom Finish");
+    expect(estimate.finishing).toHaveProperty("Kitchen Cabinets & Countertop Allowance");
+  });
+
+  it("keeps excavation and kitchen cabinetry as explicitly separate allowances", () => {
+    expect(estimate.civilWork["Earthwork & Excavation"]).toBeGreaterThan(0);
+    expect(Object.keys(estimate.civilWork)).toHaveLength(1);
+    expect(estimate.finishing["Kitchen Cabinets & Countertop Allowance"]).toBeGreaterThan(0);
+    expect(estimate.finishing).not.toHaveProperty("Bathroom Finish");
   });
 
   it("does not count electrician and plumber labor again on top of installed electrical/plumbing allowances", () => {
