@@ -500,7 +500,7 @@ const EstimatePage = () => {
                 <p className="mt-1">This is an area-based planning model, not a measured BOQ. Structural lump sums are excluded where they could duplicate broad material/trade-labor allowances; excavation and kitchen cabinets/countertop remain provisional allowances, while electrical/plumbing are installed-scope packages. Quantities, remaining scope boundaries, and rates are not drawing-verified or live-market-verified. A qualified estimator must check the model against approved drawings, site conditions, and current local quotations before using the total for a tender or contract.</p>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SectionCard title={t("est.costDist")} icon={DollarSign}>
+                <SectionCard title={`${t("est.costDist")} (before contractor profit)`} icon={DollarSign}>
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -512,7 +512,7 @@ const EstimatePage = () => {
                     </ResponsiveContainer>
                   </div>
                 </SectionCard>
-                <SectionCard title={t("est.catCost")} icon={Layers}>
+                <SectionCard title={`${t("est.catCost")} (before contractor profit)`} icon={Layers}>
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={data.costBreakdown} layout="vertical">
