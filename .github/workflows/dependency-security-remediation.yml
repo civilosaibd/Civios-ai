@@ -52,11 +52,19 @@ jobs:
       - name: Run unit tests
         id: tests
         continue-on-error: true
+        env:
+          VITE_SUPABASE_URL: https://unit-test.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: unit-test-publishable-key
+          VITE_SUPABASE_PROJECT_ID: unit-test
         run: npm test -- --run
 
       - name: Run production build
         id: build
         continue-on-error: true
+        env:
+          VITE_SUPABASE_URL: https://unit-test.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: unit-test-publishable-key
+          VITE_SUPABASE_PROJECT_ID: unit-test
         run: npm run build
 
       - name: Commit lockfile changes and open review PR
@@ -74,10 +82,15 @@ jobs:
             git commit -m "fix: remediate npm dependency vulnerabilities"
             git push origin HEAD:security/dependency-remediation-2026-10-25
           fi
-          gh pr create \
-            --repo zobaerio/CivilOS-AI \
-            --base main \
-            --head security/dependency-remediation-2026-10-25 \
-            --title "Security: remediate vulnerable npm dependencies" \
-            --body "Automated non-breaking dependency remediation for the 2026-10-24 security scan. The workflow runs npm audit fix without --force, records remaining audit findings, and runs tests/build. Review the CI results and dependency-audit.json before merging. Test outcome: ${TEST_OUTCOME}; build outcome: ${BUILD_OUTCOME}; npm audit fix outcome: ${AUDIT_FIX_OUTCOME}. Breaking upgrades are intentionally not forced."
+          if gh pr view security/dependency-remediation-2026-10-25 --repo zobaerio/CivilOS-AI >/dev/null 2>&1; then
+            echo "Security remediation pull request already exists."
+          else
+            gh pr create \
+              --repo zobaerio/CivilOS-AI \
+              --base main \
+              --head security/dependency-remediation-2026-10-25 \
+              --title "Security: remediate vulnerable npm dependencies" \
+              --body "Automated non-breaking dependency remediation for the 2026-10-24 security scan. The workflow runs npm audit fix without --force, records remaining audit findings, and runs tests/build. Review the CI results and dependency-audit.json before merging. Test outcome: ${TEST_OUTCOME}; build outcome: ${BUILD_OUTCOME}; npm audit fix outcome: ${AUDIT_FIX_OUTCOME}. Breaking upgrades are intentionally not forced." \
+              || echo "::warning::Could not create the PR automatically. Check repository Actions permissions and open the security branch manually."
+          fi
           
