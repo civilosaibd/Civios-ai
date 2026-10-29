@@ -123,7 +123,7 @@ const EstimatePage = () => {
       ["Validity (days)", quotation.validityDays],
       ["Payment Terms", quotation.paymentTerms],
       [],
-      ["Important scope note", "Preliminary area-based estimate only. This is not a signed or binding contractor quotation. Verify quantities, specifications, site conditions, labor scope, taxes/VAT, approvals, utility connections and supplier rates before contract."],
+      ["Important scope note", "Preliminary area-based planning estimate only; not a measured or tender-ready BOQ and not a binding contractor quotation. Structural lump sums are excluded where they could overlap broad material/trade-labor quantities; excavation and kitchen cabinets/countertop remain provisional allowances. Electrical/plumbing are installed-scope packages. Verify quantities, inclusions/exclusions, specifications, site conditions, taxes/VAT, approvals, utility connections and current supplier rates before contract."],
     ];
     downloadCSV(`${projectName}_Quotation.csv`, rows);
     toast.success("Quotation exported as CSV");
@@ -287,7 +287,7 @@ const EstimatePage = () => {
     if (y > 270) { doc.addPage(); y = 20; }
     doc.setFontSize(8);
     const disclaimerLines = doc.splitTextToSize(
-      "Disclaimer: Preliminary area-based estimate; not tender-ready. Verify quantities, rates, site conditions and structural design with qualified professionals.",
+      "Disclaimer: Area-based planning estimate only; not a measured BOQ or tender-ready quote. Verify scope, quantities, current rates, site conditions and structural design with qualified professionals.",
       180,
     );
     doc.text(disclaimerLines, 14, y);
@@ -497,7 +497,7 @@ const EstimatePage = () => {
             <TabsContent value="estimate" className="space-y-6">
               <div role="note" aria-label="Estimate scope limitation" className="rounded-lg border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700/70 dark:bg-amber-950/30 dark:text-amber-100">
                 <p className="font-semibold">Preliminary demo estimate — review overlapping allowances</p>
-                <p className="mt-1">Civil-work and finishing package allowances may overlap with separately listed materials and labor. This area-based total is not a tender-ready BOQ or a verified contractor quote. Have a qualified estimator reconcile each work package against drawings, measured quantities, and local rates before relying on the total.</p>
+                <p className="mt-1">This is an area-based planning model, not a measured BOQ. Structural lump sums are excluded where they could duplicate broad material/trade-labor allowances; excavation and kitchen cabinets/countertop remain provisional allowances, while electrical/plumbing are installed-scope packages. Quantities, remaining scope boundaries, and rates are not drawing-verified or live-market-verified. A qualified estimator must check the model against approved drawings, site conditions, and current local quotations before using the total for a tender or contract.</p>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <SectionCard title={t("est.costDist")} icon={DollarSign}>
