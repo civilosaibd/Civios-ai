@@ -54,6 +54,29 @@ describe("material BOQ and quotation consistency", () => {
     expect(estimate.finishing).not.toHaveProperty("Exterior Paint");
   });
 
+  it("applies the quality tier to itemized paint rates without creating a second paint allowance", () => {
+    const makeQualityEstimate = (quality: string) => generateEstimate({
+      plotLength: 40, plotWidth: 30, floors: 2, floorHeight: 10, wallThickness: 5,
+      quality, projectType: "single", unit: "feet", fileName: quality,
+    });
+    const economy = makeQualityEstimate("economy");
+    const standard = makeQualityEstimate("standard");
+    const premium = makeQualityEstimate("premium");
+
+    expect(economy.materials["Paint (Interior)"].rate).toBeLessThan(standard.materials["Paint (Interior)"].rate);
+    expect(premium.materials["Paint (Interior)"].rate).toBeGreaterThan(standard.materials["Paint (Interior)"].rate);
+    expect(economy.materials["Paint (Exterior)"].rate).toBeLessThan(standard.materials["Paint (Exterior)"].rate);
+    expect(premium.materials["Paint (Exterior)"].rate).toBeGreaterThan(standard.materials["Paint (Exterior)"].rate);
+    for (const estimate of [economy, standard, premium]) {
+      expect(estimate.finishing).not.toHaveProperty("Interior Paint");
+      expect(estimate.finishing).not.toHaveProperty("Exterior Paint");
+      for (const key of ["Paint (Interior)", "Paint (Exterior)"]) {
+        const paint = estimate.materials[key];
+        expect(paint.total).toBe(paint.qty * paint.rate);
+      }
+    }
+  });
+
   it("keeps the estimate breakdown aligned with the total cost", () => {
     const breakdownTotal = estimate.costBreakdown.reduce((sum, item) => sum + item.amount, 0);
     expect(breakdownTotal).toBe(estimate.totalCost);
