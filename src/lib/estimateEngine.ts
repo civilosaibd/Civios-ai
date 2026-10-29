@@ -77,17 +77,12 @@ export function generateEstimate(params: {
     { name: "Veranda", length: plotLength * 0.6, width: 6, area: plotLength * 0.6 * 6, doors: 0, windows: 0 },
   ];
 
-  // Civil work costs
+  // Keep only excavation as a distinct provisional package. The model's broad
+  // material take-off and trade labor already cover the building as a whole; it cannot
+  // reliably isolate foundation/footing/column/beam/slab quantities from those totals.
+  // Adding structural lump sums on top would risk charging the same materials/labor twice.
   const civilWork: Record<string, number> = {
     "Earthwork & Excavation": Math.round(plotArea * 12 * mult),
-    "Foundation": Math.round(plotArea * 45 * mult),
-    "Footing": Math.round(plotArea * 18 * mult),
-    "Columns": Math.round(floors * 8 * 3500 * mult),
-    "Beams": Math.round(floors * 12 * 2800 * mult),
-    "Slab / Roof Casting": Math.round(builtUpArea * floors * 35 * mult),
-    // Masonry/plaster allowances are excluded here because bricks/cement/sand and
-    // general mason labor are separately itemized in Materials and Labor. The current
-    // demo model cannot prove those lump sums are scope-exclusive, so don't add them twice.
   };
 
   // Materials
@@ -135,11 +130,11 @@ export function generateEstimate(params: {
   };
 
   const finishing: Record<string, number> = {
-    // Floor installation is represented by the itemized tile material and tiles-worker labor.
-    // Wall/ceiling painting is represented by itemized paint materials and painter labor.
-    // Exclude broad packages here to avoid charging those scopes a second time.
-    "Kitchen Finish": Math.round(25000 * mult),
-    "Bathroom Finish": Math.round(2 * 18000 * mult),
+    // Tile/paint materials and their installation labor are itemized separately.
+    // Plumbing is an installed package and includes bathroom fittings, so do not add
+    // another broad bathroom finish allowance. Kitchen cabinetry/countertop is a
+    // distinct scope not represented by any current itemized material line.
+    "Kitchen Cabinets & Countertop Allowance": Math.round(25000 * mult),
   };
 
   // These are installed-scope package allowances (materials + labor), not labor-only rates.
