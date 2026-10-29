@@ -218,75 +218,156 @@ const EstimatePage = () => {
   };
 
   const generatePDF = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(18);
-    doc.text("Smart House Estimate AI - Engineering Report", 14, 20);
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    const number = (value: number) => new Intl.NumberFormat("en-BD", { maximumFractionDigits: 2 }).format(Number.isFinite(value) ? value : 0);
+    const safeName = (projectName || data.projectName || "Construction_Estimate").replace(/[^a-z0-9-_]+/gi, "_");
+    const generatedAt = new Date();
+    const reportTotal = quotation.total;
+    let y = 18;
+
+    // Cover and project summary page
+    doc.setFillColor(15, 31, 55);
+    doc.rect(0, 0, pageWidth, 76, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.text(`Project: ${data.projectName}`, 14, 30);
-    doc.text(`Plot: ${data.plotSize} | Floors: ${data.floors} | Quality: ${data.quality}`, 14, 36);
-    doc.text(`Total Cost: BDT ${new Intl.NumberFormat("en-IN").format(quotation.total)}`, 14, 42);
+    doc.text("CIVILOS AI  |  ESTIMATE WORKSPACE", margin, 17);
+    doc.setFontSize(23);
+    doc.text("Construction Estimate", margin, 31);
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text("Professional project report", margin, 40);
+    doc.setDrawColor(245, 158, 11);
+    doc.setLineWidth(1.2);
+    doc.line(margin, 48, margin + 32, 48);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${generatedAt.toLocaleDateString("en-GB")}`, margin, 60);
+    doc.text(`Project: ${String(projectName || data.projectName || "Construction project").slice(0, 75)}`, margin, 68);
 
-    doc.text("BNBC Structural Loads", 14, 52);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text("Project summary", margin, 91);
     autoTable(doc, {
-      startY: 56,
-      head: [["Parameter", "Value"]],
+      startY: 97,
+      head: [["Project parameter", "Current estimate"]],
       body: [
-        ["Seismic Zone", loads.zone],
-        ["Zone Factor (Z)", loads.zoneFactor.toString()],
-        ["Soil Type", loads.soilType],
-        ["Total Dead Load", `${loads.totalDeadLoad} kN`],
-        ["Total Live Load", `${loads.totalLiveLoad} kN`],
-        ["Wind Pressure", `${loads.windPressure} kN/m²`],
-        ["Base Shear", `${loads.baseShear} kN`],
+        ["Project name", projectName || data.projectName || "Construction project"],
+        ["Plot / building size", String(data.plotSize ?? "Not specified")],
+        ["Total floor area", `${number(data.totalFloorArea)} sqft`],
+        ["Number of floors", String(data.floors)],
+        ["Quality level", String(data.quality ?? "Not specified")],
+        ["Selected district", String(district || "Not specified")],
+        ["Indicative duration", `${number(data.completionMonths)} months`],
+        ["Cost per sqft (quotation)", `BDT ${number(reportTotal / Math.max(data.totalFloorArea, 1))}`],
+        ["Estimated quotation total", `BDT ${number(reportTotal)}`],
       ],
-      styles: { fontSize: 8 },
+      theme: "grid",
+      headStyles: { fillColor: [20, 55, 92], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 248, 252] },
+      styles: { fontSize: 9, cellPadding: 3, overflow: "linebreak" },
+      margin: { left: margin, right: margin },
     });
-
-    let y = (doc as any).lastAutoTable.finalY + 8;
-    if (y > 240) { doc.addPage(); y = 20; }
-    doc.text("BNBC 2022 Load Combinations", 14, y);
+    y = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("Scope, assumptions & limitations", margin, y);
     autoTable(doc, {
       startY: y + 4,
-      head: [["#", "Combination", "Factored (kN)", "Governs"]],
-      body: loads.combos.map((c) => [c.name, c.formula, c.factoredLoad.toString(), c.governs ? "YES" : ""]),
-      styles: { fontSize: 8 },
-    });
-    y = (doc as any).lastAutoTable.finalY + 8;
-    doc.text("Bill of Quantities (BOQ)", 14, y);
-    autoTable(doc, {
-      startY: y + 4,
-      head: [["Item", "Qty", "Unit", "Rate (BDT)", "Total (BDT)"]],
-      body: boq.map((b) => [
-        b.item,
-        new Intl.NumberFormat("en-IN").format(b.qty),
-        b.unit,
-        new Intl.NumberFormat("en-IN").format(b.rate),
-        new Intl.NumberFormat("en-IN").format(b.total),
-      ]),
-      styles: { fontSize: 8 },
-    });
-
-    y = (doc as any).lastAutoTable.finalY + 8;
-    if (y > 250) { doc.addPage(); y = 20; }
-    doc.text("Contractor Quotation", 14, y);
-    autoTable(doc, {
-      startY: y + 4,
-      head: [["Item", "Amount (BDT)", "Justification"]],
       body: [
-        ...quotation.justification.map((j) => [j.label, new Intl.NumberFormat("en-IN").format(j.amount), j.note]),
-        ["Full Project Cost", new Intl.NumberFormat("en-IN").format(quotation.baseProjectCost), "Sum before contractor profit"],
-        ["TOTAL (with profit)", new Intl.NumberFormat("en-IN").format(quotation.total), "Final quotation"],
+        ["Estimate basis", "Values shown are generated from the current project inputs and estimate engine snapshot."],
+        ["Quantity basis", "Planning quantities are not a measured take-off from approved construction drawings."],
+        ["Rate basis", "Rates must be checked against dated supplier, labor and district quotations before procurement."],
+        ["Engineering review", "Structural calculations, soil assumptions, dimensions, code compliance and safety require qualified professional verification."],
+        ["Use of report", "Preliminary budgeting and discussion only; not a certified BOQ, tender document, structural approval or construction authorization."],
       ],
-      styles: { fontSize: 9 },
+      theme: "grid",
+      styles: { fontSize: 8.5, cellPadding: 3, overflow: "linebreak" },
+      columnStyles: { 0: { cellWidth: 34, fontStyle: "bold" } },
+      margin: { left: margin, right: margin },
     });
 
-    y = (doc as any).lastAutoTable.finalY + 8;
-    if (y > 270) { doc.addPage(); y = 20; }
-    doc.setFontSize(8);
-    doc.text("Disclaimer: AI-based preliminary analysis. Verify with a licensed structural engineer.", 14, y);
-    doc.text("Developed by MD Zobaer Hasan | https://zobaer.vercel.app", 14, y + 5);
+    // Detailed schedules begin on a fresh page for clear report structure.
+    doc.addPage();
+    y = 20;
+    const addSection = (title: string, head: string[], body: (string | number)[][], fontSize = 8) => {
+      if (y > pageHeight - 42) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.setTextColor(30, 41, 59);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text(title, margin, y);
+      autoTable(doc, {
+        startY: y + 4,
+        head: [head],
+        body: body.length ? body : [["No data available for this section"]],
+        theme: "grid",
+        headStyles: { fillColor: [20, 55, 92], textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [245, 248, 252] },
+        styles: { fontSize, cellPadding: 2.5, overflow: "linebreak", valign: "middle" },
+        margin: { left: margin, right: margin, bottom: 18 },
+        rowPageBreak: "avoid",
+      });
+      y = (doc as any).lastAutoTable.finalY + 11;
+    };
 
-    doc.save(`${data.projectName}_EngineeringReport.pdf`);
+    addSection("1. Cost breakdown", ["Cost category", "Amount (BDT)", "Share of quotation"], (data.costBreakdown || []).map((item) => [
+      item.category, number(item.amount), reportTotal > 0 ? `${(item.amount / reportTotal * 100).toFixed(1)}%` : "—",
+    ]));
+    addSection("2. Material schedule", ["Material", "Quantity", "Unit", "Unit rate (BDT)", "Line total (BDT)"],
+      Object.entries(data.materials || {}).map(([name, item]) => [name, number(item.qty), item.unit, number(item.rate), number(item.total)]));
+    addSection("3. Labor & daily rate analysis", ["Labor / crew", "Days", "Daily rate (BDT)", "Line total (BDT)"],
+      Object.entries(data.labor || {}).map(([name, item]) => [name, number(item.days), number(item.rate), number(item.total)]));
+    addSection("4. Detailed Bill of Quantities (BOQ)", ["Work item", "Quantity", "Unit", "Rate (BDT)", "Amount (BDT)"],
+      boq.map((item) => [item.item, number(item.qty), item.unit, number(item.rate), number(item.total)]));
+    addSection("5. Contractor quotation & adjustments", ["Item", "Amount (BDT)", "Basis / notes"], [
+      ...quotation.justification.map((item) => [item.label, number(item.amount), item.note]),
+      ["Full project cost before profit", number(quotation.baseProjectCost), "Quotation base as supplied by the estimate engine"],
+      ["TOTAL quotation", number(quotation.total), "Includes the quotation's configured contractor profit adjustment"],
+    ], 7.5);
+    addSection("6. Structural load indicators (BNBC inputs)", ["Parameter", "Value"], [
+      ["Seismic zone", String(loads.zone)],
+      ["Zone factor (Z)", String(loads.zoneFactor)],
+      ["Soil type", String(loads.soilType)],
+      ["Total dead load", `${number(loads.totalDeadLoad)} kN`],
+      ["Total live load", `${number(loads.totalLiveLoad)} kN`],
+      ["Wind pressure", `${number(loads.windPressure)} kN/m²`],
+      ["Base shear", `${number(loads.baseShear)} kN`],
+    ]);
+    addSection("7. BNBC 2022 load combinations (model output)", ["Combination", "Formula", "Factored load (kN)", "Governs"],
+      (loads.combos || []).map((item) => [item.name, item.formula, number(item.factoredLoad), item.governs ? "Yes" : "No"]), 7.5);
+    addSection("8. Preliminary construction timeline", ["Activity", "Start month", "Duration (months)"],
+      (timeline || []).map((item: any) => [item.name || item.activity || "Activity", number(item.startMonth), number(item.durationMonths)]));
+
+    // Repeatable page header/footer and pagination, including the cover.
+    const pageCount = doc.getNumberOfPages();
+    for (let page = 1; page <= pageCount; page++) {
+      doc.setPage(page);
+      if (page > 1) {
+        doc.setDrawColor(220, 226, 234);
+        doc.setLineWidth(0.25);
+        doc.line(margin, 12, pageWidth - margin, 12);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(71, 85, 105);
+        doc.text("CIVILOS AI  |  CONSTRUCTION ESTIMATE REPORT", margin, 9);
+      }
+      doc.setDrawColor(220, 226, 234);
+      doc.line(margin, pageHeight - 13, pageWidth - margin, pageHeight - 13);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text("Preliminary estimate — verify quantities, rates and engineering assumptions before use.", margin, pageHeight - 8);
+      doc.text(`Page ${page} of ${pageCount}`, pageWidth - margin, pageHeight - 8, { align: "right" });
+    }
+
+    doc.save(`${safeName}_Professional_Estimate_Report.pdf`);
+    toast.success("Professional estimate report PDF generated.");
   };
 
   const SectionCard = ({ title, icon: Icon, children, action }: { title: string; icon: any; children: React.ReactNode; action?: React.ReactNode }) => (
@@ -416,7 +497,7 @@ const EstimatePage = () => {
                 <Share2 className="h-4 w-4 mr-1" /> Share Link
               </Button>
               <Button onClick={generatePDF}>
-                <Download className="h-4 w-4 mr-1" /> {t("est.downloadPdf")}
+                <Download className="h-4 w-4 mr-1" /> Professional Report PDF
               </Button>
             </div>
           </div>
