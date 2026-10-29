@@ -85,7 +85,7 @@ const EstimatePage = () => {
   };
 
   const exportBOQCsv = () => {
-    const rows: (string | number)[][] = [["Item", "Qty", "Unit", "Rate (BDT)", "Total (BDT)"]];
+    const rows: (string | number)[][] = [["Material BOQ — indicative take-off (BDT)"], ["Item", "Qty", "Unit", "Rate (BDT)", "Total (BDT)"]];
     boq.forEach((b) => rows.push([b.item, b.qty, b.unit, b.rate, b.total]));
     rows.push(["", "", "", "TOTAL", boq.reduce((s, b) => s + b.total, 0)]);
     downloadCSV(`${projectName}_BOQ.csv`, rows);
@@ -830,9 +830,12 @@ const EstimatePage = () => {
 
             {/* BOQ TAB */}
             <TabsContent value="boq" className="space-y-6">
-              <SectionCard title="Bill of Quantities (BOQ)" icon={FileText} action={
+              <SectionCard title="Material Bill of Quantities (BOQ)" icon={FileText} action={
                 <Button size="sm" variant="outline" onClick={exportBOQCsv}><Download className="h-4 w-4 mr-1" /> CSV</Button>
               }>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Material take-off only. Composite RCC concrete and plaster work-package charges are excluded here because their constituent materials are listed separately; this BOQ total is not the full project quotation.
+                </p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="border-b text-muted-foreground">
