@@ -105,6 +105,8 @@ export interface TimelinePhase {
 export interface Quotation {
   materialCost: number;
   laborCost: number;
+  civilWorkCost: number;
+  finishingCost: number;
   electricalPlumbing: number;
   transport: number;
   contingency: number;
@@ -328,9 +330,11 @@ export function buildQuotation(estimate: EstimateData): Quotation {
   const total = baseProjectCost + profit;
 
   const justification = [
-    { label: "Materials", amount: materialCost, note: "Cement, steel, brick, sand, stone, tiles, paint, doors, windows — quantities derived from built-up area & wall volume." },
-    { label: "Labor", amount: laborCost + civil + finishing, note: "Mason, rod-binder, carpenter, electrician, plumber, painter, tiles & general labor — civil + finishing crews included." },
-    { label: "Electrical & Plumbing", amount: elec + plumb, note: "Wiring, switches, DB box, fan/light points, pipes, water tank, fittings as per total floor area." },
+    { label: "Materials", amount: materialCost, note: "Indicative material allowance; verify quantities and supplier rates against approved drawings and local quotations." },
+    { label: "Labor", amount: laborCost, note: "Direct labor allowance from the estimator; scope and crew rates require site verification." },
+    { label: "Civil Work", amount: civil, note: "Indicative civil-work allowance; confirm scope and avoid adding it again if included in a contractor's unit rates." },
+    { label: "Finishing", amount: finishing, note: "Indicative finishing allowance; confirm finishes, brands, and scope before contract." },
+    { label: "Electrical & Plumbing", amount: elec + plumb, note: "Indicative electrical and plumbing allowance; confirm points, fixtures, specifications, and quantities." },
     { label: "Transport", amount: transport, note: "≈3% of subtotal for material transport & site logistics." },
     { label: "Contingency", amount: contingency, note: "≈5% safety buffer for price fluctuation & unforeseen work." },
     { label: "Overhead", amount: overhead, note: "≈8% for site supervision, equipment, scaffolding, utilities." },
@@ -339,7 +343,9 @@ export function buildQuotation(estimate: EstimateData): Quotation {
 
   return {
     materialCost,
-    laborCost: laborCost + civil + finishing,
+    laborCost,
+    civilWorkCost: civil,
+    finishingCost: finishing,
     electricalPlumbing: elec + plumb,
     transport,
     contingency,
