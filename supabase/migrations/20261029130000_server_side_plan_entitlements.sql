@@ -13,8 +13,9 @@ CREATE POLICY "Users create own free subscription" ON public.subscriptions
 
 -- Keep subscription writes admin/service-role only. Cancellation and upgrades must
 -- go through trusted server-side functions; a client-side UPDATE is not allowed.
-REVOKE INSERT, UPDATE, DELETE ON public.subscriptions FROM anon, authenticated;
-GRANT SELECT ON public.subscriptions TO authenticated;
+REVOKE UPDATE, DELETE ON public.subscriptions FROM anon, authenticated;
+REVOKE INSERT ON public.subscriptions FROM anon;
+GRANT SELECT, INSERT ON public.subscriptions TO authenticated;
 GRANT ALL ON public.subscriptions TO service_role;
 
 CREATE OR REPLACE FUNCTION public.user_has_plan_feature(_user_id uuid, _feature_key text)
