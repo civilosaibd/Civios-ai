@@ -286,9 +286,18 @@ const EstimatePage = () => {
     y = (doc as any).lastAutoTable.finalY + 8;
     if (y > 270) { doc.addPage(); y = 20; }
     doc.setFontSize(8);
-    doc.text("Disclaimer: Preliminary area-based estimate; not tender-ready. Verify quantities, rates, site conditions and structural design with qualified professionals.", 14, y);
-    doc.text(`Rate basis: indicative BDT rates | District: ${district} | Design assumptions: ${zone}, soil ${soil}`, 14, y + 5);
-    doc.text("Developed by MD Zobaer Hasan | https://zobaer.vercel.app", 14, y + 10);
+    const disclaimerLines = doc.splitTextToSize(
+      "Disclaimer: Preliminary area-based estimate; not tender-ready. Verify quantities, rates, site conditions and structural design with qualified professionals.",
+      180,
+    );
+    doc.text(disclaimerLines, 14, y);
+    const assumptionsY = y + disclaimerLines.length * 4;
+    const assumptionsLines = doc.splitTextToSize(
+      `Rate basis: indicative BDT rates | District: ${district} | Design assumptions: ${zone}, soil ${soil}`,
+      180,
+    );
+    doc.text(assumptionsLines, 14, assumptionsY);
+    doc.text("Developed by MD Zobaer Hasan | https://zobaer.vercel.app", 14, assumptionsY + assumptionsLines.length * 4);
 
     doc.save(`${data.projectName}_EngineeringReport.pdf`);
   };
