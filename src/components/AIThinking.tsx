@@ -97,6 +97,7 @@ const AIThinking = ({ file, textContent, fileName, drawingType, uploadWarnings =
           if (!effectiveText) effectiveText = await file.text();
           if (effectiveText.length > 30_000) {
             warnings.push("The DXF text is longer than the current AI review limit. Only a bounded text excerpt is reviewed in this phase; use the CAD geometry workflow for full entity-level review.");
+            effectiveText = effectiveText.slice(0, 30_000);
           }
         } else {
           throw new Error("This file type is not supported for drawing analysis. Use PDF, JPG, PNG, WEBP or ASCII DXF.");
