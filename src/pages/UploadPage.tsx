@@ -84,8 +84,8 @@ const UploadPage = () => {
         nextDxfText = await f.text();
         nextDxfSummary = parseDXF(nextDxfText);
         nextDxfEngineering = analyzeDxfEngineeringDrawing(nextDxfText, { fileName: f.name });
-        if (nextDxfSummary.totalEntities === 0 || nextDxfEngineering.entityCount === 0) {
-          toast.error("No supported LINE or POLYLINE geometry was found. Re-export the CAD drawing as ASCII DXF with visible entity geometry.");
+        if (nextDxfEngineering.entityCount === 0) {
+          toast.error("No supported CAD geometry or text entities were found. Re-export the drawing as ASCII DXF with visible entity geometry.");
           return;
         }
       } catch {
@@ -243,22 +243,6 @@ const UploadPage = () => {
               </label>
             )}
           </div>
-
-          {dxfSummary && (
-            <div className="bg-card rounded-xl shadow-card p-6 space-y-3">
-              <h3 className="font-heading text-lg font-semibold flex items-center gap-2">
-                <FileCode className="h-5 w-5 text-accent" /> DXF Detection Summary
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                <div className="bg-muted/40 rounded-lg p-3"><p className="text-xs text-muted-foreground">Lines</p><p className="font-bold">{dxfSummary.totalEntities}</p></div>
-                <div className="bg-muted/40 rounded-lg p-3"><p className="text-xs text-muted-foreground">Layers</p><p className="font-bold">{Object.keys(dxfSummary.layers).length}</p></div>
-                <div className="bg-muted/40 rounded-lg p-3"><p className="text-xs text-muted-foreground">Wall Length</p><p className="font-bold">{dxfSummary.estimatedWallLength.toFixed(0)}</p></div>
-                <div className="bg-muted/40 rounded-lg p-3"><p className="text-xs text-muted-foreground">Detected Columns</p><p className="font-bold">{dxfSummary.detectedColumns}</p></div>
-              </div>
-              <p className="text-xs text-muted-foreground">Layers found: {Object.keys(dxfSummary.layers).slice(0, 8).join(", ")}</p>
-              <p className="text-xs text-amber-700 dark:text-amber-400">⚠ Approximate detection — please verify dimensions below.</p>
-            </div>
-          )}
 
           {dxfEngineering && (
             <section className="rounded-xl border bg-card p-5 space-y-4" aria-labelledby="engineering-analysis-title">
