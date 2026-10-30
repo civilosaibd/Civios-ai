@@ -92,6 +92,15 @@ describe("deterministic DXF engineering analysis", () => {
     expect(matched.comparable).toBe(true);
     expect(matched.warnings).toEqual([]);
 
+    const mismatch = analyzeDxfEngineeringDrawing(dxf(4, [
+      ...poly("S-SLAB-GF", [[0, 0], [5000, 0], [5000, 4000], [0, 4000]]),
+      ...circle("S-COLUMN-GF", 500, 500, 150),
+      ...circle("S-COLUMN-GF", 4500, 3500, 150),
+    ]));
+    const discrepancy = compareArchitecturalStructuralDrawings(architectural, mismatch);
+    expect(discrepancy.comparable).toBe(true);
+    expect(discrepancy.warnings.join(" ")).toMatch(/column CAD-object counts differ/i);
+
     const unverified = analyzeDxfEngineeringDrawing(dxf(null, [...line("A-WALL", 0, 0, 10, 0)]));
     expect(compareArchitecturalStructuralDrawings(unverified, structural).comparable).toBe(false);
   });
