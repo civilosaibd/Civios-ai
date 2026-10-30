@@ -68,12 +68,19 @@ const q = async (sql, params) => (await db.query(sql, params)).rows;
 before(async () => {
   db = new PGlite({ extensions: { pgcrypto } });
   await db.exec(STUBS);
+  // The current RBAC migration intentionally requires the primary verified admin
+  // to exist before migrations are applied, matching a real pre-existing Auth user.
+  await db.exec(`INSERT INTO auth.users (id,email,email_confirmed_at)
+    VALUES ('${ADMIN}','zobaerio24@gmail.com',now());`);
   for (const f of readdirSync(migDir).filter((f) => f.endsWith(".sql")).sort()) {
     try { await db.exec(readFileSync(join(migDir, f), "utf8")); }
     catch (e) { throw new Error(`migration ${f} failed: ${e.message}`); }
   }
+  // This account predates the auth.users profile trigger, so seed its profile
+  // explicitly; subsequent simulated sign-ups use the real migration trigger.
+  await db.query("INSERT INTO public.profiles (id, display_name) VALUES ($1, 'Primary Admin') ON CONFLICT (id) DO NOTHING", [ADMIN]);
   await db.exec(`INSERT INTO auth.users (id,email,email_confirmed_at) VALUES
-    ('${ADMIN}','zobaerio24@gmail.com',now()),('${ALICE}','alice@example.com',NULL),('${BOB}','bob@example.com',NULL);`);
+    ('${ALICE}','alice@example.com',NULL),('${BOB}','bob@example.com',NULL);`);
   // Bootstrap the test owner explicitly; public signup must never auto-grant admin.
   await db.query("INSERT INTO public.user_roles (user_id, role) VALUES ($1, 'admin') ON CONFLICT (user_id, role) DO NOTHING", [ADMIN]);
 });
