@@ -48,6 +48,8 @@ const AdminPage = () => {
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [userDetails, setUserDetails] = useState<any | null>(null);
   const [userDetailsLoading, setUserDetailsLoading] = useState(false);
+  const [accessAudit, setAccessAudit] = useState<any[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [search, setSearch] = useState("");
@@ -133,6 +135,13 @@ const AdminPage = () => {
     else { setAdminUsers((current) => [...current, ...(data?.users || [])]); setUsersPage(nextPage); setHasMoreUsers(!!data?.has_more); }
     setLoadingMoreUsers(false);
   };
+  const loadAccessAudit = async () => {
+    setAuditLoading(true);
+    const { data, error } = await supabase.functions.invoke("admin-user-data", { body: { action: "audit-list", limit: 100 } });
+    if (error) toast.error("Could not load admin access history.");
+    else setAccessAudit(data?.events || []);
+    setAuditLoading(false);
+  };
   const openUserDetails = async (account: any) => {
     setSelectedUser(account); setUserDetails(null); setUserDetailsLoading(true);
     const { data, error } = await supabase.functions.invoke("admin-user-data", { body: { action: "details", userId: account.id } });
@@ -210,6 +219,7 @@ const AdminPage = () => {
               <TabsTrigger value="sponsors" className="gap-1"><Building className="h-4 w-4" />Sponsors{pendingSponsors > 0 && <Badge className="ml-1 h-4 px-1.5 text-[10px] bg-amber-500">{pendingSponsors}</Badge>}</TabsTrigger>
               <TabsTrigger value="ratings" className="gap-1"><Star className="h-4 w-4" />Ratings</TabsTrigger>
               <TabsTrigger value="users" className="gap-1"><Users className="h-4 w-4" />Users</TabsTrigger>
+              <TabsTrigger value="audit" className="gap-1"><ShieldCheck className="h-4 w-4" />Access Audit</TabsTrigger>
               <TabsTrigger value="projects" className="gap-1"><FolderKanban className="h-4 w-4" />Projects</TabsTrigger>
             </TabsList>
 
@@ -333,6 +343,30 @@ const AdminPage = () => {
               ))}
               {adminUsers.length === 0 && <p className="text-center text-sm text-muted-foreground py-8">No accounts loaded. Deploy the admin-user-data Edge Function to enable this directory.</p>}
               {hasMoreUsers && <div className="flex justify-center pt-2"><Button variant="outline" onClick={loadMoreUsers} disabled={loadingMoreUsers}>{loadingMoreUsers && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Load more accounts</Button></div>}
+            </TabsContent>
+
+            <TabsContent value="audit" className="space-y-3 mt-4">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="font-semibold">Privileged account inspection history</p>
+                  <p className="text-xs text-muted-foreground">Read-only log of admin account detail views. Latest 100 events.</p>
+                </div>
+                <Button size="sm" variant="outline" onClick={loadAccessAudit} disabled={auditLoading}>
+                  {auditLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Refresh history
+                </Button>
+              </div>
+              {accessAudit.length === 0 && !auditLoading && <p className="text-center text-sm text-muted-foreground py-8">No audit events loaded. Select Refresh history to check the log.</p>}
+              {accessAudit.map((event) => (
+                <div key={event.id} className="rounded-xl border bg-card p-3 space-y-1">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <Badge variant="secondary">{event.action.replaceAll("_", " ")}</Badge>
+                    <span className="text-xs text-muted-foreground">{new Date(event.accessed_at).toLocaleString()}</span>
+                  </div>
+                  <p className="text-sm"><span className="text-muted-foreground">Admin:</span> {event.admin_email || event.admin_user_id}</p>
+                  <p className="text-sm"><span className="text-muted-foreground">Viewed account:</span> {event.target_email || event.target_user_id}</p>
+                  <p className="text-[10px] text-muted-foreground break-all">Event ID: {event.id}</p>
+                </div>
+              ))}
             </TabsContent>
 
             <TabsContent value="projects" className="space-y-2 mt-4">
