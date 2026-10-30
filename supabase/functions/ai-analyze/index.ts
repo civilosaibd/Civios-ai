@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { checkAiEndpointRateLimit } from "../_shared/aiRateLimit.ts";
 import { consumeAiCredit } from "../_shared/aiUsageQuota.ts";
+import { isValidDrawingImageDataUrl, readJsonBodyLimited, validateDrawingImages, MAX_AI_ANALYSIS_BODY_BYTES } from "./validation.ts";
 // AI Thinking — authenticated multimodal analyzer for uploaded files/images.
 // Uses Lovable AI (Gemini 2.5 Pro) for visual + textual reasoning.
 const corsHeaders = {
@@ -63,11 +64,13 @@ Deno.serve(async (req) => {
 
   try {
     const contentLength = Number(req.headers.get("content-length") || "0");
-    if (contentLength > 12 * 1024 * 1024) {
+    if (Number.isFinite(contentLength) && contentLength > MAX_AI_ANALYSIS_BODY_BYTES) {
       return jsonResponse({ error: "Request too large. Please upload a smaller file." }, 413);
     }
 
-    const body = await req.json();
+    const parsedBody = await readJsonBodyLimited(req, MAX_AI_ANALYSIS_BODY_BYTES);
+    if (!parsedBody.ok) return jsonResponse({ error: parsedBody.error }, parsedBody.status);
+    const body = parsedBody.value;
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return jsonResponse({ error: "Invalid request body" }, 400);
     }
@@ -83,35 +86,24 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Invalid drawing type hint" }, 400);
     }
 
-    // Keep the request bounded: at most five explicitly numbered raster pages.
+    // Keep the request bounded: at most five unique pages with verified raster signatures.
     const imageInputs: { pageNumber: number; dataUrl: string }[] = [];
     if (dataUrl !== undefined && images !== undefined) {
       return jsonResponse({ error: "Send either dataUrl or images, not both." }, 400);
     }
     if (dataUrl !== undefined) {
-      if (typeof dataUrl !== "string" || dataUrl.length > 10 * 1024 * 1024 || !/^data:image\/(jpeg|png|webp);base64,/i.test(dataUrl)) {
-        return jsonResponse({ error: "Invalid or oversized image data" }, 400);
+      if (!isValidDrawingImageDataUrl(dataUrl, 10 * 1024 * 1024)) {
+        return jsonResponse({ error: "Invalid, oversized or malformed image data." }, 400);
       }
       imageInputs.push({ pageNumber: 1, dataUrl });
     }
     if (images !== undefined) {
-      if (!Array.isArray(images) || images.length < 1 || images.length > 5) {
-        return jsonResponse({ error: "Provide between 1 and 5 numbered drawing pages." }, 400);
-      }
-      let totalImageChars = 0;
-      for (const image of images) {
-        if (!image || typeof image !== "object" || !Number.isInteger(image.pageNumber) || image.pageNumber < 1
-          || typeof image.dataUrl !== "string"
-          || !/^data:image\/(jpeg|png|webp);base64,/i.test(image.dataUrl)
-          || image.dataUrl.length > 5 * 1024 * 1024) {
-          return jsonResponse({ error: "One or more drawing pages are invalid or too large." }, 400);
-        }
-        totalImageChars += image.dataUrl.length;
-        imageInputs.push({ pageNumber: image.pageNumber, dataUrl: image.dataUrl });
-      }
-      if (totalImageChars > 10 * 1024 * 1024) {
-        return jsonResponse({ error: "Combined drawing pages exceed the analysis request limit. Upload fewer pages or reduce their resolution." }, 413);
-      }
+      const validated = validateDrawingImages(images);
+      if (!validated.ok) return jsonResponse({ error: validated.error }, validated.status);
+      imageInputs.push(...validated.images);
+    }
+    if (typeof textContent === "string" && textContent.length > 30_000) {
+      return jsonResponse({ error: "Drawing text exceeds the 30,000 character review limit. Shorten or split the DXF before analysis." }, 413);
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
