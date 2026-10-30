@@ -85,12 +85,18 @@ Deno.serve(async (req) => {
 
     // Only operational account data is returned. Password hashes, access/refresh tokens,
     // MFA secrets, invitation tokens, and raw private file contents are never exposed.
-    const tables = ["profiles", "subscriptions", "payments", "projects", "usage_records",
-      "referrals", "withdrawals", "site_logs", "tender_analyses", "notifications",
-      "agent_tasks", "notification_settings", "user_feature_settings", "user_roles"];
+    const ownedTables: Record<string, string> = {
+      profiles: "id", subscriptions: "user_id", payments: "user_id", projects: "user_id",
+      usage_records: "user_id", referrals: "referrer_id", withdrawals: "user_id",
+      site_logs: "user_id", tender_analyses: "user_id", notifications: "user_id",
+      agent_tasks: "user_id", notification_settings: "user_id", user_feature_settings: "user_id",
+      user_roles: "user_id", construction_visualizations: "user_id", agent_memory: "user_id",
+      agent_automations: "owner_id", agent_steps: "actor_user_id", agent_approvals: "requested_by",
+      project_activity: "user_id", project_documents: "uploaded_by", project_members: "user_id",
+      invitations: "invited_by",
+    };
     const records: Record<string, unknown[]> = {};
-    await Promise.all(tables.map(async (table) => {
-      const ownerColumn = table === "profiles" ? "id" : table === "referrals" ? "referrer_id" : "user_id";
+    await Promise.all(Object.entries(ownedTables).map(async ([table, ownerColumn]) => {
       const { data, error } = await admin.from(table).select("*").eq(ownerColumn, userId).limit(100);
       // Profiles use id as the auth user id. A missing optional table is reported, not fatal.
       records[table] = error ? [] : (data || []).map((row: Record<string, unknown>) => {
@@ -100,6 +106,9 @@ Deno.serve(async (req) => {
         }
         if (table === "projects" && "share_token" in row) {
           return { ...row, share_token: row.share_token ? "[redacted]" : null };
+        }
+        if (table === "project_documents" && "file_url" in row) {
+          return { ...row, file_url: row.file_url ? "[stored file reference hidden]" : null };
         }
         return row;
       });
