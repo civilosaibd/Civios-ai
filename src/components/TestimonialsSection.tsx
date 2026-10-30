@@ -11,12 +11,12 @@ const testimonialKeys = [
 const TestimonialsSection = () => {
   const { t } = useI18n();
   return (
-    <section className="py-20 bg-muted/50">
-      <div className="container">
+    <section className="homepage-depth-section relative py-20 bg-muted/40 overflow-hidden">
+      <div className="container relative z-10">
         <h2 className="font-heading text-3xl md:text-4xl font-bold text-center mb-10">{t("testimonials.title")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {testimonialKeys.map((tk, i) => (
-            <motion.div key={tk.nameKey} className="bg-card rounded-xl p-6 shadow-card space-y-4" initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.4, delay: i * 0.1 }}>
+            <motion.div key={tk.nameKey} className="homepage-depth-card social-proof-card bg-card/90 backdrop-blur rounded-2xl p-6 shadow-card space-y-4 border border-border/60" initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.4, delay: i * 0.1 }}>
               <div className="flex gap-1">
                 {[...Array(5)].map((_, j) => <Star key={j} className="h-4 w-4 fill-accent text-accent" />)}
               </div>
