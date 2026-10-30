@@ -34,7 +34,7 @@ const FileAssistantPage = () => {
     if (checked.kind === "dxf") {
       try {
         text = await f.text();
-        if (!/\\bSECTION\\b/i.test(text) || !/\\bENTITIES\\b/i.test(text)) {
+        if (!/\bSECTION\b/i.test(text) || !/\bENTITIES\b/i.test(text)) {
           toast.error("DXF does not contain a readable ENTITIES section. Re-export it as ASCII DXF.");
           return;
         }
