@@ -42,6 +42,9 @@ const AdminPage = () => {
   const [ratings, setRatings] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [usersPage, setUsersPage] = useState(1);
+  const [hasMoreUsers, setHasMoreUsers] = useState(false);
+  const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [userDetails, setUserDetails] = useState<any | null>(null);
   const [userDetailsLoading, setUserDetailsLoading] = useState(false);
@@ -78,7 +81,7 @@ const AdminPage = () => {
     setProfiles(p.data || []);
     const { data: userData, error: userError } = await supabase.functions.invoke("admin-user-data", { body: { action: "list", page: 1 } });
     if (userError) toast.error("Could not load account directory. Check the admin-user-data Edge Function deployment.");
-    else setAdminUsers(userData?.users || []);
+    else { setAdminUsers(userData?.users || []); setUsersPage(1); setHasMoreUsers(!!userData?.has_more); }
     setProjects(pr.data || []);
     setMessages(m.data || []);
   };
@@ -120,6 +123,15 @@ const AdminPage = () => {
   };
 
   const openReply = (msg: any) => { setReplyTo(msg); setReplyText(""); setReplyOpen(true); };
+  const loadMoreUsers = async () => {
+    if (loadingMoreUsers || !hasMoreUsers) return;
+    setLoadingMoreUsers(true);
+    const nextPage = usersPage + 1;
+    const { data, error } = await supabase.functions.invoke("admin-user-data", { body: { action: "list", page: nextPage } });
+    if (error) toast.error("Could not load the next account page.");
+    else { setAdminUsers((current) => [...current, ...(data?.users || [])]); setUsersPage(nextPage); setHasMoreUsers(!!data?.has_more); }
+    setLoadingMoreUsers(false);
+  };
   const openUserDetails = async (account: any) => {
     setSelectedUser(account); setUserDetails(null); setUserDetailsLoading(true);
     const { data, error } = await supabase.functions.invoke("admin-user-data", { body: { action: "details", userId: account.id } });
@@ -319,6 +331,7 @@ const AdminPage = () => {
                 </div>
               ))}
               {adminUsers.length === 0 && <p className="text-center text-sm text-muted-foreground py-8">No accounts loaded. Deploy the admin-user-data Edge Function to enable this directory.</p>}
+              {hasMoreUsers && <div className="flex justify-center pt-2"><Button variant="outline" onClick={loadMoreUsers} disabled={loadingMoreUsers}>{loadingMoreUsers && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Load more accounts</Button></div>}
             </TabsContent>
 
             <TabsContent value="projects" className="space-y-2 mt-4">
