@@ -27,7 +27,7 @@ interface Props {
   fileName?: string;
   drawingType?: DrawingType;
   uploadWarnings?: string[];
-  onAnalysis?: (analysis: Analysis) => void;
+  onAnalysis?: (analysis: Analysis, coverageComplete: boolean) => void;
   onAnalysisError?: () => void;
 }
 
@@ -123,7 +123,8 @@ const AIThinking = ({ file, textContent, fileName, drawingType, uploadWarnings =
       if (data?.error) throw new Error(data.error);
       if (!isAnalysis(data?.analysis)) throw new Error("The analysis service returned an incomplete or invalid result. Please retry or upload a clearer drawing.");
       setAnalysis(data.analysis);
-      onAnalysis?.(data.analysis);
+      const coverageComplete = !warnings.some((warning) => /not analysed|bounded text excerpt|first 5 MB|review limit/i.test(warning));
+      onAnalysis?.(data.analysis, coverageComplete);
       toast.success("Drawing review completed. Review all warnings and missing information.");
     } catch (e) {
       const message = e instanceof Error ? e.message : "AI analysis failed";
