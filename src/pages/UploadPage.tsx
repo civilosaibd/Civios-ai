@@ -330,7 +330,7 @@ const UploadPage = () => {
                 {crossDrawingReview && (
                   <div className="space-y-1">
                     <p className={crossDrawingReview.comparable ? "text-xs font-semibold text-emerald-700 dark:text-emerald-400" : "text-xs font-semibold text-amber-700 dark:text-amber-400"}>
-                      {crossDrawingReview.comparable ? "Coordinate-based comparison completed with limitations" : "Cross-check blocked — drawings are not safely comparable"}
+                      {crossDrawingReview.comparable ? "Drawing extent comparison completed (limited checks only)" : "Cross-check blocked — drawings are not safely comparable"}
                     </p>
                     {crossDrawingReview.warnings.length === 0
                       ? <p className="text-xs text-muted-foreground">Overall extents and column CAD-object counts are consistent. This is not a structural adequacy check.</p>
