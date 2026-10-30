@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Send either dataUrl or images, not both." }, 400);
     }
     if (dataUrl !== undefined) {
-      if (typeof dataUrl !== "string" || dataUrl.length > 10 * 1024 * 1024 || !/^data:image\\/(jpeg|png|webp);base64,/i.test(dataUrl)) {
+      if (typeof dataUrl !== "string" || dataUrl.length > 10 * 1024 * 1024 || !/^data:image\/(jpeg|png|webp);base64,/i.test(dataUrl)) {
         return jsonResponse({ error: "Invalid or oversized image data" }, 400);
       }
       imageInputs.push({ pageNumber: 1, dataUrl });
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
       for (const image of images) {
         if (!image || typeof image !== "object" || !Number.isInteger(image.pageNumber) || image.pageNumber < 1
           || typeof image.dataUrl !== "string"
-          || !/^data:image\\/(jpeg|png|webp);base64,/i.test(image.dataUrl)
+          || !/^data:image\/(jpeg|png|webp);base64,/i.test(image.dataUrl)
           || image.dataUrl.length > 5 * 1024 * 1024) {
           return jsonResponse({ error: "One or more drawing pages are invalid or too large." }, 400);
         }
@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
     const safePrompt = typeof userPrompt === "string" ? userPrompt.slice(0, 2000) : "";
     const userContent: any[] = [{
       type: "text",
-      text: `File: ${safeFileName} • Type: ${safeMimeType} • Drawing type hint: ${safeDrawingType} (verify independently; this may be wrong).\\n${safePrompt ? `User request: ${safePrompt}` : "Identify this drawing and describe visible information only."}`,
+      text: `File: ${safeFileName} • Type: ${safeMimeType} • Drawing type hint: ${safeDrawingType} (verify independently; this may be wrong).\n${safePrompt ? `User request: ${safePrompt}` : "Identify this drawing and describe visible information only."}`,
     }];
 
     for (const image of imageInputs) {
@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
       userContent.push({ type: "image_url", image_url: { url: image.dataUrl } });
     }
     if (typeof textContent === "string" && textContent.length > 0) {
-      userContent.push({ type: "text", text: `\\n--- File text content (first 30,000 characters maximum) ---\\n${textContent.slice(0, 30000)}` });
+      userContent.push({ type: "text", text: `\n--- File text content (first 30,000 characters maximum) ---\n${textContent.slice(0, 30000)}` });
     }
 
     if (imageInputs.length === 0 && !(typeof textContent === "string" && textContent.length > 0) && !safePrompt) {
