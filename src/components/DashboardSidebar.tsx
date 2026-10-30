@@ -63,9 +63,14 @@ function CategoryGroup({
 }
 
 export function DashboardSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
+
+  // On phones, close the navigation drawer after a route change so the page is usable immediately.
+  useEffect(() => {
+    if (isMobile) setOpenMobile(false);
+  }, [pathname, isMobile, setOpenMobile]);
   const { user } = useAuth();
   const { plan, hasFeature } = useSubscription();
   const [isAdmin, setIsAdmin] = useState(false);
