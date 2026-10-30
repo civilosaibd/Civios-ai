@@ -109,7 +109,7 @@ const FAQSection = () => {
 
 
   return (
-    <section id="faq" className="py-16 md:py-20 bg-background relative overflow-hidden">
+    <section id="faq" className="homepage-depth-section py-16 md:py-20 bg-background relative overflow-hidden">
       <div className="absolute inset-0 bg-dots opacity-40 pointer-events-none" />
       <div className="container max-w-3xl relative">
         <div className="text-center mb-8 md:mb-10">
@@ -188,7 +188,7 @@ const FAQSection = () => {
                   <AccordionItem
                     value={`faq-${i}`}
                     id={`faq-item-${i}`}
-                    className={`group bg-card/80 backdrop-blur rounded-xl shadow-card border px-4 md:px-5 hover:border-accent/40 hover:shadow-card-hover transition-all data-[state=open]:border-accent/60 data-[state=open]:shadow-glow-accent ${
+                    className={`homepage-depth-card faq-depth-card group bg-card/85 backdrop-blur rounded-2xl shadow-card border px-4 md:px-5 hover:border-accent/40 hover:shadow-card-hover transition-all data-[state=open]:border-accent/60 data-[state=open]:shadow-glow-accent ${
                       i === highlight ? "border-accent/60 ring-2 ring-accent/30" : "border-border/60"
                     }`}
                     onMouseEnter={() => setHighlight(i)}
