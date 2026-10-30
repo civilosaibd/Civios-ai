@@ -51,6 +51,7 @@ const AdminPage = () => {
   const [projects, setProjects] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [search, setSearch] = useState("");
+  const [userSearch, setUserSearch] = useState("");
   const [newSponsor, setNewSponsor] = useState({ name: "", logo_url: "", website: "", description: "", contact_email: "" });
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<any | null>(null);
@@ -316,9 +317,9 @@ const AdminPage = () => {
               </div>
               <div className="relative">
                 <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input className="pl-9" placeholder="Search by name, email or user ID…" value={search} onChange={(e) => setSearch(e.target.value)} />
+                <Input className="pl-9" placeholder="Search by name, email or user ID…" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
               </div>
-              {adminUsers.filter((u) => !search || `${u.display_name || ""} ${u.email || ""} ${u.id}`.toLowerCase().includes(search.toLowerCase())).map((u) => (
+              {adminUsers.filter((u) => !userSearch || `${u.display_name || ""} ${u.email || ""} ${u.id}`.toLowerCase().includes(userSearch.toLowerCase())).map((u) => (
                 <div key={u.id} className="bg-card rounded-xl p-4 shadow-sm border flex items-center gap-3 flex-wrap">
                   {u.avatar_url ? <img src={u.avatar_url} className="h-10 w-10 rounded-full object-cover" alt="" /> : <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-semibold">{(u.display_name || u.email || "U")[0].toUpperCase()}</div>}
                   <div className="min-w-0 flex-1">
