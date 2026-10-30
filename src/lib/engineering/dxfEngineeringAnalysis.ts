@@ -60,6 +60,7 @@ function parsePairs(text: string): Pair[] {
     const code = Number.parseInt(lines[i].trim(), 10);
     if (Number.isInteger(code) && code >= 0 && code <= 1071) {
       pairs.push({ code, value: lines[i + 1].trim() });
+      if (pairs.length > 1_000_000) throw new Error("DXF contains too many group-code records for safe browser analysis. Simplify or split the drawing.");
     }
   }
   return pairs;
@@ -137,7 +138,7 @@ function extractEntities(pairs: Pair[]): { entities: CadEntity[]; unsupported: R
   const flush = () => {
     if (!currentType) return;
     if (currentType === "POLYLINE") {
-      const parent = currentValues;
+      const parent = currentValues.filter((pair) => ![10, 20, 30].includes(pair.code));
       const vertices = polylineVertices ?? [];
       const flattened: Pair[] = [...parent];
       for (const vertex of vertices) {
@@ -246,12 +247,12 @@ function getBounds(entities: CadEntity[]) {
     return entity.points;
   });
   if (!points.length) return null;
-  return {
-    minX: Math.min(...points.map((point) => point.x)),
-    minY: Math.min(...points.map((point) => point.y)),
-    maxX: Math.max(...points.map((point) => point.x)),
-    maxY: Math.max(...points.map((point) => point.y)),
-  };
+  return points.reduce((bounds, point) => ({
+    minX: Math.min(bounds.minX, point.x),
+    minY: Math.min(bounds.minY, point.y),
+    maxX: Math.max(bounds.maxX, point.x),
+    maxY: Math.max(bounds.maxY, point.y),
+  }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
 }
 
 export function analyzeDxfEngineeringDrawing(
@@ -332,6 +333,9 @@ export function compareArchitecturalStructuralDrawings(
   const a = architectural.bounds, s = structural.bounds;
   const aWidth = (a.maxX - a.minX) * aFactor, aHeight = (a.maxY - a.minY) * aFactor;
   const sWidth = (s.maxX - s.minX) * sFactor, sHeight = (s.maxY - s.minY) * sFactor;
+  if (Math.min(aWidth, aHeight, sWidth, sHeight) < 0.01) {
+    return { comparable: false, warnings: ["Cross-drawing comparison is blocked because one or both drawing extents are degenerate or incomplete."] };
+  }
   const widthDelta = Math.abs(aWidth - sWidth) / Math.max(aWidth, sWidth, 0.001) * 100;
   const heightDelta = Math.abs(aHeight - sHeight) / Math.max(aHeight, sHeight, 0.001) * 100;
   if (widthDelta > 2 || heightDelta > 2) {
