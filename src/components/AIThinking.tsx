@@ -50,7 +50,16 @@ function isAnalysis(value: unknown): value is Analysis {
   if (typeof item.summary !== "string") return false;
   if (item.drawingType !== undefined && (typeof item.drawingType !== "string" || !validTypes.includes(item.drawingType))) return false;
   if (!stringArray(item.warnings) || !stringArray(item.engineeringNotes) || !stringArray(item.recommendations)) return false;
-  if (item.detected !== undefined && (!item.detected || typeof item.detected !== "object" || Array.isArray(item.detected))) return false;
+  if (item.detected !== undefined) {
+    if (!item.detected || typeof item.detected !== "object" || Array.isArray(item.detected)) return false;
+    const detected = item.detected as Record<string, unknown>;
+    if (detected.buildingType !== undefined && typeof detected.buildingType !== "string") return false;
+    if (detected.estimatedArea_sqft !== undefined && detected.estimatedArea_sqft !== null
+      && (typeof detected.estimatedArea_sqft !== "number" || !Number.isFinite(detected.estimatedArea_sqft) || detected.estimatedArea_sqft <= 0)) return false;
+    if (detected.estimatedFloors !== undefined && detected.estimatedFloors !== null
+      && (typeof detected.estimatedFloors !== "number" || !Number.isInteger(detected.estimatedFloors) || detected.estimatedFloors < 1)) return false;
+    if (!stringArray(detected.rooms)) return false;
+  }
   return true;
 }
 
