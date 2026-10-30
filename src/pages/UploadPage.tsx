@@ -88,8 +88,9 @@ const UploadPage = () => {
           toast.error("No supported CAD geometry or text entities were found. Re-export the drawing as ASCII DXF with visible entity geometry.");
           return;
         }
-      } catch {
-        toast.error("Could not parse the DXF geometry. Please re-export it as ASCII DXF.");
+      } catch (error) {
+        const detail = error instanceof Error ? error.message.slice(0, 180) : "Unknown DXF parsing error.";
+        toast.error(`DXF analysis stopped: ${detail} Please verify the file and re-export it as ASCII DXF if needed.`);
         return;
       }
     }
