@@ -75,6 +75,18 @@ describe("deterministic DXF engineering analysis", () => {
     expect(result.warnings.join(" ")).toMatch(/not yet interpreted/i);
   });
 
+  it("excludes malformed entities from engineering counts and reports them", () => {
+    const result = analyzeDxfEngineeringDrawing(dxf(4, [
+      0, "LINE", 8, "A-WALL-GF", 10, 0, 20, 0, 11, 100,
+      0, "CIRCLE", 8, "S-COLUMN-GF", 10, 10, 20, 10, 40, -5,
+      ...line("A-WALL-GF", 0, 0, 100, 0),
+    ]));
+    expect(result.entityCount).toBe(1);
+    expect(result.elements.find((item) => item.kind === "wall")?.cadObjectCount).toBe(1);
+    expect(result.unsupportedEntityCounts.INVALID_LINE).toBe(1);
+    expect(result.unsupportedEntityCounts.INVALID_CIRCLE).toBe(1);
+  });
+
   it("rejects empty or malformed drawings without inventing geometry", () => {
     expect(() => analyzeDxfEngineeringDrawing("not a dxf")).toThrow(/No supported geometric/);
   });
