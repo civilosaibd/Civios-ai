@@ -49,3 +49,79 @@ export async function rasterizePdf(file: File, maxSide = 2800): Promise<{ blob: 
     return { blob, width: c.width, height: c.height, pages: doc.numPages };
   } finally { void doc.destroy(); }
 }
+
+
+export interface RasterizedPdfPage {
+  pageNumber: number;
+  blob: Blob;
+  width: number;
+  height: number;
+}
+
+export interface RasterizedPdfPages {
+  pages: RasterizedPdfPage[];
+  totalPages: number;
+  omittedPages: number;
+}
+
+/**
+ * Render the first pages of a PDF for visual review. The hard page limit and
+ * per-page byte budget keep the browser and AI request within bounded limits.
+ * Omitted pages are always reported to the caller; no completeness is implied.
+ */
+export async function rasterizePdfPages(
+  file: File,
+  options: { maxPages?: number; maxSide?: number; maxPageBytes?: number } = {},
+): Promise<RasterizedPdfPages> {
+  const maxPages = Math.max(1, Math.min(5, Math.floor(options.maxPages ?? 5)));
+  const maxSide = Math.max(800, Math.min(2200, Math.floor(options.maxSide ?? 1800)));
+  const maxPageBytes = Math.max(300_000, Math.min(1_800_000, Math.floor(options.maxPageBytes ?? 1_400_000)));
+  const pdfjs = await import("pdfjs-dist");
+  const worker = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+  pdfjs.GlobalWorkerOptions.workerSrc = worker;
+
+  let doc;
+  try {
+    doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  } catch (e) {
+    const name = (e as { name?: string })?.name;
+    throw new Error(name === "PasswordException"
+      ? "This PDF is password-protected. Remove the password and upload it again."
+      : "This PDF could not be read. It may be corrupted or use an unsupported PDF feature.");
+  }
+
+  try {
+    const count = Math.min(doc.numPages, maxPages);
+    const pages: RasterizedPdfPage[] = [];
+    for (let pageNumber = 1; pageNumber <= count; pageNumber++) {
+      const page = await doc.getPage(pageNumber);
+      const base = page.getViewport({ scale: 1 });
+      const scale = Math.min(2.5, maxSide / Math.max(base.width, base.height));
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(viewport.width));
+      canvas.height = Math.max(1, Math.round(viewport.height));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Your browser could not prepare a canvas for PDF analysis.");
+      context.fillStyle = "#fff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: context, viewport }).promise;
+
+      let blob: Blob | null = null;
+      for (const quality of [0.82, 0.72, 0.62, 0.52, 0.42]) {
+        const candidate = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+        if (candidate && candidate.size <= maxPageBytes) {
+          blob = candidate;
+          break;
+        }
+      }
+      canvas.width = 1;
+      canvas.height = 1;
+      if (!blob) throw new Error(`PDF page ${pageNumber} is too detailed to prepare safely. Export that page at a lower resolution and upload it separately.`);
+      pages.push({ pageNumber, blob, width: Math.round(viewport.width), height: Math.round(viewport.height) });
+    }
+    return { pages, totalPages: doc.numPages, omittedPages: Math.max(0, doc.numPages - pages.length) };
+  } finally {
+    await doc.destroy();
+  }
+}
