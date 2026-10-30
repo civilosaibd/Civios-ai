@@ -312,7 +312,7 @@ const AdminPage = () => {
 
             <TabsContent value="users" className="space-y-3 mt-4">
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <p className="text-sm text-muted-foreground">Verified account directory • {adminUsers.length} loaded</p>
+                <p className="text-sm text-muted-foreground">Registered account directory • {adminUsers.length} loaded (search covers loaded accounts)</p>
                 <Badge variant="outline" className="gap-1"><ShieldCheck className="h-3 w-3" />Privileged access is audited</Badge>
               </div>
               <div className="relative">
@@ -365,7 +365,7 @@ const AdminPage = () => {
                 <p className="text-xs text-muted-foreground">Created: {userDetails.user?.created_at ? new Date(userDetails.user.created_at).toLocaleString() : "—"} · Last sign in: {userDetails.user?.last_sign_in_at ? new Date(userDetails.user.last_sign_in_at).toLocaleString() : "Never"}</p>
                 <p className="text-xs text-muted-foreground">Email verified: {userDetails.user?.email_confirmed_at ? "Yes" : "No"} · Providers: {(userDetails.user?.providers || []).join(", ") || "—"}</p>
               </div>
-              {Object.entries(userDetails.records || {}).map(([table, rows]: [string, any]) => (
+              {!!userDetails.unavailable_tables?.length && <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200">Some data sources could not be loaded: {userDetails.unavailable_tables.join(", ")}. Empty results for these sources do not mean the user has no records.</div>}\n              {Object.entries(userDetails.records || {}).map(([table, rows]: [string, any]) => (
                 <section key={table} className="space-y-2">
                   <div className="flex items-center justify-between"><h3 className="font-semibold capitalize">{table.replaceAll("_", " ")}</h3><Badge variant="secondary">{rows.length} records</Badge></div>
                   {rows.length ? <pre className="text-[11px] leading-relaxed whitespace-pre-wrap break-all rounded-lg bg-muted/50 border p-3 max-h-48 overflow-auto">{JSON.stringify(rows, null, 2)}</pre> : <p className="text-xs text-muted-foreground">No records</p>}

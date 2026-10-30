@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const allowedOrigins = (Deno.env.get("ADMIN_USER_DATA_ALLOWED_ORIGINS") ||
   "https://civilosai.pro.bd,https://civilosai.vercel.app,https://civilosai.lovable.app")
-  .split(",").map((value) => value.trim());
+  .split(",").map((value) => value.trim()).filter(Boolean);
 const corsHeaders = (origin: string | null) => ({
   "Access-Control-Allow-Origin": origin && allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -23,7 +23,9 @@ Deno.serve(async (req) => {
   const url = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !anonKey || !serviceKey) return json({ error: "Server configuration incomplete" }, 500, origin);
+  if (!url || !anonKey || !serviceKey || allowedOrigins.length === 0) {
+    return json({ error: "Server configuration incomplete" }, 500, origin);
+  }
 
   const authHeader = req.headers.get("Authorization") || "";
   if (!authHeader.startsWith("Bearer ")) return json({ error: "Authentication required" }, 401, origin);
@@ -52,11 +54,14 @@ Deno.serve(async (req) => {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 100 });
     if (error) return json({ error: "Unable to load users" }, 500, origin);
     const ids = data.users.map((u) => u.id);
-    const [{ data: profiles }, { data: subs }, { data: roles }] = await Promise.all([
+    const [{ data: profiles, error: profileError }, { data: subs, error: subError }, { data: roles, error: roleListError }] = await Promise.all([
       admin.from("profiles").select("id,display_name,avatar_url,created_at,referral_code").in("id", ids),
       admin.from("subscriptions").select("user_id,plan_id,status,billing_cycle,start_date,renewal_date").in("user_id", ids),
       admin.from("user_roles").select("user_id,role").in("user_id", ids),
     ]);
+    if (profileError || subError || roleListError) {
+      return json({ error: "Unable to load complete account directory" }, 500, origin);
+    }
     const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
     const subMap = new Map((subs || []).map((s) => [s.user_id, s]));
     const roleMap = new Map((roles || []).map((r) => [r.user_id, r.role]));
@@ -83,36 +88,51 @@ Deno.serve(async (req) => {
     const { data: userData, error: userError } = await admin.auth.admin.getUserById(userId);
     if (userError || !userData.user) return json({ error: "User not found" }, 404, origin);
 
-    // Only operational account data is returned. Password hashes, access/refresh tokens,
-    // MFA secrets, invitation tokens, and raw private file contents are never exposed.
-    const ownedTables: Record<string, string> = {
-      profiles: "id", subscriptions: "user_id", payments: "user_id", projects: "user_id",
-      usage_records: "user_id", referrals: "referrer_id", withdrawals: "user_id",
-      site_logs: "user_id", tender_analyses: "user_id", notifications: "user_id",
-      agent_tasks: "user_id", notification_settings: "user_id", user_feature_settings: "user_id",
-      user_roles: "user_id", construction_visualizations: "user_id", agent_memory: "user_id",
-      agent_automations: "owner_id", agent_steps: "actor_user_id", agent_approvals: "requested_by",
-      project_activity: "user_id", project_documents: "uploaded_by", project_members: "user_id",
-      invitations: "invited_by",
+    // Explicit projections intentionally exclude private content, credentials, tokens,
+    // payment identifiers, agent memory values, and raw project/document payloads.
+    const ownedTables: Record<string, { owner: string; columns: string }> = {
+      profiles: { owner: "id", columns: "id,display_name,avatar_url,created_at,updated_at,referral_code,referred_by" },
+      subscriptions: { owner: "user_id", columns: "id,user_id,plan_id,status,billing_cycle,start_date,renewal_date,cancelled_at,payment_provider,created_at,updated_at" },
+      payments: { owner: "user_id", columns: "id,user_id,plan_id,subscription_id,amount,currency,billing_cycle,payment_provider,payment_method,status,invoice_number,verified_at,created_at,updated_at" },
+      projects: { owner: "user_id", columns: "id,user_id,name,file_name,created_at,updated_at,is_public,client_name,location,project_type,status,budget,start_date,end_date" },
+      usage_records: { owner: "user_id", columns: "id,user_id,period,ai_credits,projects,boq_generations,bbs_generations,drawings,reports,storage_mb,updated_at,created_at" },
+      referrals: { owner: "referrer_id", columns: "id,referrer_id,referred_user_id,plan,commission_amount,status,created_at" },
+      withdrawals: { owner: "user_id", columns: "id,user_id,amount,method,status,requested_at,paid_at,approved_at" },
+      site_logs: { owner: "user_id", columns: "id,user_id,project_id,log_date,created_at,updated_at" },
+      tender_analyses: { owner: "user_id", columns: "id,user_id,title,created_at,updated_at" },
+      notifications: { owner: "user_id", columns: "id,user_id,type,title,read,created_at,project_id" },
+      agent_tasks: { owner: "user_id", columns: "id,agent_type,user_id,status,risk_level,approval_required,created_at,started_at,completed_at" },
+      notification_settings: { owner: "user_id", columns: "user_id,deadline_alerts,team_invites,member_joined,boq_updates,material_price,document_uploads,email_enabled,deadline_days_before,updated_at" },
+      user_feature_settings: { owner: "user_id", columns: "user_id,feature_key,enabled,updated_at" },
+      user_roles: { owner: "user_id", columns: "id,user_id,role,created_at" },
+      construction_visualizations: { owner: "user_id", columns: "id,project_id,user_id,name,status,building_type,floor_count,approx_area_sqft,location,unit_system,source_type,created_at,updated_at" },
+      agent_memory: { owner: "user_id", columns: "id,user_id,agent_type,key,created_at,updated_at" },
+      agent_automations: { owner: "owner_id", columns: "id,owner_id,name,kind,frequency,enabled,next_run_at,last_run_at,last_status,fail_count,created_at" },
+      agent_steps: { owner: "actor_user_id", columns: "id,task_id,agent_type,actor_user_id,kind,tool,target,risk_level,status,created_at" },
+      agent_approvals: { owner: "requested_by", columns: "id,task_id,requested_by,tool,risk_level,status,decided_by,decided_at,created_at" },
+      project_activity: { owner: "user_id", columns: "id,project_id,user_id,action,created_at" },
+      project_documents: { owner: "uploaded_by", columns: "id,project_id,file_name,file_type,file_size,uploaded_by,created_at" },
+      project_members: { owner: "user_id", columns: "id,project_id,user_id,role,invited_by,status,joined_at,last_active_at" },
+      invitations: { owner: "invited_by", columns: "id,project_id,invited_email,role,invited_by,status,created_at,accepted_at,expires_at,accepted_by,sent_at,last_sent_at" },
     };
+
     const records: Record<string, unknown[]> = {};
-    await Promise.all(Object.entries(ownedTables).map(async ([table, ownerColumn]) => {
-      const { data, error } = await admin.from(table).select("*").eq(ownerColumn, userId).limit(100);
-      // Profiles use id as the auth user id. A missing optional table is reported, not fatal.
-      records[table] = error ? [] : (data || []).map((row: Record<string, unknown>) => {
-        if (table === "withdrawals" && typeof row.account_number === "string") {
-          const value = row.account_number;
-          return { ...row, account_number: value.length > 4 ? "••••" + value.slice(-4) : "••••" };
-        }
-        if (table === "projects" && "share_token" in row) {
-          return { ...row, share_token: row.share_token ? "[redacted]" : null };
-        }
-        if (table === "project_documents" && "file_url" in row) {
-          return { ...row, file_url: row.file_url ? "[stored file reference hidden]" : null };
-        }
-        return row;
-      });
+    const unavailableTables: string[] = [];
+    await Promise.all(Object.entries(ownedTables).map(async ([table, config]) => {
+      const { data, error } = await admin.from(table).select(config.columns).eq(config.owner, userId).limit(100);
+      if (error) {
+        records[table] = [];
+        unavailableTables.push(table);
+      } else {
+        records[table] = data || [];
+      }
     }));
+
+    const { data: referredRows, error: referredError } = await admin.from("referrals")
+      .select("id,referrer_id,referred_user_id,plan,commission_amount,status,created_at")
+      .eq("referred_user_id", userId).limit(100);
+    if (referredError) unavailableTables.push("referrals_as_customer");
+    else if (referredRows?.length) records.referrals_as_customer = referredRows;
 
     const { error: auditError } = await admin.from("admin_user_access_audit").insert({
       admin_user_id: authData.user.id, target_user_id: userId, action: "view_user_details",
@@ -120,19 +140,22 @@ Deno.serve(async (req) => {
     if (auditError) return json({ error: "Unable to record privileged access; details were not returned" }, 500, origin);
 
     const u = userData.user;
-    const { data: referredRows } = await admin.from("referrals").select("*").eq("referred_user_id", userId).limit(100);
-    if (referredRows?.length) records.referrals_as_customer = referredRows;
-
+    const metadata = u.user_metadata || {};
     return json({
       user: {
         id: u.id, email: u.email, phone: u.phone,
         email_confirmed_at: u.email_confirmed_at, phone_confirmed_at: u.phone_confirmed_at,
         created_at: u.created_at, updated_at: u.updated_at, last_sign_in_at: u.last_sign_in_at,
         providers: u.app_metadata?.providers || [],
-        metadata: u.user_metadata || {},
+        metadata: {
+          full_name: metadata.full_name || null,
+          name: metadata.name || null,
+          avatar_url: metadata.avatar_url || null,
+        },
       },
       records,
-      security_notice: "Authentication secrets, password hashes, MFA secrets, session tokens, invitation tokens, and private file contents are excluded.",
+      unavailable_tables: [...new Set(unavailableTables)].sort(),
+      security_notice: "Private project contents, uploaded file references, invitation tokens, payment account identifiers, agent memory values, conversation content, authentication secrets, password hashes, MFA secrets, and session tokens are excluded.",
     }, 200, origin);
   }
   return json({ error: "Unsupported action" }, 400, origin);
