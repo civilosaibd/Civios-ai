@@ -245,3 +245,124 @@
 @media (prefers-reduced-motion: reduce) {
   .brand-hero-logo { animation: none; }
 }
+
+
+/* CivilOS AI: shared immersive engineering atmosphere */
+:root {
+  --site-scroll-progress: 0;
+  --site-pointer-x: 0;
+  --site-pointer-y: 0;
+}
+.site-engineering-atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+  opacity: 0.62;
+  contain: strict;
+}
+.site-atmosphere-glow {
+  position: absolute;
+  width: clamp(18rem, 42vw, 48rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  filter: blur(90px);
+  will-change: transform;
+  transition: transform 700ms ease-out;
+}
+.site-atmosphere-glow--blue {
+  top: -24%;
+  left: -14%;
+  background: hsl(225 90% 52% / 0.13);
+  transform: translate3d(calc(var(--site-pointer-x) * 18px), calc(var(--site-scroll-progress) * 100px), 0);
+}
+.site-atmosphere-glow--cyan {
+  right: -20%;
+  bottom: -30%;
+  background: hsl(190 90% 48% / 0.11);
+  transform: translate3d(calc(var(--site-pointer-x) * -22px), calc(var(--site-pointer-y) * -16px - var(--site-scroll-progress) * 140px), 0);
+}
+.site-engineering-grid {
+  position: absolute;
+  inset: -35%;
+  opacity: 0.13;
+  background-image: linear-gradient(hsl(195 90% 70% / 0.22) 1px, transparent 1px), linear-gradient(90deg, hsl(195 90% 70% / 0.22) 1px, transparent 1px);
+  background-size: 54px 54px;
+  transform: perspective(900px) rotateX(58deg) translateY(calc(var(--site-scroll-progress) * -70px));
+  transform-origin: center;
+  mask-image: radial-gradient(ellipse at center, black 8%, transparent 70%);
+}
+.site-wireframe {
+  position: absolute;
+  width: clamp(90px, 13vw, 190px);
+  aspect-ratio: 1;
+  border: 1px solid hsl(190 90% 70% / 0.2);
+  transform-style: preserve-3d;
+  box-shadow: 0 0 40px hsl(200 90% 55% / 0.06), inset 0 0 35px hsl(200 90% 55% / 0.04);
+  animation: site-wireframe-float 18s ease-in-out infinite;
+}
+.site-wireframe::before, .site-wireframe::after, .site-wireframe span {
+  content: "";
+  position: absolute;
+  inset: 16%;
+  border: 1px solid hsl(190 90% 70% / 0.18);
+  transform: rotate(45deg);
+}
+.site-wireframe::after { transform: rotateX(65deg) rotateZ(25deg); }
+.site-wireframe span { transform: rotateY(65deg) rotateZ(-25deg); }
+.site-wireframe--one { top: 18%; right: 8%; transform: perspective(700px) rotateX(55deg) rotateZ(35deg) translate3d(calc(var(--site-pointer-x) * -10px), calc(var(--site-scroll-progress) * 80px), 0); }
+.site-wireframe--two { left: 5%; bottom: 12%; width: clamp(65px, 9vw, 130px); animation-delay: -8s; transform: perspective(700px) rotateX(55deg) rotateZ(-25deg); }
+.site-orbit {
+  position: absolute;
+  width: clamp(130px, 19vw, 250px);
+  aspect-ratio: 1;
+  border: 1px solid hsl(210 90% 70% / 0.15);
+  border-radius: 50%;
+  transform-style: preserve-3d;
+  animation: site-orbit-spin 34s linear infinite;
+}
+.site-orbit i {
+  position: absolute;
+  top: 50%;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: hsl(190 95% 65% / 0.75);
+  box-shadow: 0 0 18px hsl(190 95% 65% / 0.6);
+}
+.site-orbit i:nth-child(2) { top: 12%; left: 82%; }
+.site-orbit i:nth-child(3) { top: 85%; left: 70%; }
+.site-orbit--one { left: 42%; top: 30%; transform: rotateX(68deg) rotateY(-20deg); }
+.site-orbit--two { right: 20%; bottom: -5%; width: clamp(90px, 12vw, 160px); animation-direction: reverse; animation-duration: 48s; }
+.site-depth-line {
+  position: absolute;
+  height: 1px;
+  width: 55vw;
+  background: linear-gradient(90deg, transparent, hsl(195 90% 70% / 0.2), transparent);
+  transform: rotate(-24deg);
+}
+.site-depth-line--one { top: 36%; left: -15%; }
+.site-depth-line--two { bottom: 25%; right: -20%; transform: rotate(18deg); }
+@keyframes site-wireframe-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -18px; }
+}
+@keyframes site-orbit-spin {
+  from { rotate: 0deg; }
+  to { rotate: 360deg; }
+}
+@media (max-width: 767px) {
+  .site-engineering-atmosphere { opacity: 0.34; }
+  .site-engineering-grid { background-size: 38px 38px; }
+  .site-wireframe--one { right: -12%; top: 22%; }
+  .site-wireframe--two { left: -8%; bottom: 9%; }
+  .site-orbit--one { left: 38%; top: 42%; }
+  .site-orbit--two { right: -12%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-engineering-atmosphere, .site-engineering-atmosphere * { animation: none !important; transition: none !important; }
+  .site-wireframe--one, .site-atmosphere-glow, .site-engineering-grid { transform: none !important; }
+}
