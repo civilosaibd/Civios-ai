@@ -127,6 +127,19 @@ function entityFrom(type: string, values: Pair[]): CadEntity {
   };
 }
 
+function isEntityGeometryValid(entity: CadEntity): boolean {
+  if (entity.type === "LINE") return entity.points.length === 2;
+  if (entity.type === "LWPOLYLINE" || entity.type === "POLYLINE") return entity.points.length >= 2;
+  if (entity.type === "CIRCLE") return entity.points.length === 1 && Number.isFinite(entity.radius) && (entity.radius ?? 0) > 0;
+  if (entity.type === "ARC") {
+    return entity.points.length === 1
+      && Number.isFinite(entity.radius) && (entity.radius ?? 0) > 0
+      && entity.startAngle !== undefined && entity.endAngle !== undefined;
+  }
+  if (entity.type === "POINT" || entity.type === "TEXT" || entity.type === "MTEXT") return entity.points.length === 1;
+  return false;
+}
+
 function extractEntities(pairs: Pair[]): { entities: CadEntity[]; unsupported: Record<string, number> } {
   const entities: CadEntity[] = [];
   const unsupported: Record<string, number> = {};
@@ -146,10 +159,16 @@ function extractEntities(pairs: Pair[]): { entities: CadEntity[]; unsupported: R
         const y = vertex.find((p) => p.code === 20)?.value;
         if (x !== undefined && y !== undefined) flattened.push({ code: 10, value: x }, { code: 20, value: y });
       }
-      entities.push(entityFrom(currentType, flattened));
+      const entity = entityFrom(currentType, flattened);
+      if (isEntityGeometryValid(entity)) entities.push(entity);
+      else unsupported[`INVALID_${currentType}`] = (unsupported[`INVALID_${currentType}`] ?? 0) + 1;
     } else if (["LINE", "LWPOLYLINE", "CIRCLE", "ARC", "POINT", "TEXT", "MTEXT", "INSERT"].includes(currentType)) {
       if (currentType === "INSERT") unsupported.INSERT = (unsupported.INSERT ?? 0) + 1;
-      else entities.push(entityFrom(currentType, currentValues));
+      else {
+        const entity = entityFrom(currentType, currentValues);
+        if (isEntityGeometryValid(entity)) entities.push(entity);
+        else unsupported[`INVALID_${currentType}`] = (unsupported[`INVALID_${currentType}`] ?? 0) + 1;
+      }
     } else if (currentType !== "SEQEND" && currentType !== "VERTEX") {
       unsupported[currentType] = (unsupported[currentType] ?? 0) + 1;
     }
