@@ -19,6 +19,13 @@ interface Analysis {
   warnings?: string[];
   recommendations?: string[];
   estimateHints?: { suggestedQuality?: string; specialConsiderations?: string[] };
+  engineeringInventory?: Array<{
+    element: "wall" | "column" | "beam" | "slab" | "foundation" | "door" | "window" | "reinforcement";
+    observedCount: number | null;
+    floor: string | null;
+    evidence: string;
+    confidence: number;
+  }>;
 }
 
 interface Props {
@@ -50,6 +57,19 @@ function isAnalysis(value: unknown): value is Analysis {
   if (typeof item.summary !== "string") return false;
   if (item.drawingType !== undefined && (typeof item.drawingType !== "string" || !validTypes.includes(item.drawingType))) return false;
   if (!stringArray(item.warnings) || !stringArray(item.engineeringNotes) || !stringArray(item.recommendations)) return false;
+  if (item.engineeringInventory !== undefined) {
+    if (!Array.isArray(item.engineeringInventory) || item.engineeringInventory.length > 100) return false;
+    const validElements = ["wall", "column", "beam", "slab", "foundation", "door", "window", "reinforcement"];
+    if (!item.engineeringInventory.every((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
+      const row = entry as Record<string, unknown>;
+      return typeof row.element === "string" && validElements.includes(row.element)
+        && (row.observedCount === null || (typeof row.observedCount === "number" && Number.isInteger(row.observedCount) && row.observedCount >= 0))
+        && (row.floor === null || typeof row.floor === "string")
+        && typeof row.evidence === "string" && row.evidence.length <= 500
+        && typeof row.confidence === "number" && Number.isFinite(row.confidence) && row.confidence >= 0 && row.confidence <= 1;
+    })) return false;
+  }
   if (item.detected !== undefined) {
     if (!item.detected || typeof item.detected !== "object" || Array.isArray(item.detected)) return false;
     const detected = item.detected as Record<string, unknown>;
@@ -213,6 +233,24 @@ const AIThinking = ({ file, textContent, fileName, drawingType, uploadWarnings =
             {analysis.detected?.rooms && analysis.detected.rooms.length > 0 && <div className="bg-card rounded-lg p-2"><p className="text-[10px] text-muted-foreground">ROOM LABELS</p><p className="font-semibold text-xs">{analysis.detected.rooms.length}</p></div>}
             {analysis.detected?.estimatedArea_sqft != null && <div className="bg-card rounded-lg p-2"><p className="text-[10px] text-muted-foreground">AI AREA INDICATION</p><p className="font-semibold">{analysis.detected.estimatedArea_sqft} sqft (unverified)</p></div>}
           </div>
+
+          {analysis.engineeringInventory && analysis.engineeringInventory.length > 0 && (
+            <div className="rounded-lg border bg-card p-3 space-y-2">
+              <div>
+                <p className="font-semibold text-xs">ENGINEERING ELEMENT OBSERVATIONS</p>
+                <p className="text-[11px] text-muted-foreground">AI visual observations only — counts and locations are unverified and must be checked against the source drawing.</p>
+              </div>
+              <div className="space-y-2">
+                {analysis.engineeringInventory.map((item, index) => (
+                  <div key={`${item.element}-${item.floor ?? "unknown"}-${index}`} className="grid grid-cols-[90px_1fr_auto] items-start gap-2 border-b last:border-0 pb-2 last:pb-0">
+                    <span className="text-xs font-medium capitalize">{item.element}</span>
+                    <span className="text-xs text-muted-foreground">{item.evidence}{item.floor ? ` · ${item.floor}` : ""}</span>
+                    <span className="text-xs font-semibold tabular-nums">{item.observedCount === null ? "Not countable" : `${item.observedCount} · ${Math.round(item.confidence * 100)}% cue`}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {analysis.warnings && analysis.warnings.length > 0 && (
             <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3">
