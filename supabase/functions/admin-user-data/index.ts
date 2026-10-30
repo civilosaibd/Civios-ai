@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const allowedOrigins = (Deno.env.get("ADMIN_DATA_ALLOWED_ORIGINS") ||
+const allowedOrigins = (Deno.env.get("ADMIN_USER_DATA_ALLOWED_ORIGINS") ||
   "https://civilosai.pro.bd,https://civilosai.vercel.app,https://civilosai.lovable.app")
   .split(",").map((value) => value.trim());
 const corsHeaders = (origin: string | null) => ({
@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
     // MFA secrets, invitation tokens, and raw private file contents are never exposed.
     const tables = ["profiles", "subscriptions", "payments", "projects", "usage_records",
       "referrals", "withdrawals", "site_logs", "tender_analyses", "notifications",
-      "agent_tasks", "notification_settings", "user_feature_settings"];
+      "agent_tasks", "notification_settings", "user_feature_settings", "user_roles"];
     const records: Record<string, unknown[]> = {};
     await Promise.all(tables.map(async (table) => {
       const ownerColumn = table === "profiles" ? "id" : table === "referrals" ? "referrer_id" : "user_id";
@@ -98,13 +98,17 @@ Deno.serve(async (req) => {
           const value = row.account_number;
           return { ...row, account_number: value.length > 4 ? "••••" + value.slice(-4) : "••••" };
         }
+        if (table === "projects" && "share_token" in row) {
+          return { ...row, share_token: row.share_token ? "[redacted]" : null };
+        }
         return row;
       });
     }));
 
-    await admin.from("admin_user_access_audit").insert({
+    const { error: auditError } = await admin.from("admin_user_access_audit").insert({
       admin_user_id: authData.user.id, target_user_id: userId, action: "view_user_details",
     });
+    if (auditError) return json({ error: "Unable to record privileged access; details were not returned" }, 500, origin);
 
     const u = userData.user;
     const { data: referredRows } = await admin.from("referrals").select("*").eq("referred_user_id", userId).limit(100);
