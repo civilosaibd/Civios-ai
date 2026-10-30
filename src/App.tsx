@@ -17,6 +17,7 @@ import { PwaProvider } from "@/lib/pwa";
 import FloatingAssistant from "@/components/FloatingAssistant";
 import { UnitsProvider } from "@/lib/UnitsContext";
 import PlanFeatureGate from "@/components/PlanFeatureGate";
+import ImmersiveEngineeringBackground from "@/components/ImmersiveEngineeringBackground";
 
 const Index = lazy(() => import("./pages/Index.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
@@ -104,6 +105,7 @@ const App = () => (
                 <Sonner />
 
                 <BrowserRouter>
+                  <ImmersiveEngineeringBackground />
                   <AnimatedLogoIntro />
                   <ScrollToTop />
                   <ReferralCapture />
