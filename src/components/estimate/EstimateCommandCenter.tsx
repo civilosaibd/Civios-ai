@@ -1,4 +1,4 @@
-import { Activity, ArrowDownRight, ArrowUpRight, BarChart3, CalendarDays, CheckCircle2, Download, FileSpreadsheet, Layers3, Save, Share2, Sparkles, Wallet } from "lucide-react";
+import { Activity, ArrowUpRight, BarChart3, CalendarDays, CheckCircle2, Download, FileSpreadsheet, Layers3, Save, Share2, Sparkles, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
