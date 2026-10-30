@@ -52,7 +52,7 @@ describe("deterministic DXF engineering analysis", () => {
 
   it("handles legacy POLYLINE VERTEX sequences and closed area", () => {
     const legacy = dxf(6, [
-      0, "POLYLINE", 8, "A-WALL-F1", 70, 1,
+      0, "POLYLINE", 8, "A-WALL-F1", 10, 0, 20, 0, 70, 1,
       0, "VERTEX", 10, 0, 20, 0,
       0, "VERTEX", 10, 10, 20, 0,
       0, "VERTEX", 10, 10, 20, 10,
