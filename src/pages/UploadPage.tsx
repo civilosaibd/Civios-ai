@@ -83,11 +83,20 @@ const UploadPage = () => {
       }
     }
 
+    const typeDetection = checked.kind === "dxf" && nextDxfSummary
+      ? detectDrawingType(f.name, Object.keys(nextDxfSummary.layers))
+      : { type: checked.drawingType, source: checked.typeSource };
+    const finalInspection: DrawingInspection = {
+      ...checked,
+      drawingType: typeDetection.type,
+      typeSource: typeDetection.source,
+      warnings: typeDetection.type === "unknown" ? checked.warnings : [],
+    };
     setFile(f);
-    setInspection(checked);
+    setInspection(finalInspection);
     setDxfText(nextDxfText);
     setDxfSummary(nextDxfSummary);
-    setDrawingType(checked.drawingType);
+    setDrawingType(finalInspection.drawingType);
     if (checked.kind === "image") {
       const reader = new FileReader();
       reader.onload = (event) => setPreview(typeof event.target?.result === "string" ? event.target.result : null);
