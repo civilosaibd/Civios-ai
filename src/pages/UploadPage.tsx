@@ -129,6 +129,10 @@ const UploadPage = () => {
       toast.error("Upload a supported drawing and complete AI Drawing Review before continuing.");
       return;
     }
+    if (!["architectural", "floor-plan", "site-plan", "general"].includes(drawingType)) {
+      toast.error("This drawing type is not sufficient for a building cost estimate. Upload an architectural/floor plan drawing; structural, plumbing, electrical and single-member drawings require their own dedicated workflow.");
+      return;
+    }
     if (!reviewConfirmed) {
       toast.error("Please confirm that you reviewed the AI findings and warnings.");
       return;
@@ -255,8 +259,9 @@ const UploadPage = () => {
                 textContent={dxfText || undefined}
                 drawingType={drawingType}
                 uploadWarnings={inspection.warnings}
-                onAnalysis={(a) => {
-                  setAnalysisCompleted(true);
+                onAnalysis={(a, coverageComplete) => {
+                  setAnalysisCompleted(coverageComplete);
+                  if (!coverageComplete) toast.error("Drawing review is incomplete. Split the PDF into batches of up to 5 pages or export a smaller ASCII DXF before continuing.");
                   setReviewConfirmed(false);
                   if (a.drawingType && a.drawingType !== "unknown") setDrawingType(a.drawingType);
                   const bt = (a.detected?.buildingType || "").toLowerCase();
