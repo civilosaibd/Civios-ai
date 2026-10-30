@@ -19,6 +19,7 @@ You receive uploads (images, floor plans, PDFs, DXF, photos, sketches) from a us
 Analyse what you see carefully and respond ONLY with valid JSON of this shape:
 {
   "summary": string,
+  "drawingType": "architectural" | "structural" | "foundation" | "column-layout" | "beam-layout" | "slab-layout" | "floor-plan" | "section" | "elevation" | "site-plan" | "plumbing" | "electrical" | "road" | "bridge" | "general" | "unknown",
   "detected": {
     "buildingType": string,
     "estimatedArea_sqft": number | null,
@@ -34,8 +35,8 @@ Analyse what you see carefully and respond ONLY with valid JSON of this shape:
   }
 }
 Be accurate. If unsure, say so in warnings rather than guessing numbers.
-Never invent dimensions you cannot infer. Output JSON only, no markdown.
-This is preliminary AI assistance, not a substitute for review and approval by a qualified local engineer.`;
+Never invent dimensions, scale, room sizes, floor counts, structural member sizes, or quantities. Distinguish visible labels from inferred interpretations. If the drawing lacks a readable scale or explicit dimension, state that it is unknown. Do not calculate or certify BOQ quantities from this review. List missing pages, unreadable text, conflicting dimensions, and ambiguity in warnings. Output JSON only, no markdown.
+This is preliminary document triage, not a verified measurement, quantity takeoff, structural design, or substitute for review and approval by a qualified local engineer.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -71,15 +72,46 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Invalid request body" }, 400);
     }
 
-    const { fileName, mimeType, dataUrl, textContent, userPrompt } = body;
-    if (dataUrl !== undefined && (typeof dataUrl !== "string" || dataUrl.length > 10 * 1024 * 1024 || !dataUrl.startsWith("data:image/"))) {
-      return jsonResponse({ error: "Invalid or oversized image data" }, 400);
-    }
+    const { fileName, mimeType, dataUrl, images, textContent, userPrompt, drawingType } = body;
     if (textContent !== undefined && typeof textContent !== "string") {
       return jsonResponse({ error: "Invalid text content" }, 400);
     }
     if (userPrompt !== undefined && typeof userPrompt !== "string") {
       return jsonResponse({ error: "Invalid user prompt" }, 400);
+    }
+    if (drawingType !== undefined && (typeof drawingType !== "string" || drawingType.length > 40)) {
+      return jsonResponse({ error: "Invalid drawing type hint" }, 400);
+    }
+
+    // Keep the request bounded: at most five explicitly numbered raster pages.
+    const imageInputs: { pageNumber: number; dataUrl: string }[] = [];
+    if (dataUrl !== undefined && images !== undefined) {
+      return jsonResponse({ error: "Send either dataUrl or images, not both." }, 400);
+    }
+    if (dataUrl !== undefined) {
+      if (typeof dataUrl !== "string" || dataUrl.length > 10 * 1024 * 1024 || !/^data:image\\/(jpeg|png|webp);base64,/i.test(dataUrl)) {
+        return jsonResponse({ error: "Invalid or oversized image data" }, 400);
+      }
+      imageInputs.push({ pageNumber: 1, dataUrl });
+    }
+    if (images !== undefined) {
+      if (!Array.isArray(images) || images.length < 1 || images.length > 5) {
+        return jsonResponse({ error: "Provide between 1 and 5 numbered drawing pages." }, 400);
+      }
+      let totalImageChars = 0;
+      for (const image of images) {
+        if (!image || typeof image !== "object" || !Number.isInteger(image.pageNumber) || image.pageNumber < 1
+          || typeof image.dataUrl !== "string"
+          || !/^data:image\\/(jpeg|png|webp);base64,/i.test(image.dataUrl)
+          || image.dataUrl.length > 5 * 1024 * 1024) {
+          return jsonResponse({ error: "One or more drawing pages are invalid or too large." }, 400);
+        }
+        totalImageChars += image.dataUrl.length;
+        imageInputs.push({ pageNumber: image.pageNumber, dataUrl: image.dataUrl });
+      }
+      if (totalImageChars > 10 * 1024 * 1024) {
+        return jsonResponse({ error: "Combined drawing pages exceed the analysis request limit. Upload fewer pages or reduce their resolution." }, 413);
+      }
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -90,21 +122,23 @@ Deno.serve(async (req) => {
 
     const safeFileName = typeof fileName === "string" ? fileName.slice(0, 200) : "(unnamed)";
     const safeMimeType = typeof mimeType === "string" ? mimeType.slice(0, 100) : "unknown";
+    const safeDrawingType = typeof drawingType === "string" ? drawingType.slice(0, 40) : "unknown";
     const safePrompt = typeof userPrompt === "string" ? userPrompt.slice(0, 2000) : "";
     const userContent: any[] = [{
       type: "text",
-      text: `File: ${safeFileName} • Type: ${safeMimeType}\n${safePrompt ? `User request: ${safePrompt}` : "Please analyse this upload for a Bangladeshi house design."}`,
+      text: `File: ${safeFileName} • Type: ${safeMimeType} • Drawing type hint: ${safeDrawingType} (verify independently; this may be wrong).\\n${safePrompt ? `User request: ${safePrompt}` : "Identify this drawing and describe visible information only."}`,
     }];
 
-    if (typeof dataUrl === "string") {
-      userContent.push({ type: "image_url", image_url: { url: dataUrl } });
+    for (const image of imageInputs) {
+      userContent.push({ type: "text", text: `Drawing page ${image.pageNumber} (page number supplied by the PDF renderer).` });
+      userContent.push({ type: "image_url", image_url: { url: image.dataUrl } });
     }
     if (typeof textContent === "string" && textContent.length > 0) {
-      userContent.push({ type: "text", text: `\n--- File text content ---\n${textContent.slice(0, 30000)}` });
+      userContent.push({ type: "text", text: `\\n--- File text content (first 30,000 characters maximum) ---\\n${textContent.slice(0, 30000)}` });
     }
 
-    if (userContent.length === 1 && !safePrompt) {
-      return jsonResponse({ error: "Provide an image or text content to analyse" }, 400);
+    if (imageInputs.length === 0 && !(typeof textContent === "string" && textContent.length > 0) && !safePrompt) {
+      return jsonResponse({ error: "Provide validated drawing image pages or readable CAD text to analyse." }, 400);
     }
 
     const rateLimit = await checkAiEndpointRateLimit(userId, "ai-analyze");
