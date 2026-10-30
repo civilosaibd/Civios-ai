@@ -47,7 +47,9 @@ const AdminPage = () => {
   const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [userDetails, setUserDetails] = useState<any | null>(null);
-  const [userDetailsLoading, setUserDetailsLoading] = useState(false);\n  const [auditEvents, setAuditEvents] = useState<any[]>([]);\n  const [auditLoading, setAuditLoading] = useState(false);
+  const [userDetailsLoading, setUserDetailsLoading] = useState(false);
+  const [auditEvents, setAuditEvents] = useState<any[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [search, setSearch] = useState("");
@@ -162,7 +164,11 @@ const AdminPage = () => {
     }).eq("id", replyTo.id);
 
     // Open WhatsApp reply
-    const wa = encodeURIComponent(`Hi ${replyTo.name},\n\n${replyText}\n\n— AI Civil Engineering BD`);
+    const wa = encodeURIComponent(`Hi ${replyTo.name},
+
+${replyText}
+
+— AI Civil Engineering BD`);
     if (replyTo.phone) {
       const num = replyTo.phone.replace(/\D/g, "");
       window.open(`https://wa.me/${num}?text=${wa}`, "_blank", "noopener,noreferrer");
@@ -223,7 +229,8 @@ const AdminPage = () => {
               <TabsTrigger value="sponsors" className="gap-1"><Building className="h-4 w-4" />Sponsors{pendingSponsors > 0 && <Badge className="ml-1 h-4 px-1.5 text-[10px] bg-amber-500">{pendingSponsors}</Badge>}</TabsTrigger>
               <TabsTrigger value="ratings" className="gap-1"><Star className="h-4 w-4" />Ratings</TabsTrigger>
               <TabsTrigger value="users" className="gap-1"><Users className="h-4 w-4" />Users</TabsTrigger>
-              <TabsTrigger value="projects" className="gap-1"><FolderKanban className="h-4 w-4" />Projects</TabsTrigger>\n              <TabsTrigger value="audit" className="gap-1"><ShieldCheck className="h-4 w-4" />Access Audit</TabsTrigger>
+              <TabsTrigger value="projects" className="gap-1"><FolderKanban className="h-4 w-4" />Projects</TabsTrigger>
+              <TabsTrigger value="audit" className="gap-1"><ShieldCheck className="h-4 w-4" />Access Audit</TabsTrigger>
             </TabsList>
 
             {/* MESSAGES */}
@@ -406,7 +413,8 @@ const AdminPage = () => {
                 <p className="text-xs text-muted-foreground">Created: {userDetails.user?.created_at ? new Date(userDetails.user.created_at).toLocaleString() : "—"} · Last sign in: {userDetails.user?.last_sign_in_at ? new Date(userDetails.user.last_sign_in_at).toLocaleString() : "Never"}</p>
                 <p className="text-xs text-muted-foreground">Email verified: {userDetails.user?.email_confirmed_at ? "Yes" : "No"} · Providers: {(userDetails.user?.providers || []).join(", ") || "—"}</p>
               </div>
-              {!!userDetails.unavailable_tables?.length && <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200">Some data sources could not be loaded: {userDetails.unavailable_tables.join(", ")}. Empty results for these sources do not mean the user has no records.</div>}\n              {Object.entries(userDetails.records || {}).map(([table, rows]: [string, any]) => (
+              {!!userDetails.unavailable_tables?.length && <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200">Some data sources could not be loaded: {userDetails.unavailable_tables.join(", ")}. Empty results for these sources do not mean the user has no records.</div>}
+              {Object.entries(userDetails.records || {}).map(([table, rows]: [string, any]) => (
                 <section key={table} className="space-y-2">
                   <div className="flex items-center justify-between"><h3 className="font-semibold capitalize">{table.replaceAll("_", " ")}</h3><Badge variant="secondary">{rows.length} records</Badge></div>
                   {rows.length ? <pre className="text-[11px] leading-relaxed whitespace-pre-wrap break-all rounded-lg bg-muted/50 border p-3 max-h-48 overflow-auto">{JSON.stringify(rows, null, 2)}</pre> : <p className="text-xs text-muted-foreground">No records</p>}
