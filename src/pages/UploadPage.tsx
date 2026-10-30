@@ -224,14 +224,14 @@ const UploadPage = () => {
               <div className="space-y-4">
                 <img src={preview} alt="Preview" className="max-h-48 mx-auto rounded-lg shadow-card" />
                 <p className="text-sm text-muted-foreground">{file?.name}</p>
-                <Button variant="outline" size="sm" onClick={() => { setFile(null); setPreview(null); setDxfSummary(null); setDxfText(""); setInspection(null); setAnalysisCompleted(false); setReviewConfirmed(false); }}>{t("upload.remove")}</Button>
+                <Button variant="outline" size="sm" onClick={() => { setFile(null); setPreview(null); setDxfSummary(null); setDxfEngineering(null); setCompanionDxfFile(null); setCompanionDxfAnalysis(null); setCompanionDrawingType("unknown"); setDxfText(""); setInspection(null); setAnalysisCompleted(false); setReviewConfirmed(false); }}>{t("upload.remove")}</Button>
               </div>
             ) : file && !preview ? (
               <div className="space-y-3">
                 <FileCode className="h-12 w-12 text-accent mx-auto" />
                 <p className="font-medium">{file.name}</p>
                 <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
-                <Button variant="outline" size="sm" onClick={() => { setFile(null); setDxfSummary(null); setDxfText(""); setInspection(null); setAnalysisCompleted(false); setReviewConfirmed(false); }}>{t("upload.remove")}</Button>
+                <Button variant="outline" size="sm" onClick={() => { setFile(null); setDxfSummary(null); setDxfEngineering(null); setCompanionDxfFile(null); setCompanionDxfAnalysis(null); setCompanionDrawingType("unknown"); setDxfText(""); setInspection(null); setAnalysisCompleted(false); setReviewConfirmed(false); }}>{t("upload.remove")}</Button>
               </div>
             ) : (
               <label className="cursor-pointer space-y-3 block">
