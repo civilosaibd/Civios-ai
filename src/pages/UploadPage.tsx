@@ -14,9 +14,11 @@ import { getTodayRates, type DistrictRates as DistrictRatesT } from "@/lib/marke
 import { useUnits } from "@/lib/UnitsContext";
 import { convertLength, type UnitSystem } from "@/lib/units";
 import { DRAWING_ACCEPT, detectDrawingType, inspectDrawingFile, type DrawingInspection, type DrawingType } from "@/lib/drawingUpload";
+import { analyzeDxfEngineeringDrawing, type DxfEngineeringAnalysis } from "@/lib/engineering/dxfEngineeringAnalysis";
 
 const UploadPage = () => {
   const [dxfSummary, setDxfSummary] = useState<DxfSummary | null>(null);
+  const [dxfEngineering, setDxfEngineering] = useState<DxfEngineeringAnalysis | null>(null);
   const [inspection, setInspection] = useState<DrawingInspection | null>(null);
   const [drawingType, setDrawingType] = useState<DrawingType>("unknown");
   const [analysisCompleted, setAnalysisCompleted] = useState(false);
@@ -57,6 +59,7 @@ const UploadPage = () => {
     setReviewConfirmed(false);
     setPreview(null);
     setDxfSummary(null);
+    setDxfEngineering(null);
     setDxfText("");
     setInspection(null);
     setFile(null);
@@ -69,11 +72,13 @@ const UploadPage = () => {
 
     let nextDxfText = "";
     let nextDxfSummary: DxfSummary | null = null;
+    let nextDxfEngineering: DxfEngineeringAnalysis | null = null;
     if (checked.kind === "dxf") {
       try {
         nextDxfText = await f.text();
         nextDxfSummary = parseDXF(nextDxfText);
-        if (nextDxfSummary.totalEntities === 0) {
+        nextDxfEngineering = analyzeDxfEngineeringDrawing(nextDxfText, { fileName: f.name });
+        if (nextDxfSummary.totalEntities === 0 || nextDxfEngineering.entityCount === 0) {
           toast.error("No supported LINE or POLYLINE geometry was found. Re-export the CAD drawing as ASCII DXF with visible entity geometry.");
           return;
         }
@@ -96,6 +101,7 @@ const UploadPage = () => {
     setInspection(finalInspection);
     setDxfText(nextDxfText);
     setDxfSummary(nextDxfSummary);
+    setDxfEngineering(nextDxfEngineering);
     setDrawingType(finalInspection.drawingType);
     if (checked.kind === "image") {
       const reader = new FileReader();
@@ -215,6 +221,59 @@ const UploadPage = () => {
               <p className="text-xs text-muted-foreground">Layers found: {Object.keys(dxfSummary.layers).slice(0, 8).join(", ")}</p>
               <p className="text-xs text-amber-700 dark:text-amber-400">⚠ Approximate detection — please verify dimensions below.</p>
             </div>
+          )}
+
+          {dxfEngineering && (
+            <section className="rounded-xl border bg-card p-5 space-y-4" aria-labelledby="engineering-analysis-title">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 id="engineering-analysis-title" className="font-heading text-lg font-semibold">Engineering Element Analysis</h3>
+                  <p className="text-xs text-muted-foreground">Deterministic CAD entity and layer analysis · not a certified quantity takeoff</p>
+                </div>
+                <span className="rounded-full border px-3 py-1 text-xs font-medium">
+                  {dxfEngineering.unitsVerifiedFromHeader ? `DXF units: ${dxfEngineering.units}` : "Units not verified"}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">CAD entities</p><p className="font-bold">{dxfEngineering.entityCount}</p></div>
+                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Layers</p><p className="font-bold">{dxfEngineering.layerCount}</p></div>
+                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Floor labels</p><p className="font-bold">{dxfEngineering.floorLabels.length}</p></div>
+                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Text labels</p><p className="font-bold">{dxfEngineering.labels.length}</p></div>
+              </div>
+              {dxfEngineering.elements.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs min-w-[520px]">
+                    <thead><tr className="border-b text-left text-muted-foreground">
+                      <th className="py-2 pr-3 font-medium">Element / Layer group</th>
+                      <th className="py-2 pr-3 font-medium">CAD objects</th>
+                      <th className="py-2 pr-3 font-medium">Geometry length</th>
+                      <th className="py-2 pr-3 font-medium">Closed area</th>
+                      <th className="py-2 font-medium">Floor groups</th>
+                    </tr></thead>
+                    <tbody>
+                      {dxfEngineering.elements.map((element) => (
+                        <tr key={element.kind} className="border-b last:border-0 align-top">
+                          <td className="py-2 pr-3">
+                            <p className="font-semibold capitalize">{element.kind.replace(/-/g, " ")}</p>
+                            <p className="text-muted-foreground break-words">{element.sourceLayers.join(", ")}</p>
+                          </td>
+                          <td className="py-2 pr-3 tabular-nums">{element.cadObjectCount}</td>
+                          <td className="py-2 pr-3 tabular-nums">{element.geometryLength.toFixed(2)} {dxfEngineering.units ?? "CAD units"}</td>
+                          <td className="py-2 pr-3 tabular-nums">{element.closedArea.toFixed(2)} {(dxfEngineering.units ?? "CAD units")}²</td>
+                          <td className="py-2">{Object.entries(element.floors).map(([floor, count]) => `${floor}: ${count}`).join(", ")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <p className="text-xs text-amber-700 dark:text-amber-400">No engineering layers could be confidently classified from layer names.</p>}
+              {dxfEngineering.warnings.map((warning, index) => (
+                <p key={index} className="text-xs text-amber-700 dark:text-amber-400">⚠ {warning}</p>
+              ))}
+              <p className="text-[11px] text-muted-foreground">
+                CAD object counts are entity counts, not guaranteed physical member counts. Length and area are reported in source drawing units only. No wall thickness, bar diameter, concrete volume, steel weight, floor repetition or missing geometry is assumed.
+              </p>
+            </section>
           )}
 
           {file && inspection && (
