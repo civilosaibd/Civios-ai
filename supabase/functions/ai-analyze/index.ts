@@ -70,10 +70,11 @@ Deno.serve(async (req) => {
 
     const parsedBody = await readJsonBodyLimited(req, MAX_AI_ANALYSIS_BODY_BYTES);
     if (!parsedBody.ok) return jsonResponse({ error: parsedBody.error }, parsedBody.status);
-    const body = parsedBody.value;
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
+    const requestBody = parsedBody.value;
+    if (!requestBody || typeof requestBody !== "object" || Array.isArray(requestBody)) {
       return jsonResponse({ error: "Invalid request body" }, 400);
     }
+    const body = requestBody as Record<string, unknown>;
 
     const { fileName, mimeType, dataUrl, images, textContent, userPrompt, drawingType } = body;
     if (textContent !== undefined && typeof textContent !== "string") {
