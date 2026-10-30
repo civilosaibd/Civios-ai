@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sparkles, Loader2, AlertTriangle, CheckCircle2, Lightbulb, FileImage } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +27,7 @@ interface Props {
   fileName?: string;
   drawingType?: DrawingType;
   uploadWarnings?: string[];
+  autoRun?: boolean;
   onAnalysis?: (analysis: Analysis, coverageComplete: boolean) => void;
   onAnalysisError?: () => void;
 }
@@ -53,7 +54,7 @@ function isAnalysis(value: unknown): value is Analysis {
   return true;
 }
 
-const AIThinking = ({ file, textContent, fileName, drawingType, uploadWarnings = [], onAnalysis, onAnalysisError }: Props) => {
+const AIThinking = ({ file, textContent, fileName, drawingType, uploadWarnings = [], autoRun = false, onAnalysis, onAnalysisError }: Props) => {
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -135,6 +136,15 @@ const AIThinking = ({ file, textContent, fileName, drawingType, uploadWarnings =
       setLoading(false);
     }
   };
+
+  const runRef = useRef(run);
+  const autoRunFileRef = useRef<File | null>(null);
+  runRef.current = run;
+  useEffect(() => {
+    if (!autoRun || !file || autoRunFileRef.current === file) return;
+    autoRunFileRef.current = file;
+    void runRef.current();
+  }, [autoRun, file]);
 
   return (
     <div className="bg-gradient-to-br from-primary/5 to-accent/5 border border-primary/20 rounded-xl p-5 space-y-4">
