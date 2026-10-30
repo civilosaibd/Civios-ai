@@ -45,6 +45,32 @@ const TermsOfServicePage = () => (
         </div>
 
         <article className="mt-10 space-y-8">
+          <section className="rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-accent/10 p-6 md:p-8">
+            <div className="max-w-3xl">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">Zobaerio Technologies</p>
+              <h2 className="mt-3 font-heading text-2xl font-bold tracking-tight md:text-3xl">Our Vision &amp; Mission</h2>
+              <div className="mt-6 grid gap-5 md:grid-cols-2">
+                <div className="rounded-2xl border border-border/70 bg-background/80 p-5">
+                  <h3 className="font-heading text-lg font-semibold">Our Vision</h3>
+                  <p className="mt-3 text-sm leading-7 text-muted-foreground">To become a globally recognized technology and engineering company by developing innovative AI-powered solutions that transform industries and improve everyday life.</p>
+                </div>
+                <div className="rounded-2xl border border-border/70 bg-background/80 p-5">
+                  <h3 className="font-heading text-lg font-semibold">Our Mission</h3>
+                  <ul className="mt-3 space-y-2 text-sm leading-6 text-muted-foreground">
+                    {[
+                      "Develop advanced AI technologies.",
+                      "Transform civil engineering through automation.",
+                      "Build professional software solutions.",
+                      "Deliver innovative engineering services.",
+                      "Expand technology access globally.",
+                      "Create employment opportunities.",
+                    ].map((item) => <li key={item} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" /><span>{item}</span></li>)}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <section>
             <h2 className="font-heading text-xl font-semibold md:text-2xl">1. Accepting these terms</h2>
             <p className="mt-3 leading-7 text-muted-foreground">
