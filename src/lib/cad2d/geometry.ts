@@ -15,10 +15,16 @@ export type CadEntity =
   | (BaseEntity & { type: "circle"; center: Point2D; radius: number })
   | (BaseEntity & { type: "ellipse"; center: Point2D; rx: number; ry: number })
   | (BaseEntity & { type: "arc"; center: Point2D; radius: number; startAngle: number; endAngle: number })
-  | (BaseEntity & { type: "wall"; start: Point2D; end: Point2D; thickness: number });
+  | (BaseEntity & { type: "wall"; start: Point2D; end: Point2D; thickness: number })
+  | (BaseEntity & { type: "polygon"; center: Point2D; radius: number; sides: number; rotation: number })
+  | (BaseEntity & { type: "door"; at: Point2D; width: number; rotation: number; swing: "left" | "right" })
+  | (BaseEntity & { type: "window"; at: Point2D; width: number; rotation: number })
+  | (BaseEntity & { type: "column"; at: Point2D; width: number; depth: number; rotation: number })
+  | (BaseEntity & { type: "text"; at: Point2D; text: string; height: number; rotation: number })
+  | (BaseEntity & { type: "dimension"; a: Point2D; b: Point2D; offset: number });
 
 export type CadDocument = {
-  version: 1;
+  version: 1 | 2;
   units: "mm" | "cm" | "m" | "in" | "ft";
   entities: CadEntity[];
   layers: CadLayer[];
@@ -35,8 +41,21 @@ export const DEFAULT_LAYER: CadLayer = {
   id: "layer-0", name: "0", visible: true, color: "#111827", lineWeight: 1,
 };
 export const createEmptyDocument = (units: CadDocument["units"] = "ft"): CadDocument => ({
-  version: 1, units, entities: [], layers: [{ ...DEFAULT_LAYER }],
+  version: 2, units, entities: [], layers: [{ ...DEFAULT_LAYER }],
 });
+
+export function polygonVertices(entity: Extract<CadEntity, { type: "polygon" }>): Point2D[] {
+  const sides = Math.max(3, Math.floor(entity.sides));
+  return Array.from({ length: sides }, (_, i) => {
+    const angle = entity.rotation + (i * 2 * Math.PI) / sides;
+    return { x: entity.center.x + entity.radius * Math.cos(angle), y: entity.center.y + entity.radius * Math.sin(angle) };
+  });
+}
+
+export function dimensionLength(entity: Extract<CadEntity, { type: "dimension" }>): number {
+  return distance(entity.a, entity.b);
+}
+
 
 export function distance(a: Point2D, b: Point2D): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
@@ -73,7 +92,9 @@ export function translateEntity(entity: CadEntity, dx: number, dy: number): CadE
     case "line": case "wall": return { ...entity, start: move(entity.start), end: move(entity.end) };
     case "polyline": return { ...entity, points: entity.points.map(move) };
     case "rectangle": return { ...entity, min: move(entity.min), max: move(entity.max) };
-    case "circle": case "arc": case "ellipse": return { ...entity, center: move(entity.center) };
+    case "circle": case "arc": case "ellipse": case "polygon": return { ...entity, center: move(entity.center) };
+    case "door": case "window": case "column": case "text": return { ...entity, at: move(entity.at) };
+    case "dimension": return { ...entity, a: move(entity.a), b: move(entity.b) };
   }
 }
 export function rotateEntity(entity: CadEntity, angleRadians: number, origin: Point2D = { x: 0, y: 0 }): CadEntity {
@@ -92,6 +113,9 @@ export function rotateEntity(entity: CadEntity, angleRadians: number, origin: Po
     }
     case "circle": case "ellipse": return { ...entity, center: rotate(entity.center) };
     case "arc": return { ...entity, center: rotate(entity.center), startAngle: entity.startAngle + angleRadians, endAngle: entity.endAngle + angleRadians };
+    case "polygon": return { ...entity, center: rotate(entity.center), rotation: entity.rotation + angleRadians };
+    case "door": case "window": case "column": case "text": return { ...entity, at: rotate(entity.at), rotation: entity.rotation + angleRadians };
+    case "dimension": return { ...entity, a: rotate(entity.a), b: rotate(entity.b) };
   }
 }
 export function mirrorEntity(entity: CadEntity, axisX: number): CadEntity {
@@ -112,6 +136,16 @@ export function mirrorEntity(entity: CadEntity, axisX: number): CadEntity {
       return { ...entity, center: mirror(entity.center) };
     case "arc":
       return { ...entity, center: mirror(entity.center), startAngle: Math.PI - entity.startAngle, endAngle: Math.PI - entity.endAngle };
+    case "polygon":
+      return { ...entity, center: mirror(entity.center), rotation: Math.PI - entity.rotation };
+    case "door":
+      return { ...entity, at: mirror(entity.at), rotation: Math.PI - entity.rotation, swing: entity.swing === "left" ? "right" : "left" };
+    case "window":
+    case "column":
+    case "text":
+      return { ...entity, at: mirror(entity.at), rotation: Math.PI - entity.rotation };
+    case "dimension":
+      return { ...entity, a: mirror(entity.a), b: mirror(entity.b), offset: -entity.offset };
   }
 }
 /**
@@ -151,6 +185,20 @@ export function offsetEntity(entity: CadEntity, amount: number): CadEntity {
     if (nextMin.x >= nextMax.x || nextMin.y >= nextMax.y) throw new Error("Offset is larger than the rectangle.");
     return { ...entity, min: nextMin, max: nextMax };
   }
+  if (entity.type === "polygon") {
+    const radius = entity.radius + amount;
+    if (radius <= 0) throw new Error("Offset would create a zero or negative radius.");
+    return { ...entity, radius };
+  }
+  if (entity.type === "column") {
+    const width = entity.width + amount * 2;
+    const depth = entity.depth + amount * 2;
+    if (width <= 0 || depth <= 0) throw new Error("Offset is larger than the column.");
+    return { ...entity, width, depth };
+  }
+  if (entity.type === "door" || entity.type === "window" || entity.type === "text" || entity.type === "dimension") {
+    throw new Error(`Cannot offset a ${entity.type}.`);
+  }
   if (entity.points.length < 2) throw new Error("Polyline needs at least two vertices.");
   const points = entity.points;
   const segmentCount = entity.closed ? points.length : points.length - 1;
@@ -173,7 +221,7 @@ export function offsetEntity(entity: CadEntity, amount: number): CadEntity {
   return { ...entity, points: out };
 }
 
-function lineIntersection(a: Point2D, b: Point2D, c: Point2D, d: Point2D): { point: Point2D; t: number; u: number } | null {
+export function lineIntersection(a: Point2D, b: Point2D, c: Point2D, d: Point2D): { point: Point2D; t: number; u: number } | null {
   const r = { x: b.x - a.x, y: b.y - a.y }, s = { x: d.x - c.x, y: d.y - c.y };
   const cross = r.x * s.y - r.y * s.x;
   if (Math.abs(cross) < 1e-9) return null;
@@ -245,6 +293,64 @@ export function chamferLines(
   };
 }
 
+
+export function scaleEntity(entity: CadEntity, factor: number, origin: Point2D = { x: 0, y: 0 }): CadEntity {
+  if (!Number.isFinite(factor) || factor <= 0) throw new Error("Scale factor must be a positive finite number.");
+  const scale = (p: Point2D): Point2D => ({ x: origin.x + (p.x - origin.x) * factor, y: origin.y + (p.y - origin.y) * factor });
+  switch (entity.type) {
+    case "line": return { ...entity, start: scale(entity.start), end: scale(entity.end) };
+    case "wall": return { ...entity, start: scale(entity.start), end: scale(entity.end), thickness: entity.thickness * factor };
+    case "polyline": return { ...entity, points: entity.points.map(scale) };
+    case "rectangle": return { ...entity, min: scale(entity.min), max: scale(entity.max) };
+    case "circle": case "arc": return { ...entity, center: scale(entity.center), radius: entity.radius * factor };
+    case "ellipse": return { ...entity, center: scale(entity.center), rx: entity.rx * factor, ry: entity.ry * factor };
+    case "polygon": return { ...entity, center: scale(entity.center), radius: entity.radius * factor };
+    case "door": case "window": return { ...entity, at: scale(entity.at), width: entity.width * factor };
+    case "column": return { ...entity, at: scale(entity.at), width: entity.width * factor, depth: entity.depth * factor };
+    case "text": return { ...entity, at: scale(entity.at), height: entity.height * factor };
+    case "dimension": return { ...entity, a: scale(entity.a), b: scale(entity.b), offset: entity.offset * factor };
+  }
+}
+
+export function filletLines(
+  first: Extract<CadEntity, { type: "line" }>,
+  second: Extract<CadEntity, { type: "line" }>,
+  radius: number,
+): { first: typeof first; second: typeof second; arc: Extract<CadEntity, { type: "arc" }> } {
+  if (!Number.isFinite(radius) || radius <= 0) throw new Error("Fillet radius must be a positive finite number.");
+  const hit = lineIntersection(first.start, first.end, second.start, second.end);
+  if (!hit || hit.t < -1e-8 || hit.t > 1 + 1e-8 || hit.u < -1e-8 || hit.u > 1 + 1e-8) {
+    throw new Error("Fillet requires two finite line segments that intersect.");
+  }
+  const away = (line: typeof first) => {
+    const atStart = distance(line.start, hit.point) < 1e-6;
+    const atEnd = distance(line.end, hit.point) < 1e-6;
+    if (atStart === atEnd) throw new Error("Fillet currently requires the lines to share an endpoint corner.");
+    const far = atStart ? line.end : line.start;
+    const length = distance(far, hit.point);
+    return { far, length, trimStart: atStart, dir: { x: (far.x - hit.point.x) / length, y: (far.y - hit.point.y) / length } };
+  };
+  const a = away(first);
+  const b = away(second as typeof first);
+  const dot = Math.max(-1, Math.min(1, a.dir.x * b.dir.x + a.dir.y * b.dir.y));
+  const phi = Math.acos(dot);
+  if (phi < 1e-4 || Math.abs(Math.PI - phi) < 1e-4) throw new Error("Fillet requires two lines that are not collinear.");
+  const trimDist = radius / Math.tan(phi / 2);
+  if (trimDist >= a.length - 1e-8 || trimDist >= b.length - 1e-8) throw new Error("Fillet radius does not fit both segments.");
+  const pa = { x: hit.point.x + a.dir.x * trimDist, y: hit.point.y + a.dir.y * trimDist };
+  const pb = { x: hit.point.x + b.dir.x * trimDist, y: hit.point.y + b.dir.y * trimDist };
+  const bis = { x: a.dir.x + b.dir.x, y: a.dir.y + b.dir.y };
+  const bisLen = Math.hypot(bis.x, bis.y);
+  const centerDist = radius / Math.sin(phi / 2);
+  const center = { x: hit.point.x + (bis.x / bisLen) * centerDist, y: hit.point.y + (bis.y / bisLen) * centerDist };
+  const trim = (line: typeof first, point: Point2D, trimStart: boolean) => trimStart ? { ...line, start: point } : { ...line, end: point };
+  return {
+    first: trim(first, pa, a.trimStart),
+    second: trim(second as typeof first, pb, b.trimStart) as typeof second,
+    arc: { id: "", layerId: first.layerId, type: "arc", center, radius, startAngle: Math.atan2(pa.y - center.y, pa.x - center.x), endAngle: Math.atan2(pb.y - center.y, pb.x - center.x) },
+  };
+}
+
 export function entityBounds(entity: CadEntity): { min: Point2D; max: Point2D } {
   if (entity.type === "circle" || entity.type === "arc") {
     const r = entity.radius;
@@ -255,6 +361,25 @@ export function entityBounds(entity: CadEntity): { min: Point2D; max: Point2D } 
       min: { x: entity.center.x - entity.rx, y: entity.center.y - entity.ry },
       max: { x: entity.center.x + entity.rx, y: entity.center.y + entity.ry },
     };
+  }
+  if (entity.type === "polygon") {
+    const pts = polygonVertices(entity);
+    return pts.reduce((b, p) => ({ min: { x: Math.min(b.min.x, p.x), y: Math.min(b.min.y, p.y) }, max: { x: Math.max(b.max.x, p.x), y: Math.max(b.max.y, p.y) } }), { min: { ...pts[0] }, max: { ...pts[0] } });
+  }
+  if (entity.type === "door" || entity.type === "window") {
+    const dx = Math.cos(entity.rotation) * entity.width / 2;
+    const dy = Math.sin(entity.rotation) * entity.width / 2;
+    return { min: { x: entity.at.x - Math.abs(dx), y: entity.at.y - Math.abs(dy) }, max: { x: entity.at.x + Math.abs(dx), y: entity.at.y + Math.abs(dy) } };
+  }
+  if (entity.type === "column") {
+    const hx = entity.width / 2, hy = entity.depth / 2;
+    return { min: { x: entity.at.x - hx, y: entity.at.y - hy }, max: { x: entity.at.x + hx, y: entity.at.y + hy } };
+  }
+  if (entity.type === "text") {
+    return { min: { ...entity.at }, max: { x: entity.at.x + entity.text.length * entity.height * 0.6, y: entity.at.y + entity.height } };
+  }
+  if (entity.type === "dimension") {
+    return { min: { x: Math.min(entity.a.x, entity.b.x), y: Math.min(entity.a.y, entity.b.y) }, max: { x: Math.max(entity.a.x, entity.b.x), y: Math.max(entity.a.y, entity.b.y) } };
   }
   const points = entity.type === "line" || entity.type === "wall" ? [entity.start, entity.end]
     : entity.type === "rectangle" ? [entity.min, entity.max]
@@ -323,6 +448,6 @@ export function deserializeCadDocument(serialized: string): CadDocument {
   const value: unknown = JSON.parse(serialized);
   if (!value || typeof value !== "object") throw new Error("Invalid CAD document.");
   const doc = value as CadDocument;
-  if (doc.version !== 1 || !Array.isArray(doc.entities) || !Array.isArray(doc.layers)) throw new Error("Unsupported or invalid CAD document format.");
-  return doc;
+  if ((doc.version !== 1 && doc.version !== 2) || !Array.isArray(doc.entities) || !Array.isArray(doc.layers)) throw new Error("Unsupported or invalid CAD document format.");
+  return { ...doc, version: 2 };
 }
