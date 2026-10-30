@@ -46,10 +46,14 @@ const approve = (id) => admin(() => db.query("SELECT public.approve_payment($1)"
 before(async () => {
   db = new PGlite({ extensions: { pgcrypto } });
   await db.exec(STUBS);
+  // The latest RBAC migration requires the existing verified primary admin
+  // before migration execution, matching the real Supabase project state.
+  await db.query("INSERT INTO auth.users (id,email,email_confirmed_at) VALUES ($1,'zobaerio24@gmail.com',now())", [ADMIN]);
   for (const f of readdirSync(migDir).filter((f) => f.endsWith(".sql")).sort()) {
     try { await db.exec(readFileSync(join(migDir, f), "utf8")); } catch (e) { throw new Error(`migration ${f}: ${e.message}`); }
   }
-  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'zobaerio24@gmail.com')", [ADMIN]);
+  // The test admin predates the auth.users trigger installed by migrations.
+  await db.query("INSERT INTO public.profiles (id,display_name) VALUES ($1,'Primary Admin') ON CONFLICT (id) DO NOTHING", [ADMIN]);
   // Bootstrap test administrator as a trusted operator; signup itself never grants admin.
   await db.query("INSERT INTO public.user_roles (user_id, role) VALUES ($1, 'admin') ON CONFLICT (user_id, role) DO NOTHING", [ADMIN]);
   await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'carol@x.com'),($2,'frank@x.com')", [CAROL, FRANK]);
