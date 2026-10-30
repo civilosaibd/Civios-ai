@@ -39,6 +39,7 @@ interface CadEntity {
   startAngle?: number;
   endAngle?: number;
   text?: string;
+  hasBulge: boolean;
 }
 
 const ELEMENT_RULES: Array<{ kind: EngineeringElementKind; pattern: RegExp }> = [
@@ -121,6 +122,7 @@ function entityFrom(type: string, values: Pair[]): CadEntity {
     startAngle: numberValue(values, 50),
     endAngle: numberValue(values, 51),
     text,
+    hasBulge: values.some((pair) => pair.code === 42 && Number(pair.value) !== 0),
   };
 }
 
@@ -237,7 +239,7 @@ function entityMetrics(entity: CadEntity) {
 
 function getBounds(entities: CadEntity[]) {
   const points = entities.flatMap((entity) => {
-    if (entity.type === "CIRCLE" && entity.points[0] && entity.radius) {
+    if ((entity.type === "CIRCLE" || entity.type === "ARC") && entity.points[0] && entity.radius) {
       const c = entity.points[0], r = entity.radius;
       return [{ x: c.x - r, y: c.y - r }, { x: c.x + r, y: c.y + r }];
     }
@@ -293,7 +295,7 @@ export function analyzeDxfEngineeringDrawing(
 
   if (!units) warnings.push("DXF $INSUNITS is missing or unsupported. Geometry is reported only in raw CAD units; no metric conversion or scale assumption is applied.");
   if (!entities.some((entity) => classifyLayer(entity.layer) !== "other")) warnings.push("No engineering element layers were recognised. Layer names must identify elements (for example A-WALL, S-COLUMN, S-BEAM, S-SLAB, FOUNDATION, REBAR).");
-  if (entities.some((entity) => entity.type === "ARC" || entity.type === "LWPOLYLINE" && false)) warnings.push("Curved geometry was found. Bulge-based polyline arcs are not expanded in this version; curved lengths/areas may be incomplete.");
+  if (entities.some((entity) => entity.hasBulge)) warnings.push("Bulge-based polyline arcs are not expanded in this version; curved lengths/areas may be incomplete.");
   if (Object.keys(unsupportedEntityCounts).length) warnings.push("Some CAD entity types are not yet interpreted. Their geometry is excluded from the engineering quantities.");
   if (entities.some((entity) => entity.floor === "Unassigned" && classifyLayer(entity.layer) !== "other")) warnings.push("Some engineering layers have no recognisable floor marker. Those objects are grouped under Unassigned and are not assumed to repeat on every floor.");
   if (!floorSet.size) warnings.push("No floor identifiers were found in layer names. Floor-wise assignment requires explicit floor-coded layers or a separate drawing per floor.");
