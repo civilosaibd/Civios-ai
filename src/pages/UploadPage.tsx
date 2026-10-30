@@ -14,11 +14,14 @@ import { getTodayRates, type DistrictRates as DistrictRatesT } from "@/lib/marke
 import { useUnits } from "@/lib/UnitsContext";
 import { convertLength, type UnitSystem } from "@/lib/units";
 import { DRAWING_ACCEPT, detectDrawingType, inspectDrawingFile, type DrawingInspection, type DrawingType } from "@/lib/drawingUpload";
-import { analyzeDxfEngineeringDrawing, type DxfEngineeringAnalysis } from "@/lib/engineering/dxfEngineeringAnalysis";
+import { analyzeDxfEngineeringDrawing, compareArchitecturalStructuralDrawings, type DxfEngineeringAnalysis } from "@/lib/engineering/dxfEngineeringAnalysis";
 
 const UploadPage = () => {
   const [dxfSummary, setDxfSummary] = useState<DxfSummary | null>(null);
   const [dxfEngineering, setDxfEngineering] = useState<DxfEngineeringAnalysis | null>(null);
+  const [companionDxfFile, setCompanionDxfFile] = useState<File | null>(null);
+  const [companionDxfAnalysis, setCompanionDxfAnalysis] = useState<DxfEngineeringAnalysis | null>(null);
+  const [companionDrawingType, setCompanionDrawingType] = useState<DrawingType>("unknown");
   const [inspection, setInspection] = useState<DrawingInspection | null>(null);
   const [drawingType, setDrawingType] = useState<DrawingType>("unknown");
   const [analysisCompleted, setAnalysisCompleted] = useState(false);
@@ -60,6 +63,9 @@ const UploadPage = () => {
     setPreview(null);
     setDxfSummary(null);
     setDxfEngineering(null);
+    setCompanionDxfFile(null);
+    setCompanionDxfAnalysis(null);
+    setCompanionDrawingType("unknown");
     setDxfText("");
     setInspection(null);
     setFile(null);
@@ -116,6 +122,29 @@ const UploadPage = () => {
     }
   }, []);
 
+  const handleCompanionDxf = async (selected: File) => {
+    const checked = await inspectDrawingFile(selected);
+    if (!checked.ok) {
+      toast.error(checked.error);
+      return;
+    }
+    if (checked.kind !== "dxf") {
+      toast.error("Architectural/structural cross-check currently requires a second ASCII DXF drawing.");
+      return;
+    }
+    try {
+      const text = await selected.text();
+      const report = analyzeDxfEngineeringDrawing(text, { fileName: selected.name });
+      setCompanionDxfFile(selected);
+      setCompanionDxfAnalysis(report);
+      const detected = detectDrawingType(selected.name, report.elements.flatMap((element) => element.sourceLayers));
+      setCompanionDrawingType(detected.type === "architectural" || detected.type === "structural" ? detected.type : "unknown");
+      toast.success("Companion DXF parsed. Confirm its drawing discipline to run the cross-check.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not analyse the companion DXF.");
+    }
+  };
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
@@ -165,6 +194,14 @@ const UploadPage = () => {
 
   const selectClass = "w-full h-10 rounded-lg border border-input bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
   const inputClass = selectClass;
+  const crossDrawingReview = dxfEngineering && companionDxfAnalysis
+    && ((drawingType === "architectural" && companionDrawingType === "structural")
+      || (drawingType === "structural" && companionDrawingType === "architectural"))
+    ? compareArchitecturalStructuralDrawings(
+      drawingType === "architectural" ? dxfEngineering : companionDxfAnalysis,
+      drawingType === "structural" ? dxfEngineering : companionDxfAnalysis,
+    )
+    : null;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -273,6 +310,52 @@ const UploadPage = () => {
               <p className="text-[11px] text-muted-foreground">
                 CAD object counts are entity counts, not guaranteed physical member counts. Length and area are reported in source drawing units only. No wall thickness, bar diameter, concrete volume, steel weight, floor repetition or missing geometry is assumed.
               </p>
+              <div className="rounded-lg border p-3 space-y-3">
+                <div>
+                  <p className="text-sm font-semibold">Architectural ↔ Structural Drawing Cross-check</p>
+                  <p className="text-xs text-muted-foreground">Optional: add the matching counterpart DXF. The check only compares drawings when explicit units and a common coordinate frame can be confirmed.</p>
+                </div>
+                {companionDxfFile ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="font-medium">{companionDxfFile.name}</span>
+                    <Button type="button" size="sm" variant="outline" onClick={() => { setCompanionDxfFile(null); setCompanionDxfAnalysis(null); setCompanionDrawingType("unknown"); }}>Remove counterpart</Button>
+                  </div>
+                ) : (
+                  <label className="inline-flex cursor-pointer items-center rounded-md border px-3 py-2 text-xs font-medium hover:bg-muted">
+                    Upload counterpart DXF
+                    <input type="file" accept=".dxf" className="sr-only" onChange={(event) => { const selected = event.target.files?.[0]; if (selected) void handleCompanionDxf(selected); event.currentTarget.value = ""; }} />
+                  </label>
+                )}
+                {companionDxfAnalysis && (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="space-y-1 text-xs">
+                      <span className="font-medium">Counterpart drawing discipline</span>
+                      <select className={selectClass} value={companionDrawingType} onChange={(event) => setCompanionDrawingType(event.target.value as DrawingType)}>
+                        <option value="unknown">Select discipline</option>
+                        <option value="architectural">Architectural</option>
+                        <option value="structural">Structural</option>
+                      </select>
+                    </label>
+                    <div className="rounded-lg bg-muted/40 p-3 text-xs">
+                      <p className="font-medium">Counterpart entities: {companionDxfAnalysis.entityCount}</p>
+                      <p className="text-muted-foreground">Units: {companionDxfAnalysis.units ?? "not verified"}</p>
+                    </div>
+                  </div>
+                )}
+                {crossDrawingReview && (
+                  <div className="space-y-1">
+                    <p className={crossDrawingReview.comparable ? "text-xs font-semibold text-emerald-700 dark:text-emerald-400" : "text-xs font-semibold text-amber-700 dark:text-amber-400"}>
+                      {crossDrawingReview.comparable ? "Coordinate-based comparison completed with limitations" : "Cross-check blocked — drawings are not safely comparable"}
+                    </p>
+                    {crossDrawingReview.warnings.length === 0
+                      ? <p className="text-xs text-muted-foreground">Overall extents and column CAD-object counts are consistent. This is not a structural adequacy check.</p>
+                      : crossDrawingReview.warnings.map((warning, index) => <p key={index} className="text-xs text-amber-700 dark:text-amber-400">⚠ {warning}</p>)}
+                  </div>
+                )}
+                {companionDxfAnalysis && !crossDrawingReview && (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">⚠ Select opposite disciplines (one Architectural and one Structural) to compare the two drawings.</p>
+                )}
+              </div>
             </section>
           )}
 
