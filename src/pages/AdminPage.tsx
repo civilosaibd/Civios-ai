@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import {
   Loader2, Trash2, Star, Check, X, Crown, Users, FolderKanban, Building, MessageSquare,
-  Mail, Phone, Send, ExternalLink, Reply, Search,
+  Mail, Phone, Send, ExternalLink, Reply, Search, Eye, ShieldCheck,
 } from "lucide-react";
 
 const WHATSAPP_NUMBER = "8801832313998";
@@ -41,6 +41,13 @@ const AdminPage = () => {
   const [sponsors, setSponsors] = useState<any[]>([]);
   const [ratings, setRatings] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [usersPage, setUsersPage] = useState(1);
+  const [hasMoreUsers, setHasMoreUsers] = useState(false);
+  const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [userDetails, setUserDetails] = useState<any | null>(null);
+  const [userDetailsLoading, setUserDetailsLoading] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [search, setSearch] = useState("");
@@ -72,6 +79,9 @@ const AdminPage = () => {
     setSponsors(s.data || []);
     setRatings(r.data || []);
     setProfiles(p.data || []);
+    const { data: userData, error: userError } = await supabase.functions.invoke("admin-user-data", { body: { action: "list", page: 1 } });
+    if (userError) toast.error("Could not load account directory. Check the admin-user-data Edge Function deployment.");
+    else { setAdminUsers(userData?.users || []); setUsersPage(1); setHasMoreUsers(!!userData?.has_more); }
     setProjects(pr.data || []);
     setMessages(m.data || []);
   };
@@ -113,6 +123,22 @@ const AdminPage = () => {
   };
 
   const openReply = (msg: any) => { setReplyTo(msg); setReplyText(""); setReplyOpen(true); };
+  const loadMoreUsers = async () => {
+    if (loadingMoreUsers || !hasMoreUsers) return;
+    setLoadingMoreUsers(true);
+    const nextPage = usersPage + 1;
+    const { data, error } = await supabase.functions.invoke("admin-user-data", { body: { action: "list", page: nextPage } });
+    if (error) toast.error("Could not load the next account page.");
+    else { setAdminUsers((current) => [...current, ...(data?.users || [])]); setUsersPage(nextPage); setHasMoreUsers(!!data?.has_more); }
+    setLoadingMoreUsers(false);
+  };
+  const openUserDetails = async (account: any) => {
+    setSelectedUser(account); setUserDetails(null); setUserDetailsLoading(true);
+    const { data, error } = await supabase.functions.invoke("admin-user-data", { body: { action: "details", userId: account.id } });
+    if (error) toast.error("Unable to load user details. Please check Edge Function deployment and logs.");
+    else setUserDetails(data);
+    setUserDetailsLoading(false);
+  };
   const sendReply = async () => {
     if (!replyTo || !replyText.trim()) return;
     await supabase.from("contact_messages").update({
@@ -283,17 +309,29 @@ const AdminPage = () => {
               {ratings.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">No ratings.</p>}
             </TabsContent>
 
-            <TabsContent value="users" className="space-y-2 mt-4">
-              {profiles.map((p) => (
-                <div key={p.id} className="bg-card rounded-xl p-4 shadow-sm border flex items-center gap-3">
-                  {p.avatar_url ? <img src={p.avatar_url} className="h-10 w-10 rounded-full object-cover" alt="" /> : <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-semibold">{(p.display_name || "U")[0]}</div>}
+            <TabsContent value="users" className="space-y-3 mt-4">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-sm text-muted-foreground">Verified account directory • {adminUsers.length} loaded</p>
+                <Badge variant="outline" className="gap-1"><ShieldCheck className="h-3 w-3" />Privileged access is audited</Badge>
+              </div>
+              <div className="relative">
+                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input className="pl-9" placeholder="Search by name, email or user ID…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+              {adminUsers.filter((u) => !search || `${u.display_name || ""} ${u.email || ""} ${u.id}`.toLowerCase().includes(search.toLowerCase())).map((u) => (
+                <div key={u.id} className="bg-card rounded-xl p-4 shadow-sm border flex items-center gap-3 flex-wrap">
+                  {u.avatar_url ? <img src={u.avatar_url} className="h-10 w-10 rounded-full object-cover" alt="" /> : <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-semibold">{(u.display_name || u.email || "U")[0].toUpperCase()}</div>}
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold truncate">{p.display_name || "—"}</p>
-                    <p className="text-xs text-muted-foreground truncate">{p.id}</p>
+                    <p className="font-semibold truncate">{u.display_name || "Name not provided"}</p>
+                    <p className="text-xs text-muted-foreground truncate">{u.email || u.phone || u.id}</p>
+                    <p className="text-xs text-muted-foreground">{u.subscription?.status ? `${u.subscription.status} • ${u.subscription.billing_cycle || ""}` : "No active subscription record"} · {u.role}</p>
                   </div>
-                  <span className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString()}</span>
+                  <Badge variant={u.email_confirmed_at ? "default" : "secondary"}>{u.email_confirmed_at ? "Email verified" : "Unverified"}</Badge>
+                  <Button size="sm" variant="outline" onClick={() => openUserDetails(u)}><Eye className="h-3.5 w-3.5 mr-1" />Full details</Button>
                 </div>
               ))}
+              {adminUsers.length === 0 && <p className="text-center text-sm text-muted-foreground py-8">No accounts loaded. Deploy the admin-user-data Edge Function to enable this directory.</p>}
+              {hasMoreUsers && <div className="flex justify-center pt-2"><Button variant="outline" onClick={loadMoreUsers} disabled={loadingMoreUsers}>{loadingMoreUsers && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Load more accounts</Button></div>}
             </TabsContent>
 
             <TabsContent value="projects" className="space-y-2 mt-4">
@@ -313,6 +351,30 @@ const AdminPage = () => {
           </Tabs>
         </div>
       </main>
+
+      {/* Privileged user data inspection — every detail view is recorded server-side. */}
+      <Dialog open={!!selectedUser} onOpenChange={(open) => { if (!open) { setSelectedUser(null); setUserDetails(null); } }}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Account security & data details</DialogTitle></DialogHeader>
+          {userDetailsLoading ? <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div> : userDetails ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border bg-muted/30 p-4 space-y-1">
+                <p className="font-semibold break-all">{userDetails.user?.email || "No email"} · {userDetails.user?.phone || "No phone"}</p>
+                <p className="text-xs text-muted-foreground break-all">ID: {userDetails.user?.id}</p>
+                <p className="text-xs text-muted-foreground">Created: {userDetails.user?.created_at ? new Date(userDetails.user.created_at).toLocaleString() : "—"} · Last sign in: {userDetails.user?.last_sign_in_at ? new Date(userDetails.user.last_sign_in_at).toLocaleString() : "Never"}</p>
+                <p className="text-xs text-muted-foreground">Email verified: {userDetails.user?.email_confirmed_at ? "Yes" : "No"} · Providers: {(userDetails.user?.providers || []).join(", ") || "—"}</p>
+              </div>
+              {Object.entries(userDetails.records || {}).map(([table, rows]: [string, any]) => (
+                <section key={table} className="space-y-2">
+                  <div className="flex items-center justify-between"><h3 className="font-semibold capitalize">{table.replaceAll("_", " ")}</h3><Badge variant="secondary">{rows.length} records</Badge></div>
+                  {rows.length ? <pre className="text-[11px] leading-relaxed whitespace-pre-wrap break-all rounded-lg bg-muted/50 border p-3 max-h-48 overflow-auto">{JSON.stringify(rows, null, 2)}</pre> : <p className="text-xs text-muted-foreground">No records</p>}
+                </section>
+              ))}
+              <p className="text-xs text-muted-foreground border-t pt-3 flex gap-2"><ShieldCheck className="h-4 w-4 shrink-0" />{userDetails.security_notice}</p>
+            </div>
+          ) : <p className="text-sm text-muted-foreground py-6">No details available.</p>}
+        </DialogContent>
+      </Dialog>
 
       {/* Reply dialog */}
       <Dialog open={replyOpen} onOpenChange={setReplyOpen}>
