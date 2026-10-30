@@ -103,6 +103,7 @@ const FileAssistantPage = () => {
                     {inspection.warnings.map((warning, index) => <p key={index} className="text-xs text-amber-700 dark:text-amber-400">⚠ {warning}</p>)}
                   </div>
                   <AIThinking
+                  autoRun
                   file={file}
                   fileName={file.name}
                   textContent={textContent}
