@@ -43,9 +43,14 @@ const blobToDataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
 function isAnalysis(value: unknown): value is Analysis {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const item = value as Record<string, unknown>;
-  return typeof item.summary === "string"
-    && (!item.warnings || (Array.isArray(item.warnings) && item.warnings.every((v) => typeof v === "string")))
-    && (!item.engineeringNotes || (Array.isArray(item.engineeringNotes) && item.engineeringNotes.every((v) => typeof v === "string")));
+  const stringArray = (candidate: unknown) => candidate === undefined
+    || (Array.isArray(candidate) && candidate.every((entry) => typeof entry === "string"));
+  const validTypes = ["architectural", "structural", "foundation", "column-layout", "beam-layout", "slab-layout", "floor-plan", "section", "elevation", "site-plan", "plumbing", "electrical", "road", "bridge", "general", "unknown"];
+  if (typeof item.summary !== "string") return false;
+  if (item.drawingType !== undefined && (typeof item.drawingType !== "string" || !validTypes.includes(item.drawingType))) return false;
+  if (!stringArray(item.warnings) || !stringArray(item.engineeringNotes) || !stringArray(item.recommendations)) return false;
+  if (item.detected !== undefined && (!item.detected || typeof item.detected !== "object" || Array.isArray(item.detected))) return false;
+  return true;
 }
 
 const AIThinking = ({ file, textContent, fileName, drawingType, uploadWarnings = [], onAnalysis, onAnalysisError }: Props) => {
@@ -106,9 +111,9 @@ const AIThinking = ({ file, textContent, fileName, drawingType, uploadWarnings =
       const { data, error } = await supabase.functions.invoke("ai-analyze", {
         body: {
           fileName: fileName || file?.name,
-          mimeType: file?.type,
+          mimeType: file?.type || (file?.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : file?.name.toLowerCase().endsWith(".dxf") ? "application/dxf" : "image/unknown"),
           drawingType,
-          images,
+          ...(images.length > 0 ? { images } : {}),
           textContent: effectiveText,
           userPrompt: "Identify the drawing discipline and describe only information that is visibly supported by the supplied pages or CAD text. Do not treat image-derived dimensions, scale guesses, inferred room sizes, or defaults as verified measurements. List missing dimensions and ambiguities explicitly. This is not a quantity takeoff or construction estimate.",
         },
