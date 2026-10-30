@@ -515,3 +515,42 @@
 @media (prefers-reduced-motion: reduce) {
   .hero-building-model, .hero-scene-orbit--inner { animation: none !important; }
 }
+
+
+/* Scroll-depth treatment for homepage content cards. Keep surfaces readable. */
+.homepage-depth-card {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  will-change: transform;
+}
+.homepage-depth-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(135deg, hsl(190 90% 65% / .08), transparent 48%, hsl(25 95% 60% / .06));
+  transition: opacity .35s ease;
+}
+.homepage-depth-card:hover::after { opacity: 1; }
+.homepage-step-card {
+  border: 1px solid transparent;
+  transition: background-color .35s ease, border-color .35s ease, box-shadow .35s ease;
+}
+.homepage-step-card:hover {
+  background: hsl(var(--card) / .72);
+  border-color: hsl(var(--border) / .75);
+  box-shadow: 0 18px 42px -28px hsl(220 70% 20% / .28);
+}
+.homepage-depth-section { perspective: 1200px; }
+@media (max-width: 767px) {
+  .homepage-depth-card, .homepage-step-card { will-change: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .homepage-depth-card, .homepage-step-card, .homepage-depth-card::after {
+    transition: none !important;
+    transform: none !important;
+    will-change: auto;
+  }
+}
