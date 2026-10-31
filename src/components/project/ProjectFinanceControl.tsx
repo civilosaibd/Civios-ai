@@ -33,7 +33,7 @@ export default function ProjectFinanceControl({ projectId }: { projectId: string
   const [entry,setEntry] = useState({kind:"expense" as "expense"|"income",category:"material" as CostKind,title:"",party:"",date:today(),amount:"",quantity:"",unit:"",unitRate:"",status:"paid" as Entry["status"],method:"Bank",reference:"",notes:""});
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadError("");
+    setLoading(true); setLoadError(""); setCanEdit(false);
     try {
       const items = await listProjectArtifacts(projectId);
       const found = items.find(x=>x.artifact_type==="project-finance-control");
