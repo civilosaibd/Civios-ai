@@ -42,6 +42,7 @@ import MaterialAnalysisDashboard from "@/components/estimate/MaterialAnalysisDas
 import BOQReconciliation from "@/components/estimate/BOQReconciliation";
 import RateAnalysisDashboard from "@/components/estimate/RateAnalysisDashboard";
 import EstimateAccuracyReview from "@/components/estimate/EstimateAccuracyReview";
+import EstimateCommandCenter from "@/components/estimate/EstimateCommandCenter";
 
 const COLORS = ["#1a3a6b", "#2a5298", "#e67e22", "#27ae60", "#8e44ad", "#e74c3c", "#3498db", "#f39c12", "#1abc9c"];
 
@@ -478,6 +479,31 @@ const EstimatePage = () => {
               </div>
             </div>
           </section>
+
+          <EstimateCommandCenter
+            projectName={projectName}
+            plotSize={data.plotSize}
+            floors={data.floors}
+            quality={data.quality}
+            floorArea={data.totalFloorArea}
+            projectCost={quotation.total}
+            costPerSqft={quotation.total / Math.max(data.totalFloorArea, 1)}
+            duration={data.completionMonths}
+            materialCost={Object.values(data.materials).reduce((sum, item) => sum + item.total, 0)}
+            laborCost={Object.values(data.labor).reduce((sum, item) => sum + item.total, 0)}
+            boqCount={boq.length}
+            costBreakdown={data.costBreakdown}
+            currency={currency}
+            fmt={fmt}
+            onPdf={generatePDF}
+            onSave={saveProject}
+            onWorkspace={saveEstimateToWorkspace}
+            onShare={shareProject}
+            saving={saving}
+            savingWorkspace={savingWorkspace}
+            canSaveWorkspace={Boolean((params as any)._projectId || new URLSearchParams(window.location.search).get("project"))}
+            signedIn={Boolean(user)}
+          />
 
           <section aria-label="Estimate workflow" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
