@@ -141,8 +141,8 @@ export default function SiteGeoPage() {
     g.clearLayers();
     const ll = pts.map((p) => [p.lat, p.lng] as [number, number]);
     pts.forEach((p) => L.circleMarker([p.lat, p.lng], { radius: 5, color: "#f97316", fillOpacity: 1 }).addTo(g));
-    if (mode === "area" && pts.length >= 3) L.polygon(ll, { color: "#2563eb", fillOpacity: 0.2 }).addTo(g);
-    else if (pts.length >= 2) L.polyline(ll, { color: "#2563eb", weight: 3 }).addTo(g);
+    if (surveyTool === "polygon" && pts.length >= 3) L.polygon(ll, { color: "#2563eb", fillOpacity: 0.2 }).addTo(g);
+    else if (surveyTool === "line" && pts.length >= 2) L.polyline(ll, { color: "#2563eb", weight: 3 }).addTo(g);
     for (let i = 1; i < pts.length; i++) {
       const a = pts[i - 1], b = pts[i];
       L.marker([(a.lat + b.lat) / 2, (a.lng + b.lng) / 2], {
@@ -150,7 +150,7 @@ export default function SiteGeoPage() {
         interactive: false,
       }).addTo(g);
     }
-  }, [pts, mode, system]);
+  }, [pts, mode, system, surveyTool]);
 
   const placePlan = () => {
     const m = map.current, g = planLayer.current; if (!m || !g) return;
@@ -220,9 +220,9 @@ export default function SiteGeoPage() {
   };
 
   const exportGeoJSON = () => {
-    if (pts.length < 2) return toast.error(T("Draw at least 2 points", "কমপক্ষে ২টি বিন্দু দিন"));
+    if (pts.length < (surveyTool === "point" ? 1 : surveyTool === "polygon" ? 3 : 2)) return toast.error(T("Add enough points for this survey type", "এই সার্ভে টাইপের জন্য পর্যাপ্ত পয়েন্ট যোগ করুন"));
     const coords = pts.map((p) => [p.lng, p.lat]);
-    const geometry = mode === "area" && pts.length >= 3 ? { type: "Polygon", coordinates: [[...coords, coords[0]]] } : { type: "LineString", coordinates: coords };
+    const geometry = surveyTool === "point" ? { type: "MultiPoint", coordinates: coords } : surveyTool === "polygon" ? { type: "Polygon", coordinates: [[...coords, coords[0]]] } : { type: "LineString", coordinates: coords };
     const blob = new Blob([JSON.stringify({ type: "FeatureCollection", features: [{ type: "Feature", properties: { name: "CivilOS survey" }, geometry }] }, null, 2)], { type: "application/geo+json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "civilos-survey.geojson"; a.click();
   };
@@ -293,8 +293,9 @@ export default function SiteGeoPage() {
       } else if (m && imported.length === 1) {
         m.setView([imported[0].lat, imported[0].lng], 18);
       }
-      if (geometry.type === "Polygon") setMode("area");
-      else if (geometry.type === "LineString") setMode("distance");
+      if (geometry.type === "Polygon") { setMode("area"); setSurveyTool("polygon"); }
+      else if (geometry.type === "LineString") { setMode("distance"); setSurveyTool("line"); }
+      else if (geometry.type === "MultiPoint" || geometry.type === "Point") setSurveyTool("point");
       toast.success(T(`Imported ${imported.length} coordinate point(s)`, `${imported.length}টি স্থানাঙ্ক বিন্দু ইমপোর্ট হয়েছে`));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : T("Could not read this GeoJSON file.", "GeoJSON ফাইলটি পড়া যায়নি।"));
