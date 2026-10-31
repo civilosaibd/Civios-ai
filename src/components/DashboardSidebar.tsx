@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/lib/auth";
+import { ACTIVE_PROJECT_STORAGE_KEY } from "@/lib/projectSelection";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/lib/subscription";
 import {
@@ -70,8 +71,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 
 type WorkspaceProject = { id: string; name: string; updated_at?: string };
-
-export const ACTIVE_PROJECT_STORAGE_KEY = "civilos.activeProjectId";
 
 export function ProjectWorkspaceSelector({ collapsed = false }: { collapsed?: boolean }) {
   const { user } = useAuth();
