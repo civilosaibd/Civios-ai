@@ -37,7 +37,7 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { saveProjectArtifact } from "@/lib/projectArtifacts";
-import { getActiveProjectId } from "@/lib/projectSelection";
+import { useActiveProjectId } from "@/lib/projectSelection";
 import DistrictRates from "@/components/DistrictRates";
 import MaterialAnalysisDashboard from "@/components/estimate/MaterialAnalysisDashboard";
 import BOQReconciliation from "@/components/estimate/BOQReconciliation";
@@ -163,7 +163,7 @@ const EstimatePage = () => {
 
   const saveEstimateToWorkspace = async () => {
     if (!user) { toast.info("Please sign in to save this estimate."); return; }
-    const targetProjectId = (params as any)._projectId || getActiveProjectId();
+    const targetProjectId = (params as any)._projectId || useActiveProjectId();
     if (!targetProjectId) {
       toast.info("Save this project first to create a Project Workspace, then open the estimate from that project.");
       return;
