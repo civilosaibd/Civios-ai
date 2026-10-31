@@ -18,6 +18,9 @@ import CadSelectionInspector from "@/components/cad/CadSelectionInspector";
 import CadRoomSchedule from "@/components/cad/CadRoomSchedule";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useActiveProjectId } from "@/lib/projectSelection";
+import { listProjectArtifacts } from "@/lib/projectArtifacts";
+import { useProjectArtifactAutosave } from "@/hooks/useProjectArtifactAutosave";
 
 type DraftEntity = CadEntity & { id: string; layerId: string };
 type View = { x: number; y: number; scale: number };
@@ -38,9 +41,11 @@ const palette: { id: CadToolId; label: string; group: string }[] = [
 
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `cad-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-export default function ProfessionalCadWorkspace() {
+export default function ProfessionalCadWorkspace({ projectId: projectIdProp }: { projectId?: string | null } = {}) {
+  const activeProjectId = useActiveProjectId();
+  const projectId = projectIdProp === undefined ? activeProjectId : projectIdProp;
   const [doc, setDoc] = useState<CadDocument>(() => {
-    if (typeof window === "undefined") return createEmptyDocument("ft");
+    if (projectId || typeof window === "undefined") return createEmptyDocument("ft");
     try {
       const saved = window.localStorage.getItem("civilos-cad-document-v2") ?? window.localStorage.getItem("civilos-cad-document-v1");
       if (!saved) return createEmptyDocument("ft");
@@ -51,6 +56,9 @@ export default function ProfessionalCadWorkspace() {
     }
     return createEmptyDocument("ft");
   });
+  const [projectArtifactId, setProjectArtifactId] = useState<string | undefined>();
+  const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null);
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
   const [tool, setTool] = useState<CadToolId>("select");
   const [grid, setGrid] = useState<CadGridSettings>(DEFAULT_CAD_GRID);
   const [wallThickness, setWallThickness] = useState(0.5);
@@ -75,12 +83,48 @@ export default function ProfessionalCadWorkspace() {
   const activeLayer = doc.layers.find((layer) => layer.name === layerName) ?? doc.layers[0];
 
   useEffect(() => {
+    if (projectId) return;
     try {
       window.localStorage.setItem("civilos-cad-document-v2", JSON.stringify({ ...doc, version: 2 }));
     } catch {
       toast.error("Could not auto-save this drawing locally. Please export a JSON backup.");
     }
-  }, [doc]);
+  }, [doc, projectId]);
+
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadedProjectId(null);
+    setProjectArtifactId(undefined);
+    setProjectLoadError(null);
+    setDoc(createEmptyDocument("ft"));
+    setHistory([]); setFuture([]); setSelected([]); setLayerName("0");
+    if (!projectId) return;
+    void listProjectArtifacts(projectId).then((items) => {
+      if (cancelled) return;
+      const saved = items.find((item) => item.artifact_type === "professional-cad-drawing");
+      const raw = saved?.data?.document;
+      if (typeof raw === "string") {
+        const parsed = deserializeCadDocument(raw);
+        if (!Array.isArray(parsed.entities) || !Array.isArray(parsed.layers) || !parsed.layers.length) throw new Error("Saved CAD drawing is invalid.");
+        setDoc(parsed);
+      } else setDoc(createEmptyDocument("ft"));
+      setProjectArtifactId(saved?.id);
+      setLoadedProjectId(projectId);
+    }).catch((error) => {
+      if (!cancelled) { setProjectLoadError(error instanceof Error ? error.message : "Could not load this project's CAD drawing."); setLoadedProjectId(projectId); }
+    });
+    return () => { cancelled = true; };
+  }, [projectId]);
+
+  const projectSave = useProjectArtifactAutosave({
+    projectId: projectId ?? "", artifactId: projectArtifactId, artifactType: "professional-cad-drawing",
+    title: "Professional CAD Drawing", description: "Editable CivilOS 2D CAD document with entities and layers",
+    data: { document: JSON.stringify({ ...doc, version: 2 }) },
+    enabled: !!projectId && loadedProjectId === projectId && !projectLoadError,
+    debounceMs: 1500,
+  });
+  useEffect(() => { if (projectSave.artifactId && projectSave.artifactId !== projectArtifactId) setProjectArtifactId(projectSave.artifactId); }, [projectSave.artifactId, projectArtifactId]);
 
   const commit = useCallback((next: CadDocument) => {
     setHistory((h) => [...h.slice(-99), doc]);
@@ -805,7 +849,7 @@ export default function ProfessionalCadWorkspace() {
 
   return <section className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 shadow-sm md:p-5">
     <div className="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-lg">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-5"><div className="flex min-w-0 items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500 shadow-md shadow-orange-950/30"><DraftingCompass className="h-6 w-6 text-white"/></div><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-2"><h2 className="text-lg font-bold tracking-tight md:text-xl">Professional 2D Studio</h2><span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300"><CheckCircle2 className="mr-1 inline h-3 w-3"/>Workspace ready</span></div><p className="text-xs text-slate-400">CivilOS AI · precision drafting workspace</p></div></div><div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs"><span className="h-2 w-2 rounded-full bg-emerald-400"/><span className="text-slate-300">Auto-save</span><span className="font-semibold text-white">On this device</span></div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-5">{projectLoadError && <div className="w-full rounded-lg border border-red-500/40 bg-red-500/10 p-2 text-xs text-red-200">{projectLoadError}</div>}{projectSave.error && <div className="w-full rounded-lg border border-red-500/40 bg-red-500/10 p-2 text-xs text-red-200">{projectSave.error}</div>}<div className="flex min-w-0 items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500 shadow-md shadow-orange-950/30"><DraftingCompass className="h-6 w-6 text-white"/></div><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-2"><h2 className="text-lg font-bold tracking-tight md:text-xl">Professional 2D Studio</h2><span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300"><CheckCircle2 className="mr-1 inline h-3 w-3"/>Workspace ready</span></div><p className="text-xs text-slate-400">CivilOS AI · precision drafting workspace</p></div></div><div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs"><span className="h-2 w-2 rounded-full bg-emerald-400"/><span className="text-slate-300">Auto-save</span><span className="font-semibold text-white">{projectId ? (projectSave.status === "saving" ? "Saving to project…" : projectSave.status === "saved" ? "Saved to project" : projectSave.status === "error" ? "Save failed" : "Project linked") : "On this device"}</span></div></div>
       <div className="flex flex-wrap items-center gap-2 border-t border-white/10 bg-white/[0.03] px-4 py-2.5 text-[11px] text-slate-400 md:px-5"><span className="inline-flex items-center gap-1.5"><Command className="h-3.5 w-3.5"/>Shortcuts: L line · C circle · R rectangle · P polyline · S select · E erase</span><span className="hidden text-slate-600 sm:inline">•</span><span className="inline-flex items-center gap-1.5"><Hand className="h-3.5 w-3.5"/>Wheel zoom · middle/right drag pan</span></div>
     </div>
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
