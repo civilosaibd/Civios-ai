@@ -57,7 +57,6 @@ export default function FloatingAssistant() {
   useEffect(() => { setOpen(false); }, [pathname]);
 
   useEffect(() => {
-    if (!position) return;
     const clampPosition = () => {
       setPosition((current) => current ? ({
         left: Math.max(8, Math.min(current.left, window.innerWidth - 58)),
@@ -66,7 +65,7 @@ export default function FloatingAssistant() {
     };
     window.addEventListener("resize", clampPosition);
     return () => window.removeEventListener("resize", clampPosition);
-  }, [position]);
+  }, []);
 
   if (!showFloatingAssistant(pathname, !!user)) return null;
 
@@ -96,6 +95,8 @@ export default function FloatingAssistant() {
     setPosition({ left, top });
   };
 
+  const cancelDrag = () => { dragRef.current = null; };
+
   const endDrag = (event: PointerEvent<HTMLButtonElement>) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
@@ -106,7 +107,7 @@ export default function FloatingAssistant() {
         top: Math.max(8, Math.min(rect.top, window.innerHeight - 58)),
       };
       setPosition(next);
-      localStorage.setItem(POSITION_KEY, JSON.stringify(next));
+      try { localStorage.setItem(POSITION_KEY, JSON.stringify(next)); } catch { /* position still works for this session */ }
     } else {
       setOpen((value) => !value);
     }
@@ -177,7 +178,7 @@ export default function FloatingAssistant() {
         onPointerDown={startDrag}
         onPointerMove={moveDrag}
         onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+        onPointerCancel={cancelDrag}
         onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
