@@ -227,7 +227,27 @@ export default function SiteGeoPage() {
             </div>
             <div className="flex items-center gap-2"><UnitsSwitch /><ThemeToggle /></div>
           </header>
-          <main className="p-4 md:p-6 grid lg:grid-cols-[1fr_340px] gap-5">
+          <main className="p-4 md:p-6 space-y-4">
+            <section className="rounded-xl border bg-card p-4 md:p-5 space-y-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-medium text-primary"><span className="h-2 w-2 rounded-full bg-emerald-500" />{T("GIS WORKSPACE", "জিআইএস ওয়ার্কস্পেস")}</div>
+                  <h2 className="text-xl md:text-2xl font-semibold tracking-tight">{T("Site mapping & land survey", "সাইট ম্যাপিং ও ভূমি জরিপ")}</h2>
+                  <p className="text-sm text-muted-foreground">{T("Map your site, capture boundary points and review measurements in one workspace.", "একটি ওয়ার্কস্পেস থেকেই সাইট ম্যাপ করুন, সীমানার পয়েন্ট নিন এবং পরিমাপ দেখুন।")}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full border px-3 py-1 text-xs text-muted-foreground">{T("Project workspace", "প্রজেক্ট ওয়ার্কস্পেস")}</span>
+                  <span className="rounded-full border px-3 py-1 text-xs text-muted-foreground">{T("WGS84 · Lat/Lng", "WGS84 · অক্ষাংশ/দ্রাঘিমাংশ")}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{T("Survey points", "সার্ভে পয়েন্ট")}</p><p className="mt-1 text-xl font-semibold tabular-nums">{fmt(pts.length, 0)}</p></div>
+                <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{T("Land area", "জমির ক্ষেত্রফল")}</p><p className="mt-1 text-xl font-semibold tabular-nums">{pts.length >= 3 ? fmt(u.decimal, 2) : "—"} <span className="text-xs font-normal text-muted-foreground">{T("decimal", "শতাংশ")}</span></p></div>
+                <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{T("Boundary length", "সীমানার দৈর্ঘ্য")}</p><p className="mt-1 text-xl font-semibold tabular-nums">{pts.length >= 2 ? fmt(system === "metric" ? len : len / FT, 2) : "—"} <span className="text-xs font-normal text-muted-foreground">{system === "metric" ? "m" : "ft"}</span></p></div>
+                <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{T("Active tool", "সক্রিয় টুল")}</p><p className="mt-1 text-xl font-semibold">{mode === "area" ? T("Area", "ক্ষেত্রফল") : T("Distance", "দূরত্ব")}</p></div>
+              </div>
+            </section>
+            <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-5 items-start">
             <div className="space-y-3 min-w-0">
               <div className="flex flex-wrap gap-2">
                 <div className="flex gap-1 flex-1 min-w-[200px]">
@@ -247,7 +267,11 @@ export default function SiteGeoPage() {
                 <Button size="sm" variant="outline" onClick={() => importFileRef.current?.click()}><Upload className="h-4 w-4 mr-1" />{T("Import GeoJSON", "GeoJSON ইমপোর্ট")}</Button>
                 <Button size="sm" variant="outline" onClick={exportGeoJSON}><Download className="h-4 w-4 mr-1" />GeoJSON</Button>
               </div>
-              <Card className="overflow-hidden">
+              <Card className="overflow-hidden border shadow-sm">
+                <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2">
+                  <div className="min-w-0"><p className="text-sm font-medium">{T("Interactive site map", "ইন্টার‌্যাক্টিভ সাইট ম্যাপ")}</p><p className="text-xs text-muted-foreground">{T("Select a tool, then click the map to add survey points.", "টুল নির্বাচন করে ম্যাপে ক্লিক করে সার্ভে পয়েন্ট যোগ করুন।")}</p></div>
+                  <span className="shrink-0 rounded-md border bg-background px-2 py-1 text-[11px] text-muted-foreground">{satellite ? T("Satellite layer", "স্যাটেলাইট লেয়ার") : T("Street layer", "স্ট্রিট লেয়ার")}</span>
+                </div>
                 <div ref={mapEl} className="h-[60vh] lg:h-[calc(100vh-14rem)] w-full z-0" />
               </Card>
               <p className="text-xs text-muted-foreground">{T("Tap the map to add corner points, or import a single-feature GeoJSON (Point, MultiPoint, LineString, Polygon). Imports replace the current survey points. Map measurements are approximate — confirm with a licensed surveyor.", "ম্যাপে ট্যাপ করে কোণের বিন্দু দিন, অথবা একটি ফিচারসহ GeoJSON (Point, MultiPoint, LineString, Polygon) ইমপোর্ট করুন। ইমপোর্ট করলে বর্তমান সার্ভে পয়েন্ট প্রতিস্থাপিত হবে। ম্যাপের মাপ আনুমানিক — লাইসেন্সধারী সার্ভেয়ার দিয়ে নিশ্চিত করুন।")}</p>
@@ -267,6 +291,7 @@ export default function SiteGeoPage() {
                 {pts.length >= 2 && <p className="text-xs text-muted-foreground">{T("Last bearing", "শেষ দিক")}: {bearing(pts[pts.length - 2], pts[pts.length - 1]).toFixed(1)}°</p>}
               </Card>
               <SurveyCalculator T={T} fmt={fmt} />
+            </div>
             </div>
           </main>
         </div>
