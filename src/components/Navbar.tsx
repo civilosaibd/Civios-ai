@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Globe, LogOut, FolderOpen, User, Bell, LayoutDashboard, CreditCard, Users } from "lucide-react";
+import { Menu, X, Globe, LogOut, User, LayoutDashboard, Users } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
@@ -62,18 +63,25 @@ const Navbar = () => {
               <Button variant="ghost" size="sm" asChild>
                 <Link to="/dashboard"><LayoutDashboard className="h-4 w-4 mr-1" /> Dashboard</Link>
               </Button>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/billing"><CreditCard className="h-4 w-4 mr-1" /> Plans</Link>
-              </Button>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/profile"><User className="h-4 w-4 mr-1" /> Profile</Link>
-              </Button>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/affiliate"><Users className="h-4 w-4 mr-1" /> Referrals</Link>
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleSignOut}>
-                <LogOut className="h-4 w-4 mr-1" /> Sign out
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-1">
+                    <User className="h-4 w-4" /> Profile
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onSelect={() => navigate("/profile")}>
+                    <User className="h-4 w-4 mr-2" /> Profile settings
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => navigate("/affiliate")}>
+                    <Users className="h-4 w-4 mr-2" /> Referrals
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={handleSignOut} className="text-destructive focus:text-destructive">
+                    <LogOut className="h-4 w-4 mr-2" /> Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
             <Button variant="ghost" size="sm" asChild>
@@ -114,29 +122,27 @@ const Navbar = () => {
             <Link to="/dashboard" onClick={() => setOpen(false)} className="block px-4 py-3 rounded-lg text-base font-medium text-foreground hover:bg-muted">
               Dashboard
             </Link>
-            <Link to="/billing" onClick={() => setOpen(false)} className="block px-4 py-3 rounded-lg text-base font-medium text-foreground hover:bg-muted">
-              Plans &amp; Billing
-            </Link>
             <Link to="/projects" onClick={() => setOpen(false)} className="block px-4 py-3 rounded-lg text-base font-medium text-foreground hover:bg-muted">
               My Projects
             </Link>
             <Link to="/settings/notifications" onClick={() => setOpen(false)} className="block px-4 py-3 rounded-lg text-base font-medium text-foreground hover:bg-muted">
               Notification Settings
             </Link>
-            <Link to="/affiliate" onClick={() => setOpen(false)} className="block px-4 py-3 rounded-lg text-base font-medium text-foreground hover:bg-muted">
-              Affiliate Program
-            </Link>
-            <Link to="/profile" onClick={() => setOpen(false)} className="block px-4 py-3 rounded-lg text-base font-medium text-foreground hover:bg-muted">
-              Profile
-            </Link>
+            <div className="rounded-lg border border-border/60 p-2">
+              <Link to="/profile" onClick={() => setOpen(false)} className="flex items-center gap-2 px-3 py-2 rounded-md text-base font-medium text-foreground hover:bg-muted">
+                <User className="h-4 w-4" /> Profile
+              </Link>
+              <Link to="/affiliate" onClick={() => setOpen(false)} className="flex items-center gap-2 px-6 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted hover:text-foreground">
+                <Users className="h-4 w-4" /> Referrals
+              </Link>
+              <button onClick={() => { handleSignOut(); setOpen(false); }} className="flex w-full items-center gap-2 px-6 py-2 rounded-md text-sm text-destructive hover:bg-muted">
+                <LogOut className="h-4 w-4" /> Sign out
+              </button>
+            </div>
           </>
         )}
         <div className="mt-auto pt-4 flex flex-col gap-2">
-          {user ? (
-            <Button variant="outline" size="lg" className="w-full" onClick={() => { handleSignOut(); setOpen(false); }}>
-              Sign out
-            </Button>
-          ) : (
+          {!user && (
             <Button variant="outline" size="lg" className="w-full" asChild>
               <Link to="/auth" onClick={() => setOpen(false)}>{t("nav.login")}</Link>
             </Button>

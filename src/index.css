@@ -245,3 +245,312 @@
 @media (prefers-reduced-motion: reduce) {
   .brand-hero-logo { animation: none; }
 }
+
+
+/* CivilOS AI: shared immersive engineering atmosphere */
+:root {
+  --site-scroll-progress: 0;
+  --site-pointer-x: 0;
+  --site-pointer-y: 0;
+}
+.site-engineering-atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+  opacity: 0.62;
+  contain: strict;
+}
+.site-atmosphere-glow {
+  position: absolute;
+  width: clamp(18rem, 42vw, 48rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  filter: blur(90px);
+  will-change: transform;
+  transition: transform 700ms ease-out;
+}
+.site-atmosphere-glow--blue {
+  top: -24%;
+  left: -14%;
+  background: hsl(225 90% 52% / 0.13);
+  transform: translate3d(calc(var(--site-pointer-x) * 18px), calc(var(--site-scroll-progress) * 100px), 0);
+}
+.site-atmosphere-glow--cyan {
+  right: -20%;
+  bottom: -30%;
+  background: hsl(190 90% 48% / 0.11);
+  transform: translate3d(calc(var(--site-pointer-x) * -22px), calc(var(--site-pointer-y) * -16px - var(--site-scroll-progress) * 140px), 0);
+}
+.site-engineering-grid {
+  position: absolute;
+  inset: -35%;
+  opacity: 0.13;
+  background-image: linear-gradient(hsl(195 90% 70% / 0.22) 1px, transparent 1px), linear-gradient(90deg, hsl(195 90% 70% / 0.22) 1px, transparent 1px);
+  background-size: 54px 54px;
+  transform: perspective(900px) rotateX(58deg) translateY(calc(var(--site-scroll-progress) * -70px));
+  transform-origin: center;
+  mask-image: radial-gradient(ellipse at center, black 8%, transparent 70%);
+}
+.site-wireframe {
+  position: absolute;
+  width: clamp(90px, 13vw, 190px);
+  aspect-ratio: 1;
+  border: 1px solid hsl(190 90% 70% / 0.2);
+  transform-style: preserve-3d;
+  box-shadow: 0 0 40px hsl(200 90% 55% / 0.06), inset 0 0 35px hsl(200 90% 55% / 0.04);
+  animation: site-wireframe-float 18s ease-in-out infinite;
+}
+.site-wireframe::before, .site-wireframe::after, .site-wireframe span {
+  content: "";
+  position: absolute;
+  inset: 16%;
+  border: 1px solid hsl(190 90% 70% / 0.18);
+  transform: rotate(45deg);
+}
+.site-wireframe::after { transform: rotateX(65deg) rotateZ(25deg); }
+.site-wireframe span { transform: rotateY(65deg) rotateZ(-25deg); }
+.site-wireframe--one { top: 18%; right: 8%; transform: perspective(700px) rotateX(55deg) rotateZ(35deg) translate3d(calc(var(--site-pointer-x) * -10px), calc(var(--site-scroll-progress) * 80px), 0); }
+.site-wireframe--two { left: 5%; bottom: 12%; width: clamp(65px, 9vw, 130px); animation-delay: -8s; transform: perspective(700px) rotateX(55deg) rotateZ(-25deg); }
+.site-orbit {
+  position: absolute;
+  width: clamp(130px, 19vw, 250px);
+  aspect-ratio: 1;
+  border: 1px solid hsl(210 90% 70% / 0.15);
+  border-radius: 50%;
+  transform-style: preserve-3d;
+  animation: site-orbit-spin 34s linear infinite;
+}
+.site-orbit i {
+  position: absolute;
+  top: 50%;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: hsl(190 95% 65% / 0.75);
+  box-shadow: 0 0 18px hsl(190 95% 65% / 0.6);
+}
+.site-orbit i:nth-child(2) { top: 12%; left: 82%; }
+.site-orbit i:nth-child(3) { top: 85%; left: 70%; }
+.site-orbit--one { left: 42%; top: 30%; transform: rotateX(68deg) rotateY(-20deg); }
+.site-orbit--two { right: 20%; bottom: -5%; width: clamp(90px, 12vw, 160px); animation-direction: reverse; animation-duration: 48s; }
+.site-depth-line {
+  position: absolute;
+  height: 1px;
+  width: 55vw;
+  background: linear-gradient(90deg, transparent, hsl(195 90% 70% / 0.2), transparent);
+  transform: rotate(-24deg);
+}
+.site-depth-line--one { top: 36%; left: -15%; }
+.site-depth-line--two { bottom: 25%; right: -20%; transform: rotate(18deg); }
+@keyframes site-wireframe-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -18px; }
+}
+@keyframes site-orbit-spin {
+  from { rotate: 0deg; }
+  to { rotate: 360deg; }
+}
+@media (max-width: 767px) {
+  .site-engineering-atmosphere { opacity: 0.34; }
+  .site-engineering-grid { background-size: 38px 38px; }
+  .site-wireframe--one { right: -12%; top: 22%; }
+  .site-wireframe--two { left: -8%; bottom: 9%; }
+  .site-orbit--one { left: 38%; top: 42%; }
+  .site-orbit--two { right: -12%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-engineering-atmosphere, .site-engineering-atmosphere * { animation: none !important; transition: none !important; }
+  .site-wireframe--one, .site-atmosphere-glow, .site-engineering-grid { transform: none !important; }
+}
+
+
+/* Homepage: lightweight CSS 3D architectural showcase (no WebGL dependency). */
+.hero-building-scene {
+  position: relative;
+  width: min(100%, 620px);
+  height: clamp(330px, 43vw, 540px);
+  margin-inline: auto;
+  perspective: 1100px;
+  isolation: isolate;
+  contain: layout paint;
+}
+.hero-building-model {
+  position: absolute;
+  width: 230px;
+  height: 330px;
+  left: 50%;
+  top: 48%;
+  transform: translate(-50%, -50%) rotateX(2deg) rotateY(-28deg) rotateZ(0deg);
+  transform-style: preserve-3d;
+  animation: hero-building-hover 7s ease-in-out infinite;
+  filter: drop-shadow(28px 28px 24px hsl(220 80% 3% / .32));
+}
+.hero-building-floor {
+  position: absolute;
+  left: 0;
+  width: 190px;
+  height: 82px;
+  transform-style: preserve-3d;
+  border: 1px solid hsl(190 95% 80% / .62);
+  background: linear-gradient(145deg, hsl(202 75% 34% / .88), hsl(222 65% 14% / .96));
+  box-shadow: inset 0 0 24px hsl(190 95% 70% / .12), 0 0 22px hsl(190 95% 60% / .1);
+}
+.hero-building-floor--top { top: 36px; }
+.hero-building-floor--middle { top: 119px; }
+.hero-building-floor--bottom { top: 202px; }
+.hero-building-facade {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 13px 12px;
+  transform: translateZ(1px);
+}
+.hero-building-facade i {
+  border: 1px solid hsl(190 100% 86% / .7);
+  background: linear-gradient(135deg, hsl(190 95% 78% / .52), hsl(215 80% 32% / .3));
+  box-shadow: inset 0 0 12px hsl(190 100% 90% / .15), 0 0 8px hsl(190 100% 75% / .12);
+}
+.hero-building-side {
+  position: absolute;
+  left: 100%;
+  top: -1px;
+  width: 58px;
+  height: 82px;
+  transform-origin: left center;
+  transform: rotateY(55deg);
+  background: linear-gradient(160deg, hsl(222 62% 26%), hsl(225 70% 10%));
+  border: 1px solid hsl(190 90% 75% / .38);
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 7px;
+  padding: 12px 7px;
+}
+.hero-building-side i { border: 1px solid hsl(190 90% 80% / .45); background: hsl(190 90% 65% / .2); }
+.hero-building-roof {
+  position: absolute;
+  top: 5px;
+  left: 0;
+  width: 190px;
+  height: 31px;
+  transform: rotateX(58deg) translateZ(8px);
+  transform-origin: bottom;
+  background: linear-gradient(90deg, hsl(190 85% 60% / .85), hsl(225 75% 22%));
+  border: 1px solid hsl(190 95% 85% / .7);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+.hero-building-roof i { width: 28px; height: 12px; border: 1px solid hsl(190 100% 90% / .55); background: hsl(190 95% 75% / .2); }
+.hero-building-foundation {
+  position: absolute;
+  top: 286px;
+  left: -22px;
+  width: 238px;
+  height: 46px;
+  transform: rotateX(62deg);
+  transform-origin: top;
+  background: linear-gradient(90deg, hsl(225 65% 18%), hsl(190 70% 36% / .85));
+  border: 1px solid hsl(190 90% 75% / .6);
+}
+.hero-building-platform {
+  position: absolute;
+  left: 50%;
+  top: 75%;
+  width: 75%;
+  height: 22%;
+  transform: translate(-50%, -50%) rotateX(68deg) rotateZ(-8deg);
+  border: 1px solid hsl(190 95% 75% / .28);
+  background: repeating-linear-gradient(90deg, transparent 0 30px, hsl(190 90% 75% / .13) 31px 32px), repeating-linear-gradient(0deg, transparent 0 30px, hsl(190 90% 75% / .13) 31px 32px), linear-gradient(135deg, hsl(220 70% 18% / .4), hsl(190 70% 30% / .18));
+  box-shadow: 0 0 45px hsl(190 90% 60% / .12);
+}
+.hero-building-platform span { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: hsl(25 100% 65%); box-shadow: 0 0 14px hsl(25 100% 65%); }
+.hero-building-platform span:nth-child(1) { top: 20%; left: 20%; }
+.hero-building-platform span:nth-child(2) { top: 65%; left: 72%; }
+.hero-building-platform span:nth-child(3) { top: 35%; left: 88%; }
+.hero-scene-orbit, .hero-blueprint-ring { position: absolute; left: 50%; top: 49%; border: 1px solid hsl(190 90% 75% / .22); border-radius: 50%; transform: translate(-50%, -50%) rotateX(70deg); }
+.hero-scene-orbit--outer { width: 88%; height: 43%; }
+.hero-scene-orbit--inner { width: 68%; height: 32%; border-style: dashed; animation: hero-ring-rotate 28s linear infinite; }
+.hero-blueprint-ring { width: 94%; height: 50%; border-color: hsl(25 100% 68% / .2); transform: translate(-50%, -50%) rotateX(70deg) rotateZ(18deg); }
+.hero-scene-label {
+  position: absolute;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  color: hsl(190 95% 88%);
+  border: 1px solid hsl(190 90% 80% / .22);
+  background: hsl(225 60% 10% / .7);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  font-size: 9px;
+  letter-spacing: .14em;
+  font-weight: 700;
+  box-shadow: 0 8px 28px hsl(220 90% 3% / .2);
+}
+.hero-scene-label svg { width: 15px; height: 15px; color: hsl(25 100% 68%); }
+.hero-scene-label--one { top: 13%; left: 3%; }
+.hero-scene-label--two { top: 36%; right: 0; }
+.hero-scene-label--three { bottom: 13%; left: 8%; }
+@keyframes hero-building-hover { 0%,100% { transform: translate(-50%, -50%) rotateX(2deg) rotateY(-28deg) translateY(0); } 50% { transform: translate(-50%, -50%) rotateX(2deg) rotateY(-20deg) translateY(-10px); } }
+@keyframes hero-ring-rotate { to { transform: translate(-50%, -50%) rotateX(70deg) rotateZ(360deg); } }
+@media (max-width: 1023px) {
+  .hero-building-scene { height: 370px; max-width: 540px; }
+  .hero-building-model { transform: translate(-50%, -50%) scale(.88) rotateY(-28deg); }
+}
+@media (max-width: 640px) {
+  .hero-building-scene { height: 300px; margin-top: -8px; }
+  .hero-building-model { transform: translate(-50%, -50%) scale(.72) rotateY(-28deg); }
+  .hero-scene-label { padding: 7px 9px; font-size: 8px; }
+  .hero-scene-label--one { top: 8%; left: 0; }
+  .hero-scene-label--two { top: 35%; right: -1%; }
+  .hero-scene-label--three { bottom: 8%; left: 1%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-building-model, .hero-scene-orbit--inner { animation: none !important; }
+}
+
+
+/* Scroll-depth treatment for homepage content cards. Keep surfaces readable. */
+.homepage-depth-card {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  will-change: transform;
+}
+.homepage-depth-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(135deg, hsl(190 90% 65% / .08), transparent 48%, hsl(25 95% 60% / .06));
+  transition: opacity .35s ease;
+}
+.homepage-depth-card:hover::after { opacity: 1; }
+.homepage-step-card {
+  border: 1px solid transparent;
+  transition: background-color .35s ease, border-color .35s ease, box-shadow .35s ease;
+}
+.homepage-step-card:hover {
+  background: hsl(var(--card) / .72);
+  border-color: hsl(var(--border) / .75);
+  box-shadow: 0 18px 42px -28px hsl(220 70% 20% / .28);
+}
+.homepage-depth-section { perspective: 1200px; }
+@media (max-width: 767px) {
+  .homepage-depth-card, .homepage-step-card { will-change: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .homepage-depth-card, .homepage-step-card, .homepage-depth-card::after {
+    transition: none !important;
+    transform: none !important;
+    will-change: auto;
+  }
+}

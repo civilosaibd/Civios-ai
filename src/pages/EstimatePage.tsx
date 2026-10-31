@@ -38,6 +38,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { saveProjectArtifact } from "@/lib/projectArtifacts";
 import DistrictRates from "@/components/DistrictRates";
+import MaterialAnalysisDashboard from "@/components/estimate/MaterialAnalysisDashboard";
+import BOQReconciliation from "@/components/estimate/BOQReconciliation";
+import RateAnalysisDashboard from "@/components/estimate/RateAnalysisDashboard";
+import EstimateAccuracyReview from "@/components/estimate/EstimateAccuracyReview";
 
 const COLORS = ["#1a3a6b", "#2a5298", "#e67e22", "#27ae60", "#8e44ad", "#e74c3c", "#3498db", "#f39c12", "#1abc9c"];
 
@@ -62,6 +66,8 @@ const EstimatePage = () => {
   const [projectName, setProjectName] = useState<string>(params._projectName || params.fileName || "House Project");
   const [district, setDistrict] = useState<string>(params.district || "Dhaka");
   const [rates, setRates] = useState(params.rates || undefined);
+  const [boqSearch, setBoqSearch] = useState("");
+  const [boqCategory, setBoqCategory] = useState("all");
 
   const data = useMemo(() => generateEstimate({ ...params, rates }), [rates, district]);
   const loads = useMemo(() => computeBNBCLoads(data, zone, soil, importance), [data, zone, soil, importance]);
@@ -84,12 +90,29 @@ const EstimatePage = () => {
     URL.revokeObjectURL(url);
   };
 
-  const exportBOQCsv = () => {
-    const rows: (string | number)[][] = [["Item", "Qty", "Unit", "Rate (BDT)", "Total (BDT)"]];
-    boq.forEach((b) => rows.push([b.item, b.qty, b.unit, b.rate, b.total]));
-    rows.push(["", "", "", "TOTAL", boq.reduce((s, b) => s + b.total, 0)]);
-    downloadCSV(`${projectName}_BOQ.csv`, rows);
-    toast.success("BOQ exported as CSV");
+  const getBOQCategory = (item: string) => {
+    const value = item.toLowerCase();
+    if (/foundation|excavat|earthwork|pile|footing|backfill/.test(value)) return "Foundation & Earthwork";
+    if (/concrete|rcc|reinforc|steel|rebar|beam|column|slab|formwork|shutter/.test(value)) return "RCC & Structure";
+    if (/brick|block|masonry|wall|plaster|pointing/.test(value)) return "Masonry & Plaster";
+    if (/paint|tile|flooring|door|window|finish|ceiling|sanitary/.test(value)) return "Finishing";
+    if (/electrical|wire|cable|light|switch|socket|power/.test(value)) return "Electrical";
+    if (/plumb|pipe|water|drain|sewer|bathroom/.test(value)) return "Plumbing";
+    return "Other works";
+  };
+
+  const filteredBOQ = boq.filter((item) => {
+    const matchesSearch = `${item.item} ${item.unit}`.toLowerCase().includes(boqSearch.trim().toLowerCase());
+    const matchesCategory = boqCategory === "all" || getBOQCategory(item.item) === boqCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const exportBOQCsv = (items = boq, suffix = "") => {
+    const rows: (string | number)[][] = [["Item", "Category", "Qty", "Unit", "Rate (BDT)", "Total (BDT)"]];
+    items.forEach((b) => rows.push([b.item, getBOQCategory(b.item), b.qty, b.unit, b.rate, b.total]));
+    rows.push(["", "", "", "", "TOTAL", items.reduce((s, b) => s + b.total, 0)]);
+    downloadCSV(`${projectName}_BOQ${suffix}.csv`, rows);
+    toast.success(`BOQ exported as CSV (${items.length} items)`);
   };
 
   const exportQuotationCsv = () => {
@@ -195,75 +218,178 @@ const EstimatePage = () => {
   };
 
   const generatePDF = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(18);
-    doc.text("Smart House Estimate AI - Engineering Report", 14, 20);
+    try {
+      if (!data || !quotation || !Array.isArray(boq) || !Array.isArray(timeline)) {
+        toast.error("The estimate report is missing required project data. Please refresh and try again.");
+        return;
+      }
+      if (!Number.isFinite(quotation.total) || quotation.total <= 0) {
+        toast.error("The estimate total is invalid. Review the project inputs before exporting the report.");
+        return;
+      }
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    const number = (value: number) => new Intl.NumberFormat("en-BD", { maximumFractionDigits: 2 }).format(Number.isFinite(value) ? value : 0);
+    const safeName = (projectName || data.projectName || "Construction_Estimate").replace(/[^a-z0-9-_]+/gi, "_");
+    const generatedAt = new Date();
+    const reportTotal = quotation.total;
+    let y = 18;
+
+    // Cover and project summary page
+    doc.setFillColor(15, 31, 55);
+    doc.rect(0, 0, pageWidth, 76, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.text(`Project: ${data.projectName}`, 14, 30);
-    doc.text(`Plot: ${data.plotSize} | Floors: ${data.floors} | Quality: ${data.quality}`, 14, 36);
-    doc.text(`Total Cost: BDT ${new Intl.NumberFormat("en-IN").format(quotation.total)}`, 14, 42);
+    doc.text("CIVILOS AI  |  ESTIMATE WORKSPACE", margin, 17);
+    doc.setFontSize(23);
+    doc.text("Construction Estimate", margin, 31);
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text("Professional project report", margin, 40);
+    doc.setDrawColor(245, 158, 11);
+    doc.setLineWidth(1.2);
+    doc.line(margin, 48, margin + 32, 48);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${generatedAt.toLocaleDateString("en-GB")}`, margin, 60);
+    doc.text(`Project: ${String(projectName || data.projectName || "Construction project").slice(0, 75)}`, margin, 68);
 
-    doc.text("BNBC Structural Loads", 14, 52);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text("Project summary", margin, 91);
     autoTable(doc, {
-      startY: 56,
-      head: [["Parameter", "Value"]],
+      startY: 97,
+      head: [["Project parameter", "Current estimate"]],
       body: [
-        ["Seismic Zone", loads.zone],
-        ["Zone Factor (Z)", loads.zoneFactor.toString()],
-        ["Soil Type", loads.soilType],
-        ["Total Dead Load", `${loads.totalDeadLoad} kN`],
-        ["Total Live Load", `${loads.totalLiveLoad} kN`],
-        ["Wind Pressure", `${loads.windPressure} kN/m²`],
-        ["Base Shear", `${loads.baseShear} kN`],
+        ["Project name", projectName || data.projectName || "Construction project"],
+        ["Plot / building size", String(data.plotSize ?? "Not specified")],
+        ["Total floor area", `${number(data.totalFloorArea)} sqft`],
+        ["Number of floors", String(data.floors)],
+        ["Quality level", String(data.quality ?? "Not specified")],
+        ["Selected district", String(district || "Not specified")],
+        ["Indicative duration", `${number(data.completionMonths)} months`],
+        ["Cost per sqft (quotation)", `BDT ${number(reportTotal / Math.max(data.totalFloorArea, 1))}`],
+        ["Estimated quotation total", `BDT ${number(reportTotal)}`],
       ],
-      styles: { fontSize: 8 },
+      theme: "grid",
+      headStyles: { fillColor: [20, 55, 92], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 248, 252] },
+      styles: { fontSize: 9, cellPadding: 3, overflow: "linebreak" },
+      margin: { left: margin, right: margin },
     });
-
-    let y = (doc as any).lastAutoTable.finalY + 8;
-    if (y > 240) { doc.addPage(); y = 20; }
-    doc.text("BNBC 2022 Load Combinations", 14, y);
+    y = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("Scope, assumptions & limitations", margin, y);
     autoTable(doc, {
       startY: y + 4,
-      head: [["#", "Combination", "Factored (kN)", "Governs"]],
-      body: loads.combos.map((c) => [c.name, c.formula, c.factoredLoad.toString(), c.governs ? "YES" : ""]),
-      styles: { fontSize: 8 },
-    });
-    y = (doc as any).lastAutoTable.finalY + 8;
-    doc.text("Bill of Quantities (BOQ)", 14, y);
-    autoTable(doc, {
-      startY: y + 4,
-      head: [["Item", "Qty", "Unit", "Rate (BDT)", "Total (BDT)"]],
-      body: boq.map((b) => [
-        b.item,
-        new Intl.NumberFormat("en-IN").format(b.qty),
-        b.unit,
-        new Intl.NumberFormat("en-IN").format(b.rate),
-        new Intl.NumberFormat("en-IN").format(b.total),
-      ]),
-      styles: { fontSize: 8 },
-    });
-
-    y = (doc as any).lastAutoTable.finalY + 8;
-    if (y > 250) { doc.addPage(); y = 20; }
-    doc.text("Contractor Quotation", 14, y);
-    autoTable(doc, {
-      startY: y + 4,
-      head: [["Item", "Amount (BDT)", "Justification"]],
       body: [
-        ...quotation.justification.map((j) => [j.label, new Intl.NumberFormat("en-IN").format(j.amount), j.note]),
-        ["Full Project Cost", new Intl.NumberFormat("en-IN").format(quotation.baseProjectCost), "Sum before contractor profit"],
-        ["TOTAL (with profit)", new Intl.NumberFormat("en-IN").format(quotation.total), "Final quotation"],
+        ["Estimate basis", "Values shown are generated from the current project inputs and estimate engine snapshot."],
+        ["Quantity basis", "Planning quantities are not a measured take-off from approved construction drawings."],
+        ["Rate basis", "Rates must be checked against dated supplier, labor and district quotations before procurement."],
+        ["Engineering review", "Structural calculations, soil assumptions, dimensions, code compliance and safety require qualified professional verification."],
+        ["Use of report", "Preliminary budgeting and discussion only; not a certified BOQ, tender document, structural approval or construction authorization."],
       ],
-      styles: { fontSize: 9 },
+      theme: "grid",
+      styles: { fontSize: 8.5, cellPadding: 3, overflow: "linebreak" },
+      columnStyles: { 0: { cellWidth: 34, fontStyle: "bold" } },
+      margin: { left: margin, right: margin },
     });
 
-    y = (doc as any).lastAutoTable.finalY + 8;
-    if (y > 270) { doc.addPage(); y = 20; }
-    doc.setFontSize(8);
-    doc.text("Disclaimer: AI-based preliminary analysis. Verify with a licensed structural engineer.", 14, y);
-    doc.text("Developed by MD Zobaer Hasan | https://zobaer.vercel.app", 14, y + 5);
+    // Detailed schedules begin on a fresh page for clear report structure.
+    doc.addPage();
+    y = 20;
+    const addSection = (title: string, head: string[], body: (string | number)[][], fontSize = 8) => {
+      if (y > pageHeight - 42) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.setTextColor(30, 41, 59);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text(title, margin, y);
+      autoTable(doc, {
+        startY: y + 4,
+        head: [head],
+        body: body.length ? body : [["No data available for this section", ...Array(Math.max(0, head.length - 1)).fill("—")]],
+        theme: "grid",
+        headStyles: { fillColor: [20, 55, 92], textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [245, 248, 252] },
+        styles: { fontSize, cellPadding: 2.5, overflow: "linebreak", valign: "middle" },
+        margin: { left: margin, right: margin, bottom: 18 },
+        rowPageBreak: "avoid",
+      });
+      y = (doc as any).lastAutoTable.finalY + 11;
+    };
 
-    doc.save(`${data.projectName}_EngineeringReport.pdf`);
+    addSection("1. Cost breakdown", ["Cost category", "Amount (BDT)", "Share of quotation"], (data.costBreakdown || []).map((item) => [
+      item.category, number(item.amount), reportTotal > 0 ? `${(item.amount / reportTotal * 100).toFixed(1)}%` : "—",
+    ]));
+    addSection("2. Material schedule", ["Material", "Quantity", "Unit", "Unit rate (BDT)", "Line total (BDT)"],
+      [
+        ...Object.entries(data.materials || {}).map(([name, item]) => [name, number(item.qty), item.unit, number(item.rate), number(item.total)]),
+        ["TOTAL MATERIALS", "", "", "", number(Object.values(data.materials || {}).reduce((sum, item) => sum + (Number.isFinite(item.total) ? item.total : 0), 0))],
+      ]);
+    addSection("3. Labor & daily rate analysis", ["Labor / crew", "Days", "Daily rate (BDT)", "Line total (BDT)"],
+      [
+        ...Object.entries(data.labor || {}).map(([name, item]) => [name, number(item.days), number(item.rate), number(item.total)]),
+        ["TOTAL LABOR", "", "", number(Object.values(data.labor || {}).reduce((sum, item) => sum + (Number.isFinite(item.total) ? item.total : 0), 0))],
+      ]);
+    addSection("4. Detailed Bill of Quantities (BOQ)", ["Work item", "Quantity", "Unit", "Rate (BDT)", "Amount (BDT)"],
+      [
+        ...boq.map((item) => [item.item, number(item.qty), item.unit, number(item.rate), number(item.total)]),
+        ["TOTAL BOQ", "", "", "", number(boq.reduce((sum, item) => sum + (Number.isFinite(item.total) ? item.total : 0), 0))],
+      ]);
+    addSection("5. Contractor quotation & adjustments", ["Item", "Amount (BDT)", "Basis / notes"], [
+      ...quotation.justification.map((item) => [item.label, number(item.amount), item.note]),
+      ["Full project cost before profit", number(quotation.baseProjectCost), "Quotation base as supplied by the estimate engine"],
+      ["TOTAL quotation", number(quotation.total), "Includes the quotation's configured contractor profit adjustment"],
+    ], 7.5);
+    addSection("6. Structural load indicators (BNBC inputs)", ["Parameter", "Value"], [
+      ["Seismic zone", String(loads.zone)],
+      ["Zone factor (Z)", String(loads.zoneFactor)],
+      ["Soil type", String(loads.soilType)],
+      ["Total dead load", `${number(loads.totalDeadLoad)} kN`],
+      ["Total live load", `${number(loads.totalLiveLoad)} kN`],
+      ["Wind pressure", `${number(loads.windPressure)} kN/m²`],
+      ["Base shear", `${number(loads.baseShear)} kN`],
+    ]);
+    addSection("7. BNBC 2022 load combinations (model output)", ["Combination", "Formula", "Factored load (kN)", "Governs"],
+      (loads.combos || []).map((item) => [item.name, item.formula, number(item.factoredLoad), item.governs ? "Yes" : "No"]), 7.5);
+    addSection("8. Preliminary construction timeline", ["Activity", "Start month", "Duration (months)"],
+      (timeline || []).map((item: any) => [item.name || item.activity || "Activity", number(item.startMonth), number(item.durationMonths)]));
+
+    // Repeatable page header/footer and pagination, including the cover.
+    const pageCount = doc.getNumberOfPages();
+    for (let page = 1; page <= pageCount; page++) {
+      doc.setPage(page);
+      if (page > 1) {
+        doc.setDrawColor(220, 226, 234);
+        doc.setLineWidth(0.25);
+        doc.line(margin, 12, pageWidth - margin, 12);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(71, 85, 105);
+        doc.text("CIVILOS AI  |  CONSTRUCTION ESTIMATE REPORT", margin, 9);
+      }
+      doc.setDrawColor(220, 226, 234);
+      doc.line(margin, pageHeight - 13, pageWidth - margin, pageHeight - 13);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text("Preliminary estimate — verify quantities, rates and engineering assumptions before use.", margin, pageHeight - 8);
+      doc.text(`Page ${page} of ${pageCount}`, pageWidth - margin, pageHeight - 8, { align: "right" });
+    }
+
+    doc.save(`${safeName}_Professional_Estimate_Report.pdf`);
+      toast.success("Professional estimate report PDF generated.");
+    } catch (error) {
+      console.error("Professional estimate PDF export failed:", error);
+      toast.error("Could not generate the PDF report. Please try again; if the problem continues, review the project data.");
+    }
   };
 
   const SectionCard = ({ title, icon: Icon, children, action }: { title: string; icon: any; children: React.ReactNode; action?: React.ReactNode }) => (
@@ -393,7 +519,7 @@ const EstimatePage = () => {
                 <Share2 className="h-4 w-4 mr-1" /> Share Link
               </Button>
               <Button onClick={generatePDF}>
-                <Download className="h-4 w-4 mr-1" /> {t("est.downloadPdf")}
+                <Download className="h-4 w-4 mr-1" /> Professional Report PDF
               </Button>
             </div>
           </div>
@@ -416,6 +542,121 @@ const EstimatePage = () => {
             district={district}
             onChange={(d, r) => { setDistrict(d); setRates(r); }}
           />
+
+          {/* Step 2: data-backed cost analytics dashboard */}
+          <section aria-labelledby="cost-analytics-title" className="scroll-mt-6 space-y-5 rounded-3xl border border-border/70 bg-card p-5 shadow-sm md:p-7">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                  <TrendingUp className="h-3.5 w-3.5" /> LIVE FROM CURRENT ESTIMATE
+                </div>
+                <h2 id="cost-analytics-title" className="text-2xl font-bold tracking-tight md:text-3xl">Cost analytics</h2>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  Understand where the current preliminary budget is allocated. Figures update when project inputs or district rates change.
+                </p>
+              </div>
+              <Badge variant="outline" className="w-fit">BDT · Estimate snapshot</Badge>
+            </div>
+
+            {(() => {
+              const breakdownTotal = data.costBreakdown.reduce((sum, item) => sum + item.amount, 0);
+              const topCategory = [...data.costBreakdown].sort((a, b) => b.amount - a.amount)[0];
+              const categoryCount = data.costBreakdown.filter((item) => item.amount > 0).length;
+              const averageCategory = categoryCount ? breakdownTotal / categoryCount : 0;
+              const topShare = breakdownTotal > 0 && topCategory ? (topCategory.amount / breakdownTotal) * 100 : 0;
+              const formatMoney = (value: number) => `৳${fmt(Math.round(value))}`;
+              return (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {[
+                      { label: "Estimated total", value: currency(quotation.total), note: "Quotation total including configured margin", icon: DollarSign },
+                      { label: "Largest cost driver", value: topCategory?.category ?? "Not available", note: topCategory ? `${topShare.toFixed(1)}% of listed cost breakdown` : "No breakdown available", icon: TrendingUp },
+                      { label: "Cost categories", value: String(categoryCount), note: "Categories with a positive amount", icon: Layers },
+                      { label: "Average per category", value: formatMoney(averageCategory), note: "Average of positive breakdown items", icon: Activity },
+                    ].map((metric) => (
+                      <div key={metric.label} className="rounded-2xl border border-border/70 bg-background p-4">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
+                          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary"><metric.icon className="h-4 w-4" /></span>
+                        </div>
+                        <p className="mt-3 break-words text-xl font-bold tracking-tight">{metric.value}</p>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{metric.note}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+                    <div className="rounded-2xl border border-border/70 p-4 md:p-5">
+                      <div className="mb-4 flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-semibold">Budget allocation</h3>
+                          <p className="mt-1 text-xs text-muted-foreground">Share of the estimate engine's cost breakdown</p>
+                        </div>
+                        <span className="rounded-lg bg-muted px-2 py-1 text-xs font-medium">{categoryCount} categories</span>
+                      </div>
+                      {categoryCount > 0 ? (
+                        <div className="space-y-4">
+                          {[...data.costBreakdown].filter((item) => item.amount > 0).sort((a, b) => b.amount - a.amount).map((item, index) => {
+                            const share = breakdownTotal > 0 ? (item.amount / breakdownTotal) * 100 : 0;
+                            return (
+                              <div key={item.category}>
+                                <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+                                  <span className="min-w-0 truncate font-medium">{item.category}</span>
+                                  <span className="shrink-0 text-right text-muted-foreground">{share.toFixed(1)}% <span className="ml-1 font-semibold text-foreground">{formatMoney(item.amount)}</span></span>
+                                </div>
+                                <div
+                                  className="h-2.5 overflow-hidden rounded-full bg-muted"
+                                  role="progressbar"
+                                  aria-label={`${item.category} budget share`}
+                                  aria-valuemin={0}
+                                  aria-valuemax={100}
+                                  aria-valuenow={Number(share.toFixed(1))}
+                                >
+                                  <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.min(100, Math.max(0, share))}%`, backgroundColor: COLORS[index % COLORS.length] }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="rounded-xl bg-muted/40 p-4 text-sm text-muted-foreground">No positive cost categories are available for this estimate yet.</p>
+                      )}
+                      <p className="mt-4 border-t border-border/60 pt-3 text-xs leading-5 text-muted-foreground">
+                        Allocation percentages are calculated from the listed cost categories and may not equal the quotation total when the estimate engine applies separate overhead, contingency or profit adjustments.
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-border/70 p-4 md:p-5">
+                      <div className="mb-3">
+                        <h3 className="font-semibold">Cost distribution chart</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">Compare category amounts at a glance</p>
+                      </div>
+                      <div className="h-72 min-w-0" role="img" aria-label="Bar chart comparing estimated costs by category">
+                        {categoryCount > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={[...data.costBreakdown].filter((item) => item.amount > 0).sort((a, b) => b.amount - a.amount)} layout="vertical" margin={{ top: 4, right: 12, bottom: 4, left: 4 }}>
+                              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                              <XAxis type="number" tickFormatter={(value) => value >= 100000 ? `৳${(value / 100000).toFixed(1)}L` : `৳${(value / 1000).toFixed(0)}k`} fontSize={10} />
+                              <YAxis type="category" dataKey="category" width={94} fontSize={10} tick={{ fill: "currentColor" }} />
+                              <Tooltip formatter={(value: number) => [currency(value), "Estimated cost"]} />
+                              <Bar dataKey="amount" name="Estimated cost" fill="hsl(220, 70%, 32%)" radius={[0, 5, 5, 0]} maxBarSize={22} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="flex h-full items-center justify-center rounded-xl bg-muted/40 p-4 text-center text-sm text-muted-foreground">Cost chart will appear when estimate data is available.</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+          </section>
+
+          <MaterialAnalysisDashboard materials={data.materials} projectName={projectName} projectCost={data.totalCost} currency={currency} fmt={fmt} />
+          <BOQReconciliation materials={data.materials} boq={boq} fmt={fmt} currency={currency} />
+          <RateAnalysisDashboard materials={data.materials} labor={data.labor} projectName={projectName} projectCost={data.totalCost} currency={currency} fmt={fmt} />
+          <EstimateAccuracyReview estimate={data} boq={boq} projectName={projectName} fmt={fmt} currency={currency} />
 
           <section id="estimate-upgrade" className="scroll-mt-6 rounded-3xl border border-border/70 bg-card p-6 shadow-sm md:p-8">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -830,36 +1071,96 @@ const EstimatePage = () => {
 
             {/* BOQ TAB */}
             <TabsContent value="boq" className="space-y-6">
-              <SectionCard title="Bill of Quantities (BOQ)" icon={FileText} action={
-                <Button size="sm" variant="outline" onClick={exportBOQCsv}><Download className="h-4 w-4 mr-1" /> CSV</Button>
-              }>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead><tr className="border-b text-muted-foreground">
-                      <th className="text-left py-2">Item</th>
-                      <th className="text-right py-2">Qty</th>
-                      <th className="text-right py-2">Unit</th>
-                      <th className="text-right py-2">Rate (৳)</th>
-                      <th className="text-right py-2">Total (৳)</th>
-                    </tr></thead>
-                    <tbody>
-                      {boq.map((b, i) => (
-                        <tr key={i} className="border-b border-border/50">
-                          <td className="py-2">{b.item}</td>
-                          <td className="text-right">{fmt(b.qty)}</td>
-                          <td className="text-right">{b.unit}</td>
-                          <td className="text-right">{fmt(b.rate)}</td>
-                          <td className="text-right font-semibold">{fmt(b.total)}</td>
-                        </tr>
+              {(() => {
+                const fullTotal = boq.reduce((sum, item) => sum + item.total, 0);
+                const filteredTotal = filteredBOQ.reduce((sum, item) => sum + item.total, 0);
+                const categories = Array.from(new Set(boq.map((item) => getBOQCategory(item.item)))).sort();
+                return (
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      {[
+                        { label: "BOQ line items", value: String(boq.length), note: "All generated quantity items" },
+                        { label: "Visible items", value: String(filteredBOQ.length), note: "Matching current filters" },
+                        { label: "Full BOQ value", value: currency(fullTotal), note: "All generated BOQ items" },
+                        { label: "Filtered value", value: currency(filteredTotal), note: "Sum of visible rows only" },
+                      ].map((metric) => (
+                        <div key={metric.label} className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
+                          <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
+                          <p className="mt-2 break-words text-xl font-bold tracking-tight">{metric.value}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{metric.note}</p>
+                        </div>
                       ))}
-                      <tr className="bg-muted/40">
-                        <td colSpan={4} className="py-3 text-right font-bold">BOQ TOTAL</td>
-                        <td className="text-right font-bold text-accent py-3">৳{fmt(boq.reduce((s, b) => s + b.total, 0))}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </SectionCard>
+                    </div>
+
+                    <SectionCard title="Detailed Bill of Quantities" icon={FileText} action={
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={() => exportBOQCsv(filteredBOQ, "_filtered")} disabled={filteredBOQ.length === 0}>
+                          <Download className="mr-1 h-4 w-4" /> Export filtered
+                        </Button>
+                        <Button size="sm" onClick={() => exportBOQCsv()}>
+                          <Download className="mr-1 h-4 w-4" /> Export all
+                        </Button>
+                      </div>
+                    }>
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_240px_auto] md:items-end">
+                        <div className="space-y-1.5">
+                          <label htmlFor="boq-search" className="text-xs font-medium text-muted-foreground">Search BOQ items</label>
+                          <Input id="boq-search" value={boqSearch} onChange={(event) => setBoqSearch(event.target.value)} placeholder="Search item or unit…" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label htmlFor="boq-category" className="text-xs font-medium text-muted-foreground">Work category</label>
+                          <select id="boq-category" value={boqCategory} onChange={(event) => setBoqCategory(event.target.value)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                            <option value="all">All categories</option>
+                            {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+                          </select>
+                        </div>
+                        <Button type="button" variant="ghost" onClick={() => { setBoqSearch(""); setBoqCategory("all"); }}>Reset filters</Button>
+                      </div>
+
+                      <div className="mt-4 overflow-x-auto rounded-xl border border-border/70">
+                        <table className="w-full min-w-[700px] text-sm">
+                          <thead className="sticky top-0 bg-muted/80 text-muted-foreground">
+                            <tr className="border-b">
+                              <th scope="col" className="px-3 py-3 text-left font-medium">Description</th>
+                              <th scope="col" className="px-3 py-3 text-left font-medium">Category</th>
+                              <th scope="col" className="px-3 py-3 text-right font-medium">Quantity</th>
+                              <th scope="col" className="px-3 py-3 text-left font-medium">Unit</th>
+                              <th scope="col" className="px-3 py-3 text-right font-medium">Rate (৳)</th>
+                              <th scope="col" className="px-3 py-3 text-right font-medium">Amount (৳)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredBOQ.map((item, index) => (
+                              <tr key={`${item.item}-${index}`} className="border-b border-border/50 transition-colors hover:bg-muted/30">
+                                <td className="px-3 py-3 font-medium">{item.item}</td>
+                                <td className="px-3 py-3"><Badge variant="secondary" className="whitespace-nowrap">{getBOQCategory(item.item)}</Badge></td>
+                                <td className="px-3 py-3 text-right tabular-nums">{fmt(item.qty)}</td>
+                                <td className="px-3 py-3">{item.unit}</td>
+                                <td className="px-3 py-3 text-right tabular-nums">{fmt(item.rate)}</td>
+                                <td className="px-3 py-3 text-right font-semibold tabular-nums">{currency(item.total)}</td>
+                              </tr>
+                            ))}
+                            {filteredBOQ.length === 0 && (
+                              <tr><td colSpan={6} className="px-3 py-10 text-center text-muted-foreground">No BOQ items match these filters. Try a different search or reset the filters.</td></tr>
+                            )}
+                          </tbody>
+                          <tfoot className="bg-muted/50">
+                            <tr>
+                              <td colSpan={5} className="px-3 py-3 text-right font-bold">VISIBLE SUBTOTAL</td>
+                              <td className="px-3 py-3 text-right font-bold text-accent tabular-nums">{currency(filteredTotal)}</td>
+                            </tr>
+                            <tr>
+                              <td colSpan={5} className="px-3 pb-3 text-right text-xs text-muted-foreground">Full BOQ total (unfiltered)</td>
+                              <td className="px-3 pb-3 text-right text-xs font-semibold text-muted-foreground tabular-nums">{currency(fullTotal)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                      <p className="mt-3 text-xs leading-5 text-muted-foreground">Quantities and rates are generated from the current preliminary estimate inputs. Category labels are keyword-based grouping for navigation, not a certified work breakdown structure. Confirm quantities against approved drawings and current local rates before procurement.</p>
+                    </SectionCard>
+                  </>
+                );
+              })()}
             </TabsContent>
 
             {/* 3D VIEW TAB */}
