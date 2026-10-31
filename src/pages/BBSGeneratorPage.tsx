@@ -13,6 +13,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import { ClipboardList, Plus, Trash2, Download, RotateCcw, Info, Save, FolderOpen, History } from "lucide-react";
 import { toast } from "sonner";
 import { saveProjectArtifact } from "@/lib/projectArtifacts";
+import { getActiveProjectId } from "@/lib/projectSelection";
 
 type Shape = "straight" | "L-bar" | "U-bar" | "stirrup";
 type BarRow = { id: string; mark: string; diameter: number; shape: Shape; a: number; b: number; hook: number; qty: number; note: string };
@@ -38,7 +39,7 @@ export default function BBSGeneratorPage() {
   const [scheduleName, setScheduleName] = useState("Main reinforcement schedule");
   const [savingToProject, setSavingToProject] = useState(false);
   const [projectArtifactId, setProjectArtifactId] = useState<string | null>(null);
-  const projectId = new URLSearchParams(window.location.search).get("project");
+  const projectId = getActiveProjectId();
   const computed = useMemo(() => rows.map(row => {
     const length = cuttingLength(row);
     const totalLength = length * num(row.qty);
