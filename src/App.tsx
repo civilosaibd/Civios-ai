@@ -136,7 +136,7 @@ const App = () => (
                         element={<ProjectDetailPage />}
                       />
                       <Route path="/modules" element={<ModulesPage />} />
-                      <Route path="/dashboard" element={<DashboardPage />} />
+                      <Route path="/dashboard" element={<DashboardPage />} />\n                      <Route path="/calculation" element={<CalculationCenterPage />} />
 
                       <Route path="/ai-assistant" element={<Navigate to="/ai-engineer" replace />} />
                       <Route path="/ai-writer" element={<PlanFeatureGate feature="ai_writer"><AIWriterPage /></PlanFeatureGate>} />
