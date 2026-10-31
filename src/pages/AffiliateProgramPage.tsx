@@ -58,7 +58,7 @@ const benefits = [
 export default function AffiliateProgramPage() {
   const { user } = useAuth();
   const [paymentAmount, setPaymentAmount] = useState("1999");
-  const joinHref = user ? "/affiliate" : "/auth?mode=signup";
+  const joinHref = user ? "/affiliate" : "/auth?mode=signup&redirect=%2Faffiliate";
   const estimatedCommission = useMemo(() => {
     const amount = Number(paymentAmount);
     if (!Number.isFinite(amount) || amount <= 0) return 0;
