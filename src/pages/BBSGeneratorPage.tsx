@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCloudState } from "@/lib/cloudState";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
@@ -40,6 +40,7 @@ export default function BBSGeneratorPage() {
   const [savingToProject, setSavingToProject] = useState(false);
   const [projectArtifactId, setProjectArtifactId] = useState<string | null>(null);
   const projectId = useActiveProjectId();
+  useEffect(() => { setProjectArtifactId(null); }, [projectId]);
   const computed = useMemo(() => rows.map(row => {
     const length = cuttingLength(row);
     const totalLength = length * num(row.qty);
