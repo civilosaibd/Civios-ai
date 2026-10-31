@@ -117,7 +117,7 @@ export default function PlanGeneratorPage() {
           <main className="p-4 md:p-6 grid lg:grid-cols-[340px_1fr] gap-5">
             {projectLoadError && <div className="lg:col-span-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{L("Could not load this project’s saved floor plan: ", "প্রজেক্টের সংরক্ষিত ফ্লোর প্ল্যান লোড করা যায়নি: ")}{projectLoadError}</div>}
             {projectSave.error && <div className="lg:col-span-2 rounded-md border border-destructive/40 p-3 text-xs text-destructive">{projectSave.error}</div>}
-            <div className="lg:col-span-2"><ProfessionalCadWorkspace /></div>
+            <div className="lg:col-span-2"><ProfessionalCadWorkspace projectId={projectId} /></div>
             <div className="space-y-4">
               <Card className="p-4 space-y-2">
                 <Label className="text-xs">{L("Describe in plain words", "সহজ ভাষায় লিখুন")}</Label>
