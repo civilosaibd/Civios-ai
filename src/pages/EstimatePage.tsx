@@ -1,4 +1,5 @@
 import Navbar from "@/components/Navbar";
+import { ProjectWorkspaceSelector } from "@/components/DashboardSidebar";
 import Footer from "@/components/Footer";
 import SEO from "@/components/SEO";
 import Building3D from "@/components/Building3D";
@@ -417,6 +418,7 @@ const EstimatePage = () => {
         type="article"
       />
       <Navbar />
+      <div className="container max-w-6xl pt-4"><ProjectWorkspaceSelector /></div>
       <main className="flex-1 py-8">
         <div className="container space-y-6">
           {/* Premium SaaS demo-estimate overview */}
