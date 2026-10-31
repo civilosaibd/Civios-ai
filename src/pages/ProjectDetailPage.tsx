@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { listProjectArtifacts, createProjectArtifactDownloadUrl, saveProjectArtifact, type ProjectArtifact } from "@/lib/projectArtifacts";
 import { createProjectWorkspaceBackup, readProjectWorkspaceBackup } from "@/lib/projectWorkspaceBackup";
 import { exportProjectWorkspaceExcel, exportProjectWorkspacePdf, exportProjectWorkspaceWord } from "@/lib/projectWorkspaceExports";
+import ProjectDocumentControl from "@/components/project/ProjectDocumentControl";
 
 type Role = "admin" | "engineer" | "viewer";
 const roleColor: Record<Role, string> = {
@@ -543,32 +544,11 @@ export default function ProjectDetailPage() {
             </TabsContent>
 
             <TabsContent value="documents" className="space-y-4">
-              {canEdit && (
-                <div>
-                  <input id="file" type="file" className="hidden" onChange={uploadDoc}
-                    accept=".pdf,.dwg,.dxf,image/*,.doc,.docx,.xls,.xlsx"/>
-                  <Button asChild disabled={uploading}>
-                    <label htmlFor="file" className="cursor-pointer">
-                      {uploading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Upload className="h-4 w-4"/>}
-                      Upload Document
-                    </label>
-                  </Button>
-                </div>
-              )}
+              {canEdit && <div><input id="file" type="file" className="hidden" onChange={uploadDoc} accept=".pdf,.dwg,.dxf,image/*,.doc,.docx,.xls,.xlsx"/><Button asChild disabled={uploading}><label htmlFor="file" className="cursor-pointer">{uploading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Upload className="h-4 w-4"/>}Upload Document</label></Button></div>}
               <div className="border rounded-lg divide-y">
-                {docs.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">No documents yet</p> :
-                  docs.map(d => (
-                    <div key={d.id} className="p-3 flex items-center gap-3">
-                      <FileText className="h-4 w-4 text-muted-foreground shrink-0"/>
-                      <button onClick={()=>downloadDoc(d)} className="flex-1 text-left min-w-0">
-                        <p className="text-sm font-medium truncate">{d.file_name}</p>
-                        <p className="text-xs text-muted-foreground">{new Date(d.created_at).toLocaleString()}</p>
-                      </button>
-                      {(isAdmin || (canEdit && d.uploaded_by === user?.id)) &&
-                        <Button size="icon" variant="ghost" onClick={()=>deleteDoc(d)}><Trash2 className="h-4 w-4"/></Button>}
-                    </div>
-                  ))}
+                {docs.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">No documents yet</p> : docs.map(d => <div key={d.id} className="p-3 flex items-center gap-3"><FileText className="h-4 w-4 text-muted-foreground shrink-0"/><button onClick={()=>downloadDoc(d)} className="flex-1 text-left min-w-0"><p className="text-sm font-medium truncate">{d.file_name}</p><p className="text-xs text-muted-foreground">{new Date(d.created_at).toLocaleString()}</p></button>{(isAdmin || (canEdit && d.uploaded_by === user?.id)) && <Button size="icon" variant="ghost" onClick={()=>deleteDoc(d)}><Trash2 className="h-4 w-4"/></Button>}</div>)}
               </div>
+              <ProjectDocumentControl projectId={id!} docs={docs} canEdit={canEdit} isAdmin={isAdmin} onRefresh={load} onDownload={downloadDoc}/>
             </TabsContent>
 
             <TabsContent value="team" className="space-y-4">
