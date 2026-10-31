@@ -67,7 +67,19 @@ export default function AffiliatePage() {
   const earned = Number(stats?.earned ?? 0);
   const inReview = Number(stats?.in_review ?? 0);
   const available = Number(stats?.available ?? 0);
-  const ratePct = Math.round(Number(stats?.rate ?? 0.1) * 100);
+  const conversionRate = total > 0 ? (converted / total) * 100 : 0;
+  const referralTrend = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date();
+    date.setDate(1);
+    date.setMonth(date.getMonth() - (5 - index));
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    return { key, label: date.toLocaleDateString(undefined, { month: "short" }), count: refs.filter((r) => String(r.created_at || "").slice(0, 7) === key).length };
+  });
+  const maxReferralCount = Math.max(1, ...referralTrend.map((item) => item.count));
+  const commissionStatusCounts = commissions.reduce<Record<string, number>>((acc, item) => {
+    acc[item.status] = (acc[item.status] || 0) + 1;
+    return acc;
+  }, {});
   const money = (n: number) => `৳${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
   const exportCsv = () => {
@@ -77,14 +89,14 @@ export default function AffiliatePage() {
       ...commissions.map((c) => ["Commission", c.created_at, c.status, String(c.commission_amount), `${Math.round(Number(c.rate) * 100)}% of ${c.base_amount}`]),
       ...withdrawals.map((w) => ["Withdrawal", w.requested_at || "", w.status || "", String(w.amount ?? ""), w.method || ""]),
     ];
-    const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\\r\\n");
-    const blob = new Blob(["\\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
+    const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = "civilos-affiliate-report.csv";
     link.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast.success("Affiliate report exported");
   };
 
@@ -129,7 +141,7 @@ export default function AffiliatePage() {
         <div className="container max-w-5xl space-y-6">
           <div>
             <h1 className="font-heading text-2xl md:text-3xl font-bold">Affiliate Program</h1>
-            <p className="text-sm text-muted-foreground">প্রথম eligible successful payment-এ একবার {ratePct}% commission। Minimum withdrawal: ৳500।</p>
+            <p className="text-sm text-muted-foreground">প্রথম eligible successful payment-এ ৩০% এবং পরবর্তী verified payment-গুলোতে ১০% commission। Minimum withdrawal: ৳500।</p>
           </div>
 
           {loading && <p className="text-sm text-muted-foreground">Loading your referral details…</p>}
