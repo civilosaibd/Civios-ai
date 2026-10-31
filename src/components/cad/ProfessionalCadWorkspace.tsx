@@ -13,6 +13,8 @@ import { snapPoint } from "@/lib/cad2d/snap";
 import { documentToDxf, documentToSvg } from "@/lib/cad2d/export";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand, Upload } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import CadSelectionInspector from "@/components/cad/CadSelectionInspector";
+
 import { useIsMobile } from "@/hooks/use-mobile";
 
 type DraftEntity = CadEntity & { id: string; layerId: string };
@@ -777,6 +779,17 @@ export default function ProfessionalCadWorkspace() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>Tool: {tool.toUpperCase()} · Objects: {doc.entities.length} · Selected: {selected.length} · Units: {doc.units}</span><span>Cursor: {cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"} · Wheel: zoom · Middle/right drag: pan</span></div>
       </div>
       <aside className="min-w-0 space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1">
+        <CadSelectionInspector
+          entities={doc.entities.filter((entity) => selected.includes(entity.id))}
+          layers={doc.layers}
+          units={doc.units}
+          onMoveToLayer={(layerId) => {
+            const selectedSet = new Set(selected);
+            commit({ ...doc, entities: doc.entities.map((entity) => selectedSet.has(entity.id) ? { ...entity, layerId } : entity) });
+            toast.success(`Moved ${selected.length} selected object(s) to the chosen layer.`);
+          }}
+        />
+        
         <div><h3 className="mb-2 flex items-center gap-2 text-sm font-semibold"><Layers3 className="h-4 w-4"/>Layers</h3><div className="space-y-1">{doc.layers.map((l)=><div key={l.id} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={l.visible} onChange={(e)=>commit({...doc,layers:doc.layers.map((x)=>x.id===l.id?{...x,visible:e.target.checked}:x)})}/><span className="h-3 w-3 rounded-sm border" style={{background:l.color}}/><button className="truncate text-left" onClick={()=>setLayerName(l.name)}>{l.name}</button><span className="ml-auto text-muted-foreground">{doc.entities.filter((e)=>e.layerId===l.id).length}</span></div>)}</div><div className="mt-2 grid grid-cols-2 gap-1.5"><Button size="sm" variant="outline" onClick={addLayer}>+ New layer</Button><Button size="sm" variant="outline" onClick={renameActiveLayer}>Rename</Button><Button size="sm" variant="outline" className="col-span-2" onClick={deleteActiveLayer} disabled={doc.layers.length <= 1 || doc.entities.some((entity) => entity.layerId === activeLayer.id)}>Delete empty active layer</Button></div></div>
         <div><label className="mb-1 block text-xs font-medium">Active layer</label><select className="w-full rounded-md border bg-background p-2 text-sm" value={layerName} onChange={(e)=>setLayerName(e.target.value)}>{doc.layers.map((l)=><option key={l.id}>{l.name}</option>)}</select></div><div><label className="mb-1 block text-xs font-medium">Drawing units</label><select aria-label="Drawing units" className="w-full rounded-md border bg-background p-2 text-sm" value={doc.units} onChange={(e)=>commit({...doc,units:e.target.value as CadDocument["units"]})}><option value="mm">Millimeters (mm)</option><option value="cm">Centimeters (cm)</option><option value="m">Meters (m)</option><option value="in">Inches (in)</option><option value="ft">Feet (ft)</option></select><p className="mt-1 text-[10px] text-muted-foreground">Changes the unit label/interpretation; existing coordinates are not converted.</p></div>
         <div><label className="mb-1 block text-xs font-medium">Grid spacing (visual)</label><Input aria-label="Visual grid spacing" type="number" min=".01" step=".25" value={grid.gridSpacing} onChange={(e)=>setGrid((g)=>({...g,gridSpacing:Math.max(.01,Number(e.target.value)||1)}))}/><label className="mb-1 mt-2 block text-xs font-medium">Snap spacing (drawing units)</label><Input aria-label="Snap spacing" type="number" min=".01" step=".25" value={grid.snapSpacing} onChange={(e)=>setGrid((g)=>({...g,snapSpacing:Math.max(.01,Number(e.target.value)||1)}))}/><label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={grid.snapEnabled} onChange={(e)=>setGrid((g)=>({...g,snapEnabled:e.target.checked}))}/> Snap to grid</label><label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={grid.ortho} onChange={(e)=>setGrid((g)=>({...g,ortho:e.target.checked}))}/> Ortho mode (horizontal/vertical lock)</label><p className="mt-1 text-[10px] text-muted-foreground">Visual grid and snap spacing can be adjusted independently.</p></div>
