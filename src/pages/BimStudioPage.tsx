@@ -99,6 +99,11 @@ export default function BimStudioPage() {
     setLoadedProjectId(null);
     setProjectArtifactId(undefined);
     setProjectLoadError(null);
+    setProjectInp(DEFAULT_INPUT);
+    setShown(Math.min(DEFAULT_INPUT.floors, 3));
+    setFin("white");
+    setFurniture(true);
+    setView("iso");
     if (!projectId) return;
     void listProjectArtifacts(projectId).then((items) => {
       if (cancelled) return;
