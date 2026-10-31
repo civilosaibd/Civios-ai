@@ -24,7 +24,7 @@ const defaults = {
   concreteVolume: "1", cRatio: "1", sRatio: "1.5", aRatio: "3",
   plasterArea: "100", plasterThickness: "12", plasterRatio: "4",
   barDiameter: "12", barLength: "12", barCount: "10", steelWaste: "5",
-  brickRate: "12", cementRate: "550", sandRate: "45", aggregateRate: "70", steelRate: "100", laborCost: "0", otherCost: "0",
+  brickRate: "0", cementRate: "0", sandRate: "0", aggregateRate: "0", steelRate: "0", laborCost: "0", otherCost: "0",
 };
 
 export default function CalculationCenterPage() {
