@@ -1,17 +1,17 @@
-# Phase 3 — Affiliate commission
+# Phase 3 — Affiliate commission (30% first, 10% recurring)
 
 **Order: apply the DB migration FIRST, then merge the frontend PR.**
 (The frontend calls `my_affiliate_stats` and `review_commission`, which only exist after the migration.)
 
 ## What it does
-- Every *verified* payment of a referred user pays the referrer `rate` x amount (default 10%),
-  computed inside `approve_payment` in the same transaction. The client never sends an amount.
-- Ledger table `referral_commissions` (one row per payment, `UNIQUE(payment_id)`): replay-safe.
+- First eligible verified payment per referred user earns 30%; each subsequent eligible verified payment earns 10%.
+  Both rates are configured in `app_settings` and calculated server-side inside the payment approval transaction.
+- Ledger table `referral_commissions` (one row per eligible verified payment, `UNIQUE(payment_id)`): replay-safe; the legacy one-row-per-referred-user index is removed.
 - Self-referral never earns (function check + `referrals_no_self_referral` CHECK).
 - Held as `flagged` until an admin approves/rejects in `/admin/affiliate`:
   referred user's payment uses the referrer's sender number, or a transaction ID reused on another payment.
 - Withdrawable balance = approved ledger rows − non-rejected withdrawals (same source for UI and `request_withdrawal`).
-- Rate is configuration: `app_settings` key `affiliate.commission_rate` (0.10).
+- Rates: `affiliate.first_payment_commission_rate` (0.30) and `affiliate.commission_rate` (0.10).
 - Client: `?ref=` captured on any page into `localStorage.civilos_referral_code`; `/register?ref=CODE` opens sign-up;
   sent with sign-up and cleared afterwards.
 
