@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calculator, Copy, Download, Info, RotateCcw, BrickWall, Ruler, HardHat, Wallet } from "lucide-react";
+import { Calculator, Copy, Download, Info, RotateCcw, BrickWall, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
