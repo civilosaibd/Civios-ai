@@ -91,11 +91,18 @@ test("subscriptions: user cannot self-grant a paid plan (INSERT)", async () => {
   await alice(() => db.query("INSERT INTO public.subscriptions (user_id,plan_id,status) VALUES ($1,$2,'active')", [ALICE, free]));
 });
 
-test("subscriptions: user cannot upgrade own plan (UPDATE)", async () => {
+test("subscriptions: client role has no UPDATE privilege", async () => {
   const [{ id: biz }] = await q("SELECT id FROM public.plans WHERE code='business'");
-  await alice(() => db.query("UPDATE public.subscriptions SET plan_id=$1, status='active' WHERE user_id=$2", [biz, ALICE]));
+  await alice(() => rejects(
+    () => db.query("UPDATE public.subscriptions SET plan_id=$1, status='active' WHERE user_id=$2", [biz, ALICE]),
+    /permission denied/
+  ));
   const [{ code }] = await q("SELECT p.code FROM public.subscriptions s JOIN public.plans p ON p.id=s.plan_id WHERE s.user_id=$1", [ALICE]);
   assert.equal(code, "free");
+  const [{ update_allowed }] = await q(
+    "SELECT has_table_privilege('authenticated', 'public.subscriptions', 'UPDATE') AS update_allowed"
+  );
+  assert.equal(update_allowed, false);
 });
 
 test("payments: client-supplied amount/status are overridden server-side", async () => {
