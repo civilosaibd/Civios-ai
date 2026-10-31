@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import { ChevronRight, Lock, Wrench, Sparkles, CreditCard } from "lucide-react";
+import { NavLink, useLocation, useSearchParams } from "react-router-dom";
+import { ChevronRight, Lock, Wrench, Sparkles, CreditCard, FolderKanban } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/auth";
 import { ACTIVE_PROJECT_STORAGE_KEY, ACTIVE_PROJECT_CHANGE_EVENT } from "@/lib/projectSelection";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/lib/subscription";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   topNav, bottomNav, constructionTools, learningNav, analyticsNav, settingsNav,
   findActiveCategory, type NavCategory,
@@ -63,12 +64,6 @@ function CategoryGroup({
   );
 }
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { FolderKanban } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth";
 
 type WorkspaceProject = { id: string; name: string; updated_at?: string };
 
