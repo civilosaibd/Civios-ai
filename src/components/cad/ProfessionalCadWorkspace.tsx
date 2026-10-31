@@ -126,10 +126,41 @@ export default function ProfessionalCadWorkspace() {
       return startAngle <= endAngle ? angle >= startAngle && angle <= endAngle : angle >= startAngle || angle <= endAngle;
     }
     if (e.type === "ellipse") { const t=Math.atan2((p.y-e.center.y)/Math.max(e.ry,.001),(p.x-e.center.x)/Math.max(e.rx,.001)); const q={x:e.center.x+e.rx*Math.cos(t),y:e.center.y+e.ry*Math.sin(t)}; return Math.hypot(p.x-q.x,p.y-q.y)<7/view.scale; }
-    if (e.type === "polyline") {
-      const segments = e.points.slice(1).map((point, index) => [e.points[index], point] as const);
-      if (e.closed && e.points.length > 2) segments.push([e.points[e.points.length - 1], e.points[0]]);
+    if (e.type === "polyline" || e.type === "polygon") {
+      const points = e.type === "polygon" ? polygonVertices(e) : e.points;
+      const segments = points.slice(1).map((point, index) => [points[index], point] as const);
+      if ((e.type === "polygon" || e.closed) && points.length > 2) segments.push([points[points.length - 1], points[0]]);
       return segments.some(([a, b]) => distanceToSegment(p, a, b) < 7 / view.scale);
+    }
+    if (e.type === "door" || e.type === "window") {
+      const half = e.width / 2;
+      const dx = Math.cos(e.rotation) * half;
+      const dy = Math.sin(e.rotation) * half;
+      const a = { x: e.at.x - dx, y: e.at.y - dy };
+      const b = { x: e.at.x + dx, y: e.at.y + dy };
+      if (distanceToSegment(p, a, b) < 8 / view.scale) return true;
+      // Door swing arc is included in hit testing so the whole symbol is selectable.
+      if (e.type === "door") {
+        const radius = Math.hypot(p.x - e.at.x, p.y - e.at.y);
+        return Math.abs(radius - e.width) < 8 / view.scale && radius <= e.width + 8 / view.scale;
+      }
+      return false;
+    }
+    if (e.type === "column") {
+      const bounds = entityBounds(e);
+      const tolerance = 7 / view.scale;
+      return p.x >= bounds.min.x - tolerance && p.x <= bounds.max.x + tolerance
+        && p.y >= bounds.min.y - tolerance && p.y <= bounds.max.y + tolerance;
+    }
+    if (e.type === "text") {
+      const bounds = entityBounds(e);
+      const tolerance = 7 / view.scale;
+      return p.x >= bounds.min.x - tolerance && p.x <= bounds.max.x + tolerance
+        && p.y >= bounds.min.y - tolerance && p.y <= bounds.max.y + tolerance;
+    }
+    if (e.type === "dimension") {
+      const tolerance = 8 / view.scale;
+      return distanceToSegment(p, e.a, e.b) < tolerance;
     }
     return false;
   })?.id;
