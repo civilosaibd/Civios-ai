@@ -35,6 +35,8 @@ export function useProjectArtifactAutosave(input: AutosaveInput): AutosaveResult
   const inFlight = useRef(false);
   const pendingSave = useRef(false);
   const artifactIdRef = useRef<string | null>(input.artifactId ?? null);
+  const scopeRef = useRef({ projectId: input.projectId, artifactId: input.artifactId ?? null });
+  const generationRef = useRef(0);
   const performSaveRef = useRef<() => Promise<ProjectArtifact | null>>(async () => null);
 
   const serializedData = useMemo(() => JSON.stringify(input.data ?? {}), [input.data]);
@@ -51,13 +53,15 @@ export function useProjectArtifactAutosave(input: AutosaveInput): AutosaveResult
     }
 
     inFlight.current = true;
+    const requestGeneration = generationRef.current;
+    const requestProjectId = input.projectId;
     setStatus("saving");
     setError(null);
 
     try {
       const saved = await saveProjectArtifact({
         id: artifactIdRef.current ?? undefined,
-        projectId: input.projectId,
+        projectId: requestProjectId,
         artifactType: input.artifactType,
         title: input.title,
         description: input.description,
@@ -67,12 +71,16 @@ export function useProjectArtifactAutosave(input: AutosaveInput): AutosaveResult
         fileName: input.fileName,
         mimeType: input.mimeType,
       });
+      // A save may finish after the editor has switched to another project or artifact.
+      // Never let that stale response overwrite the new editor's state or artifact ID.
+      if (requestGeneration !== generationRef.current) return null;
       artifactIdRef.current = saved.id;
       setArtifactId(saved.id);
       setLastSavedAt(new Date(saved.updated_at));
       setStatus("saved");
       return saved;
     } catch (cause) {
+      if (requestGeneration !== generationRef.current) return null;
       setStatus("error");
       setError(cause instanceof Error ? cause.message : "Could not save this project artifact.");
       return null;
@@ -88,6 +96,22 @@ export function useProjectArtifactAutosave(input: AutosaveInput): AutosaveResult
   };
 
   performSaveRef.current = performSave;
+
+  useEffect(() => {
+    const nextScope = { projectId: input.projectId, artifactId: input.artifactId ?? null };
+    if (
+      scopeRef.current.projectId !== nextScope.projectId ||
+      scopeRef.current.artifactId !== nextScope.artifactId
+    ) {
+      scopeRef.current = nextScope;
+      generationRef.current += 1;
+      artifactIdRef.current = nextScope.artifactId;
+      setArtifactId(nextScope.artifactId);
+      setLastSavedAt(null);
+      setError(null);
+      setStatus("idle");
+    }
+  }, [input.projectId, input.artifactId]);
 
   useEffect(() => {
     if (input.enabled === false || !input.projectId) {

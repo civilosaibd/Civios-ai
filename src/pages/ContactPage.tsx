@@ -33,29 +33,39 @@ const ContactPage = () => {
       toast.error(parsed.error.errors[0].message);
       return;
     }
+
     setSubmitting(true);
-    const { error } = await supabase.from("contact_messages").insert({
-      name: parsed.data.name,
-      email: parsed.data.email,
-      phone: parsed.data.phone || null,
-      subject: parsed.data.subject || null,
-      message: parsed.data.message,
-    });
-    setSubmitting(false);
+    try {
+      const { error } = await supabase.from("contact_messages").insert({
+        name: parsed.data.name,
+        email: parsed.data.email,
+        phone: parsed.data.phone || null,
+        subject: parsed.data.subject || null,
+        message: parsed.data.message,
+      });
 
-    if (error) {
-      toast.error(error.message);
-      return;
+      if (error) {
+        toast.error("We couldn't save your message. Please try again in a moment.");
+        return;
+      }
+
+      const waText = encodeURIComponent(
+        `🆕 New Contact Message\\n\\n👤 ${parsed.data.name}\\n✉️ ${parsed.data.email}${parsed.data.phone ? `\\n📱 ${parsed.data.phone}` : ""}${parsed.data.subject ? `\\n📌 ${parsed.data.subject}` : ""}\\n\\n💬 ${parsed.data.message}`
+      );
+      const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${waText}`;
+      const whatsappWindow = window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+
+      toast.success(
+        whatsappWindow
+          ? "Message saved. WhatsApp opened so you can send a copy."
+          : "Message saved successfully. You can also contact us on WhatsApp."
+      );
+      setForm({ name: "", email: "", phone: "", subject: "", message: "" });
+    } catch {
+      toast.error("Something went wrong while sending your message. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
-
-    // Forward the message to WhatsApp automatically
-    const waText = encodeURIComponent(
-      `🆕 New Contact Message\n\n👤 ${parsed.data.name}\n✉️ ${parsed.data.email}${parsed.data.phone ? `\n📱 ${parsed.data.phone}` : ""}${parsed.data.subject ? `\n📌 ${parsed.data.subject}` : ""}\n\n💬 ${parsed.data.message}`
-    );
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${waText}`, "_blank", "noopener,noreferrer");
-
-    toast.success("Message sent! Forwarding to WhatsApp…");
-    setForm({ name: "", email: "", phone: "", subject: "", message: "" });
   };
 
   return (
@@ -77,17 +87,18 @@ const ContactPage = () => {
 
           <form onSubmit={handleSubmit} className="bg-card rounded-xl shadow-card p-6 space-y-4 border border-border">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label>Name *</Label><Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-              <div className="space-y-1.5"><Label>Email *</Label><Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+              <div className="space-y-1.5"><Label htmlFor="contact-name">Name *</Label><Input id="contact-name" autoComplete="name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+              <div className="space-y-1.5"><Label htmlFor="contact-email">Email *</Label><Input id="contact-email" type="email" autoComplete="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+8801..." /></div>
-              <div className="space-y-1.5"><Label>Subject</Label><Input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} /></div>
+              <div className="space-y-1.5"><Label htmlFor="contact-phone">Phone</Label><Input id="contact-phone" type="tel" autoComplete="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+8801..." /></div>
+              <div className="space-y-1.5"><Label htmlFor="contact-subject">Subject</Label><Input id="contact-subject" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} /></div>
             </div>
             <div className="space-y-1.5">
-              <Label>Message *</Label>
-              <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm h-32" required maxLength={2000}
+              <Label htmlFor="contact-message">Message *</Label>
+              <textarea id="contact-message" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm h-32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" required maxLength={2000} aria-describedby="contact-message-count"
                 value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
+              <p id="contact-message-count" className="text-right text-xs text-muted-foreground">{form.message.length}/2000</p>
             </div>
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Sending…</> : <><Send className="h-4 w-4 mr-2" />Send & Forward to WhatsApp</>}
