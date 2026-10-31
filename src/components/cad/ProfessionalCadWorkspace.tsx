@@ -413,8 +413,11 @@ export default function ProfessionalCadWorkspace() {
     else if (tool==="door" || tool==="window") {
       const width=Math.hypot(b.x-a.x,b.y-a.y);
       if (width > 1e-8) {
-        const at={x:(a.x+b.x)/2,y:(a.y+b.y)/2}, rotation=Math.atan2(b.y-a.y,b.x-a.x);
-        entity=tool==="door" ? {...base,type:"door",at,width,rotation,swing:"left"} : {...base,type:"window",at,width,rotation};
+        const requestedAt={x:(a.x+b.x)/2,y:(a.y+b.y)/2}, requestedRotation=Math.atan2(b.y-a.y,b.x-a.x);
+        const fitted=fitOpeningToNearestWall(requestedAt,width,doc.entities,8/view.scale);
+        const at=fitted?.at ?? requestedAt, rotation=fitted?.rotation ?? requestedRotation, fittedWidth=fitted?.width ?? width;
+        entity=tool==="door" ? {...base,type:"door",at,width:fittedWidth,rotation,swing:"left"} : {...base,type:"window",at,width:fittedWidth,rotation};
+        if(fitted) toast.success(`${tool==="door"?"Door":"Window"} aligned to wall ${fitted.wallId}.${fittedWidth<width-1e-6?" Opening width adjusted to fit the wall.":""}`);
       }
     }
     else if (tool==="column") {
@@ -769,7 +772,8 @@ export default function ProfessionalCadWorkspace() {
     const layer=doc.layers.find((l)=>l.id===e.layerId); if(layer && !layer.visible)return null;
     const color=selected.includes(e.id)?"#f97316":layer?.color ?? "#111827";
     const common={stroke:color,strokeWidth:selected.includes(e.id)?2.5:1.6,fill:"none" as const,vectorEffect:"non-scaling-stroke" as const};
-    if(e.type==="line"||e.type==="wall")return <line key={e.id} x1={e.start.x} y1={e.start.y} x2={e.end.x} y2={e.end.y} {...common} strokeWidth={e.type==="wall"?Math.max(2,e.thickness):common.strokeWidth}/>;
+    if(e.type==="line")return <line key={e.id} x1={e.start.x} y1={e.start.y} x2={e.end.x} y2={e.end.y} {...common}/>;
+    if(e.type==="wall")return <g key={e.id}>{getWallVisibleSegments(e,doc.entities).map((segment,index)=><line key={index} x1={segment.start.x} y1={segment.start.y} x2={segment.end.x} y2={segment.end.y} {...common} strokeWidth={Math.max(2,e.thickness)}/>)}</g>;;
     if(e.type==="rectangle")return <rect key={e.id} x={e.min.x} y={e.min.y} width={e.max.x-e.min.x} height={e.max.y-e.min.y} {...common}/>;
     if(e.type==="circle")return <circle key={e.id} cx={e.center.x} cy={e.center.y} r={e.radius} {...common}/>;
     if(e.type==="ellipse")return <ellipse key={e.id} cx={e.center.x} cy={e.center.y} rx={e.rx} ry={e.ry} {...common}/>;
@@ -779,7 +783,16 @@ export default function ProfessionalCadWorkspace() {
     if(e.type==="door"||e.type==="window"){
       const dx=Math.cos(e.rotation)*e.width/2, dy=Math.sin(e.rotation)*e.width/2;
       const x1=e.at.x-dx, y1=e.at.y-dy, x2=e.at.x+dx, y2=e.at.y+dy;
-      return <g key={e.id}><line x1={x1} y1={y1} x2={x2} y2={y2} {...common}/>{e.type==="door" && <path d={`M ${x1} ${y1} A ${e.width} ${e.width} 0 0 ${e.swing==="left"?0:1} ${e.at.x+Math.cos(e.rotation+ (e.swing==="left"?1:-1)*Math.PI/2)*e.width/2} ${e.at.y+Math.sin(e.rotation+(e.swing==="left"?1:-1)*Math.PI/2)*e.width/2}`} {...common}/>}</g>;
+      const normalX=-Math.sin(e.rotation), normalY=Math.cos(e.rotation);
+      const jambLength=Math.max(0.08,e.width*0.06);
+      return <g key={e.id}>
+        {e.type==="door" ? <><line x1={x1} y1={y1} x2={x2} y2={y2} {...common}/><path d={`M ${x1} ${y1} A ${e.width} ${e.width} 0 0 ${e.swing==="left"?0:1} ${e.at.x+Math.cos(e.rotation+(e.swing==="left"?1:-1)*Math.PI/2)*e.width/2} ${e.at.y+Math.sin(e.rotation+(e.swing==="left"?1:-1)*Math.PI/2)*e.width/2}`} {...common}/></> : <>
+          <line x1={x1+normalX*jambLength/2} y1={y1+normalY*jambLength/2} x2={x2+normalX*jambLength/2} y2={y2+normalY*jambLength/2} {...common}/>
+          <line x1={x1-normalX*jambLength/2} y1={y1-normalY*jambLength/2} x2={x2-normalX*jambLength/2} y2={y2-normalY*jambLength/2} {...common}/>
+          <line x1={x1-normalX*jambLength} y1={y1-normalY*jambLength} x2={x1+normalX*jambLength} y2={y1+normalY*jambLength} {...common}/>
+          <line x1={x2-normalX*jambLength} y1={y2-normalY*jambLength} x2={x2+normalX*jambLength} y2={y2+normalY*jambLength} {...common}/>
+        </>}
+      </g>;
     }
     if(e.type==="column") return <rect key={e.id} x={e.at.x-e.width/2} y={e.at.y-e.depth/2} width={e.width} height={e.depth} {...common} fill={color} fillOpacity={0.25}/>;
     if(e.type==="text") return <text key={e.id} x={e.at.x} y={e.at.y} fontSize={e.height} fill={color}>{e.text}</text>;
