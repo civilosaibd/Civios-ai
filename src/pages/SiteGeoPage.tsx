@@ -37,7 +37,7 @@ export default function SiteGeoPage() {
   const planLayer = useRef<L.LayerGroup | null>(null);
   const [mode, setMode] = useState<Mode>("area");
   const [pts, setPts] = useCloudState<LatLng[]>("civilos.sitePts", []);
-  const [basemap, setBasemap] = useState<"street" | "satellite" | "terrain" | "hybrid">("street");\n  const [mapFullscreen, setMapFullscreen] = useState(false);\n  const [pointerCoords, setPointerCoords] = useState<LatLng | null>(null);\n  const [mapCenter, setMapCenter] = useState<LatLng>(DHAKA);\n  const [mapZoom, setMapZoom] = useState(17);\n  const [gpsTracking, setGpsTracking] = useState(false);\n  const [gpsPosition, setGpsPosition] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);\n  const gpsLayer = useRef<L.LayerGroup | null>(null);
+  const [basemap, setBasemap] = useState<"street" | "satellite" | "terrain" | "hybrid">("street");\n  const [mapFullscreen, setMapFullscreen] = useState(false);\n  const [pointerCoords, setPointerCoords] = useState<LatLng | null>(null);\n  const [mapCenter, setMapCenter] = useState<LatLng>(DHAKA);\n  const [mapZoom, setMapZoom] = useState(17);\n  const [gpsTracking, setGpsTracking] = useState(false);\n  const [gpsPosition, setGpsPosition] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);\n  const gpsLayer = useRef<L.LayerGroup | null>(null);\n  const gpsCentered = useRef(false);
   const [query, setQuery] = useState("");
   const tiles = useRef<{ street: L.TileLayer; sat: L.TileLayer; terrain: L.TileLayer; labels: L.TileLayer } | null>(null);
   const modeRef = useRef(mode); modeRef.current = mode;
@@ -49,7 +49,7 @@ export default function SiteGeoPage() {
     const m = L.map(mapEl.current, { zoomControl: true }).setView([DHAKA.lat, DHAKA.lng], 17);
     const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 20, maxNativeZoom: 19, attribution: "© OpenStreetMap contributors" });
     const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 20, maxNativeZoom: 19, attribution: "Tiles © Esri" });
-    const terrain = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { maxZoom: 17, maxNativeZoom: 17, attribution: "© OpenTopoMap (CC-BY-SA)" });
+    const terrain = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { maxZoom: 20, maxNativeZoom: 17, attribution: "© OpenTopoMap (CC-BY-SA)" });
     const labels = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png", { maxZoom: 20, attribution: "© CARTO" });
     street.addTo(m);
     tiles.current = { street, sat, terrain, labels };
@@ -108,7 +108,7 @@ export default function SiteGeoPage() {
       (position) => {
         const next = { lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy };
         setGpsPosition(next);
-        if (!gpsPosition) map.current?.setView([next.lat, next.lng], 18);
+        if (!gpsCentered.current) { map.current?.setView([next.lat, next.lng], 18); gpsCentered.current = true; }
       },
       () => {
         toast.error(T("Unable to access GPS. Check location permission.", "GPS ব্যবহার করা যাচ্ছে না। লোকেশন অনুমতি পরীক্ষা করুন।"));
@@ -165,7 +165,7 @@ export default function SiteGeoPage() {
       (p) => {
         const next = { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy };
         setGpsPosition(next);
-        map.current?.setView([next.lat, next.lng], 19);
+        map.current?.setView([next.lat, next.lng], 19);\n        gpsCentered.current = true;
       },
       () => toast.error(T("Location permission denied", "লোকেশনের অনুমতি দেওয়া হয়নি")),
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 },
