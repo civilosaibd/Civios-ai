@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/lib/auth";
-import { ACTIVE_PROJECT_STORAGE_KEY } from "@/lib/projectSelection";
+import { ACTIVE_PROJECT_STORAGE_KEY, ACTIVE_PROJECT_CHANGE_EVENT } from "@/lib/projectSelection";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/lib/subscription";
 import {
@@ -110,6 +110,7 @@ export function ProjectWorkspaceSelector({ collapsed = false }: { collapsed?: bo
     if (next) params.set("project", next);
     else params.delete("project");
     setSearchParams(params, { replace: true });
+    window.dispatchEvent(new CustomEvent(ACTIVE_PROJECT_CHANGE_EVENT, { detail: next || null }));
   };
 
   if (!user) return null;
