@@ -31,6 +31,7 @@ const Footer = () => {
               <Link to="/upload" className="block hover:text-accent transition-colors">{t("nav.upload")}</Link>
               <Link to="/estimate/demo" className="block hover:text-accent transition-colors">{t("nav.demo")}</Link>
               <Link to="/about" className="block hover:text-accent transition-colors">{t("nav.about")}</Link>
+              <Link to="/affiliate-program" className="block hover:text-accent transition-colors">Affiliate Program</Link>
             </div>
           </div>
           <div>

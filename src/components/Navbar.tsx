@@ -23,6 +23,7 @@ const Navbar = () => {
     { href: "/estimate/demo", label: t("nav.demo") },
     { href: "/about", label: t("nav.about") },
     { href: "/contact", label: t("nav.contact") },
+    { href: "/affiliate-program", label: "Affiliate" },
   ];
 
   const toggleLang = () => setLang(lang === "en" ? "bn" : "en");

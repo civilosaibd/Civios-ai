@@ -20,7 +20,7 @@ const DEFAULT_DESC =
 
 // Only genuine public marketing, company and legal pages should be indexed.
 // Workspace tools, account pages, private projects and user-generated shares are not SEO landing pages.
-const INDEXABLE_PATHS = new Set(["/", "/upload", "/estimate/demo", "/about", "/contact", "/privacy", "/terms", "/sponsor"]);
+const INDEXABLE_PATHS = new Set(["/", "/upload", "/estimate/demo", "/about", "/contact", "/privacy", "/terms", "/sponsor", "/affiliate-program"]);
 
 const SEO = ({ title, description, image, url, path, type = "website", noindex, jsonLd }: SEOProps) => {
   const fullTitle = title ? `${title} | ${BRAND}` : DEFAULT_TITLE;
