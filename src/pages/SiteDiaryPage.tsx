@@ -12,6 +12,8 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
+import { useActiveProjectId } from "@/lib/projectSelection";
+import { listProjectArtifacts, saveProjectArtifact } from "@/lib/projectArtifacts";
 
 interface SiteLog {
   id: string;
@@ -26,6 +28,10 @@ interface SiteLog {
 export default function SiteDiaryPage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const projectId = useActiveProjectId();
+  const [projectArtifactId, setProjectArtifactId] = useState<string | undefined>();
+  const [projectReady, setProjectReady] = useState(false);
+  const [projectError, setProjectError] = useState<string | null>(null);
   const [logs, setLogs] = useState<SiteLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -46,11 +52,37 @@ export default function SiteDiaryPage() {
     setLogs((data ?? []) as unknown as SiteLog[]);
     setLoading(false);
   };
-  useEffect(() => { if (user) load(); /* eslint-disable-next-line */ }, [user]);
+  useEffect(() => {
+    let cancelled = false;
+    setProjectReady(false); setProjectArtifactId(undefined); setProjectError(null); setLogs([]);
+    if (!projectId) { if (user) void load(); return () => { cancelled = true; }; }
+    setLoading(true);
+    void listProjectArtifacts(projectId).then((items) => {
+      if (cancelled) return;
+      const artifact = items.find((item) => item.artifact_type === "project-site-diary");
+      const savedLogs = Array.isArray(artifact?.data?.logs) ? artifact.data.logs as SiteLog[] : [];
+      setLogs(savedLogs.filter((log) => log && typeof log.id === "string" && typeof log.log_date === "string"));
+      setProjectArtifactId(artifact?.id); setProjectReady(true); setLoading(false);
+    }).catch((error) => {
+      if (!cancelled) { setProjectError(error instanceof Error ? error.message : "Could not load project diary."); setProjectReady(true); setLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, [projectId, user]);
 
   const save = async () => {
     if (!user) return;
     setSaving(true);
+    if (projectId) {
+      if (!projectReady || projectError) { setSaving(false); return toast.error(projectError || "Project diary is still loading."); }
+      try {
+        const nextLog: SiteLog = { id: crypto.randomUUID(), log_date: logDate, weather, activities, issues, manpower: manpower.filter(m => m.role && m.count > 0), materials: materials.filter(m => m.name && m.qty) };
+        const saved = await saveProjectArtifact({ id: projectArtifactId, projectId, artifactType: "project-site-diary", title: "Site Diary", description: "Project daily site logs, manpower, materials, activities and issues", data: { logs: [nextLog, ...logs].slice(0, 500) } });
+        setProjectArtifactId(saved.id); setLogs((old) => [nextLog, ...old].slice(0, 500));
+        setActivities(""); setIssues(""); toast.success("Project site log saved.");
+      } catch (error) { toast.error(error instanceof Error ? error.message : "Could not save project site log."); }
+      finally { setSaving(false); }
+      return;
+    }
     const { error } = await supabase.from("site_logs").insert({
       user_id: user.id,
       log_date: logDate,
@@ -66,6 +98,14 @@ export default function SiteDiaryPage() {
   };
 
   const del = async (id: string) => {
+    if (projectId) {
+      try {
+        const next = logs.filter((log) => log.id !== id);
+        const saved = await saveProjectArtifact({ id: projectArtifactId, projectId, artifactType: "project-site-diary", title: "Site Diary", description: "Project daily site logs, manpower, materials, activities and issues", data: { logs: next } });
+        setProjectArtifactId(saved.id); setLogs(next); toast.success("Site log deleted.");
+      } catch (error) { toast.error(error instanceof Error ? error.message : "Could not delete site log."); }
+      return;
+    }
     const { error } = await supabase.from("site_logs").delete().eq("id", id);
     if (error) toast.error(error.message); else load();
   };
@@ -82,7 +122,7 @@ export default function SiteDiaryPage() {
           </header>
           <main className="flex-1 p-4 md:p-6 max-w-6xl w-full mx-auto space-y-4">
             <Card className="p-4 space-y-3">
-              <h2 className="font-semibold">New entry</h2>
+              <h2 className="font-semibold">New entry</h2>{projectId && <p className="text-xs text-muted-foreground">{projectError ? `Project load failed: ${projectError}` : projectReady ? "Saving to active project workspace" : "Loading project diary…"}</p>}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div><label className="text-xs text-muted-foreground">Date</label><Input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)} /></div>
                 <div><label className="text-xs text-muted-foreground">Weather</label><Input value={weather} onChange={(e) => setWeather(e.target.value)} /></div>
@@ -115,7 +155,7 @@ export default function SiteDiaryPage() {
               <div><label className="text-xs text-muted-foreground">Activities</label><Textarea rows={3} value={activities} onChange={(e) => setActivities(e.target.value)} /></div>
               <div><label className="text-xs text-muted-foreground">Issues / delays</label><Textarea rows={2} value={issues} onChange={(e) => setIssues(e.target.value)} /></div>
 
-              <Button onClick={save} disabled={saving}>{saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving</> : "Save log"}</Button>
+              <Button onClick={save} disabled={saving || (!!projectId && !projectReady)}>{saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving</> : "Save log"}</Button>
             </Card>
 
             <Card className="p-4">
