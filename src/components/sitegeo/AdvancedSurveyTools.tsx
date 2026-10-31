@@ -129,7 +129,7 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
     if (!stations.length) return toast.error(T("Import survey data before creating a report", "রিপোর্ট তৈরির আগে সার্ভে ডেটা ইমপোর্ট করুন"));
     const rows=stations.map((p)=>"<tr><td>"+escapeHtml(p.id)+"</td><td>"+p.easting.toFixed(3)+"</td><td>"+p.northing.toFixed(3)+"</td><td>"+p.elevation.toFixed(3)+"</td><td>"+escapeHtml(p.code)+"</td></tr>").join("");
     const report="<html><head><title>CivilOS Survey Report</title><style>body{font:12px Arial;padding:28px;color:#172033}h1{font-size:22px}table{border-collapse:collapse;width:100%;margin-top:16px}th,td{border:1px solid #ccd3df;padding:6px;text-align:left}th{background:#edf2f7}.meta{display:flex;gap:24px;flex-wrap:wrap}.note{margin-top:18px;color:#526071;font-size:11px}@media print{button{display:none}}</style></head><body><h1>CivilOS AI — Survey Report</h1><p>Generated: "+new Date().toLocaleString()+"</p><div class='meta'><p>Survey points: "+stations.length+"</p><p>Boundary vertices: "+boundary.length+"</p><p>TIN triangles: "+tin.length+"</p><p>Design RL: "+earth.designRL.toFixed(3)+" m</p></div><h2>Survey point register</h2><table><thead><tr><th>Point</th><th>Easting (m)</th><th>Northing (m)</th><th>RL (m)</th><th>Code</th></tr></thead><tbody>"+rows+"</tbody></table><p class='note'>Coordinate reference system and units are taken from the supplied field data and are not independently verified. TIN/grid quantities are preliminary estimates; verify the surface, boundary and field observations before engineering or payment use.</p><button onclick='window.print()'>Print / Save as PDF</button><script>window.onload=()=>window.print()</script></body></html>";
-    const win=window.open("","_blank","noopener,noreferrer");
+    const win=window.open("","_blank");
     if(!win) return toast.error(T("Allow pop-ups to create the PDF report", "PDF রিপোর্টের জন্য পপ-আপ অনুমতি দিন"));
     win.document.write(report); win.document.close();
   };
@@ -171,7 +171,7 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
     const minE = Math.min(...stations.map((s) => s.easting)), maxE = Math.max(...stations.map((s) => s.easting));
     const minN = Math.min(...stations.map((s) => s.northing)), maxN = Math.max(...stations.map((s) => s.northing));
     if (maxE === minE || maxN === minN) return null;
-    const size = 22;
+    const size = gridResolution;
     const grid = Array.from({ length: size }, (_, row) => Array.from({ length: size }, (_, col) => {
       const x = minE + (maxE - minE) * col / (size - 1);
       const y = maxN - (maxN - minN) * row / (size - 1);
@@ -206,7 +206,7 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
       return segments;
     });
     return { grid, min, max, contours, size };
-  }, [stations]);
+  }, [stations, gridResolution]);
 
   const profile = useMemo(() => {
     if (stations.length < 2) return null;
