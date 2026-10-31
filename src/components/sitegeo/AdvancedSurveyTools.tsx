@@ -31,7 +31,7 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
   const [legs, setLegs] = useState<Leg[]>([{ id: 1, bearing: 45, distance: 100 }, { id: 2, bearing: 135, distance: 100 }, { id: 3, bearing: 225, distance: 100 }, { id: 4, bearing: 315, distance: 100 }]);
   const [stations, setStations] = useState<Station[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [ts, setTs] = useState({ azimuth: 45, slopeDistance: 50, verticalAngle: 5, instrumentRL: 10, prismHeight: 1.5 });
+  const [ts, setTs] = useState({ azimuth: 45, slopeDistance: 50, verticalAngle: 5, instrumentRL: 10, instrumentHeight: 1.5, prismHeight: 1.5 });
   const [earth, setEarth] = useState({ designRL: 10, cellArea: 25 });
 
   const traverse = useMemo(() => {
@@ -159,7 +159,7 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
 
   const horizontalDistance = ts.slopeDistance * Math.cos(ts.verticalAngle * Math.PI / 180);
   const verticalDifference = ts.slopeDistance * Math.sin(ts.verticalAngle * Math.PI / 180);
-  const pointRL = ts.instrumentRL + verticalDifference - ts.prismHeight;
+  const pointRL = ts.instrumentRL + ts.instrumentHeight + verticalDifference - ts.prismHeight;
 
   return <Card className="p-4 space-y-3">
     <div><p className="font-semibold text-sm">{T("Advanced land surveying", "অ্যাডভান্সড ল্যান্ড সার্ভেয়িং")}</p><p className="text-xs text-muted-foreground">{T("Traverse computation, theodolite observations, total-station CSV and elevation/earthwork analysis.", "ট্রাভার্স হিসাব, থিওডোলাইট পর্যবেক্ষণ, টোটাল স্টেশন CSV এবং উচ্চতা ও আর্থওয়ার্ক বিশ্লেষণ।")}</p></div>
@@ -192,9 +192,9 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
         <div className="max-h-40 overflow-auto text-xs"><table className="w-full"><thead><tr className="text-left border-b"><th className="py-1">#</th><th>Easting</th><th>Northing</th></tr></thead><tbody>{traverse.rows.map((r, i) => <tr key={r.id} className="border-b"><td className="py-1">{i + 1}</td><td>{numberText(r.easting)}</td><td>{numberText(r.northing)}</td></tr>)}</tbody></table></div>
       </TabsContent>
       <TabsContent value="theodolite" className="space-y-3">
-        <p className="text-xs text-muted-foreground">{T("Single-shot reduction using slope distance and vertical angle measured from the horizontal. Positive angle is an elevation angle.", "অনুভূমিক থেকে মাপা স্লোপ দূরত্ব ও উল্লম্ব কোণ দিয়ে একক শটের হিসাব। ধনাত্মক কোণ উপরের দিকে।")}</p>
+        <p className="text-xs text-muted-foreground">{T("Single-shot reduction using station RL, instrument height, slope distance, vertical angle and prism height. Positive angle is an elevation angle.", "স্টেশন RL, যন্ত্রের উচ্চতা, স্লোপ দূরত্ব, উল্লম্ব কোণ ও প্রিজম উচ্চতা দিয়ে একক শটের হিসাব। ধনাত্মক কোণ উপরের দিকে।")}</p>
         <div className="grid grid-cols-2 gap-2">
-          {([["azimuth","Horizontal circle / azimuth (°)"],["slopeDistance","Slope distance (m)"],["verticalAngle","Vertical angle (°)"],["instrumentRL","Instrument RL (m)"],["prismHeight","Prism height (m)"]] as const).map(([key,label]) => <div key={key}><Label className="text-xs">{T(label, label)}</Label><Input type="number" value={ts[key]} onChange={(e) => setTs({ ...ts, [key]: Number(e.target.value) })} /></div>)}
+          {([["azimuth","Horizontal circle / azimuth (°)"],["slopeDistance","Slope distance (m)"],["verticalAngle","Vertical angle (°)"],["instrumentRL","Station RL (m)"],["instrumentHeight","Instrument height / HI (m)"],["prismHeight","Prism height (m)"]] as const).map(([key,label]) => <div key={key}><Label className="text-xs">{T(label, label)}</Label><Input type="number" value={ts[key]} onChange={(e) => setTs({ ...ts, [key]: Number(e.target.value) })} /></div>)}
         </div>
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-md bg-muted p-2">{T("Horizontal distance", "অনুভূমিক দূরত্ব")}: <b>{numberText(horizontalDistance)} m</b></div>
