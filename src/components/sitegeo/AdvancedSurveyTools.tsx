@@ -82,6 +82,13 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
   const [earth, setEarth] = useState({ designRL: 10, cellArea: 25 });
 
   const [boundary, setBoundary] = useState<number[]>([]);
+  const [contourInterval, setContourInterval] = useState(0.5);
+  const [crsCode, setCrsCode] = useState("EPSG:32646");
+  const [coordinateUnit, setCoordinateUnit] = useState<"m" | "ft">("m");
+  const [selectedPointId, setSelectedPointId] = useState("");
+  const [breaklineStart, setBreaklineStart] = useState("");
+  const [breaklineEnd, setBreaklineEnd] = useState("");
+  const [breaklines, setBreaklines] = useState<Array<{ from: string; to: string }>>([]);
   const selectedPoint = stations.find((point) => point.id === selectedPointId) || null;
   const updateSurveyPoint = (id: string, key: "easting" | "northing" | "elevation" | "code", value: number | string) => {
     setStations((items) => items.map((point) => point.id === id ? { ...point, [key]: value } : point));
@@ -93,13 +100,6 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
   };
   const [draftView, setDraftView] = useState<"points" | "tin" | "contours">("points");
   const [gridResolution, setGridResolution] = useState(20);
-  const [contourInterval, setContourInterval] = useState(0.5);
-  const [crsCode, setCrsCode] = useState("EPSG:32646");
-  const [coordinateUnit, setCoordinateUnit] = useState<"m" | "ft">("m");
-  const [selectedPointId, setSelectedPointId] = useState("");
-  const [breaklineStart, setBreaklineStart] = useState("");
-  const [breaklineEnd, setBreaklineEnd] = useState("");
-  const [breaklines, setBreaklines] = useState<Array<{ from: string; to: string }>>([]);
   useEffect(() => { setBoundary([]); }, [stations]);
   const hull = useMemo(() => stations.length >= 3 ? convexHull(stations) : [], [stations]);
   const tin = useMemo(() => triangulate(stations), [stations]);
@@ -116,19 +116,6 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
     }
     return { cut, fill, net: fill-cut, area, triangles: tin.length };
   }, [tin, stations, earth.designRL]);
-  const gridStats = useMemo(() => {
-    if (!surface || stations.length < 3) return null;
-    const minE = Math.min(...stations.map((s)=>s.easting)), maxE = Math.max(...stations.map((s)=>s.easting));
-    const minN = Math.min(...stations.map((s)=>s.northing)), maxN = Math.max(...stations.map((s)=>s.northing));
-    const n = surface.size, cellArea = ((maxE-minE)*(maxN-minN))/((n-1)*(n-1));
-    let cut=0, fill=0;
-    for (let y=0;y<n-1;y++) for(let x=0;x<n-1;x++) {
-      const ground=(surface.grid[y][x]+surface.grid[y][x+1]+surface.grid[y+1][x]+surface.grid[y+1][x+1])/4;
-      const delta=ground-earth.designRL;
-      if(delta>0) cut+=delta*cellArea; else fill+=-delta*cellArea;
-    }
-    return {cut,fill,net:fill-cut,cellArea};
-  }, [surface,stations,earth.designRL]);
   const exportDxf = () => {
     if (!stations.length) return toast.error(T("Import survey points first", "প্রথমে সার্ভে পয়েন্ট ইমপোর্ট করুন"));
     const lines = ["0","SECTION","2","ENTITIES"];
@@ -244,6 +231,20 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
     });
     return { grid, min, max, contours, size };
   }, [stations, gridResolution, contourInterval]);
+
+  const gridStats = useMemo(() => {
+    if (!surface || stations.length < 3) return null;
+    const minE = Math.min(...stations.map((s)=>s.easting)), maxE = Math.max(...stations.map((s)=>s.easting));
+    const minN = Math.min(...stations.map((s)=>s.northing)), maxN = Math.max(...stations.map((s)=>s.northing));
+    const n = surface.size, cellArea = ((maxE-minE)*(maxN-minN))/((n-1)*(n-1));
+    let cut=0, fill=0;
+    for (let y=0;y<n-1;y++) for(let x=0;x<n-1;x++) {
+      const ground=(surface.grid[y][x]+surface.grid[y][x+1]+surface.grid[y+1][x]+surface.grid[y+1][x+1])/4;
+      const delta=ground-earth.designRL;
+      if(delta>0) cut+=delta*cellArea; else fill+=-delta*cellArea;
+    }
+    return {cut,fill,net:fill-cut,cellArea};
+  }, [surface,stations,earth.designRL]);
 
   const profile = useMemo(() => {
     if (stations.length < 2) return null;
@@ -410,6 +411,28 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="rounded bg-muted p-2">{T("Boundary vertices","বাউন্ডারি ভার্টেক্স")}: <b>{boundary.length}</b></div>
             <div className="rounded bg-muted p-2">TIN triangles: <b>{tin.length}</b>{stations.length>250?" · "+T("limited to 250 points","২৫০ পয়েন্ট পর্যন্ত"):""}</div>
+          </div>
+          <div className="space-y-3 rounded-md border p-3">
+            <p className="text-sm font-semibold">{T("Survey point editor", "সার্ভে পয়েন্ট এডিটর")}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div><Label className="text-xs">{T("Select point", "পয়েন্ট নির্বাচন")}</Label><select className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={selectedPointId} onChange={(e) => setSelectedPointId(e.target.value)}><option value="">{T("Choose point", "পয়েন্ট বাছাই")}</option>{stations.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}</select></div>
+              <div className="flex items-end"><Button size="sm" variant="outline" disabled={!selectedPoint} onClick={() => { if (!selectedPoint) return; setStations((items) => items.filter((p) => p.id !== selectedPoint.id)); setSelectedPointId(""); }}>{T("Delete point", "পয়েন্ট মুছুন")}</Button></div>
+            </div>
+            {selectedPoint && <div className="grid grid-cols-2 gap-2">
+              {(["easting","northing","elevation"] as const).map((key) => <div key={key}><Label className="text-xs">{key==="easting"?"Easting (X)":key==="northing"?"Northing (Y)":"Elevation (Z)"}</Label><Input type="number" value={selectedPoint[key]} onChange={(e) => updateSurveyPoint(selectedPoint.id,key,Number(e.target.value))}/></div>)}
+              <div><Label className="text-xs">{T("Point code", "পয়েন্ট কোড")}</Label><Input value={selectedPoint.code} onChange={(e) => updateSurveyPoint(selectedPoint.id,"code",e.target.value)}/></div>
+            </div>}
+            <p className="text-[11px] text-muted-foreground">{T("Changes update the drawing and calculations. Editing a point clears the generated boundary; regenerate it after coordinate edits.", "পরিবর্তনে ড্রয়িং ও হিসাব আপডেট হয়। পয়েন্ট এডিট করলে তৈরি করা বাউন্ডারি মুছে যায়; পরে আবার তৈরি করুন।")}</p>
+          </div>
+          <div className="space-y-3 rounded-md border p-3">
+            <p className="text-sm font-semibold">{T("Breakline editor", "ব্রেকলাইন এডিটর")}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div><Label className="text-xs">{T("Start point", "শুরুর পয়েন্ট")}</Label><select className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={breaklineStart} onChange={(e)=>setBreaklineStart(e.target.value)}><option value="">—</option>{stations.map((p)=><option key={p.id} value={p.id}>{p.id}</option>)}</select></div>
+              <div><Label className="text-xs">{T("End point", "শেষ পয়েন্ট")}</Label><select className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={breaklineEnd} onChange={(e)=>setBreaklineEnd(e.target.value)}><option value="">—</option>{stations.map((p)=><option key={p.id} value={p.id}>{p.id}</option>)}</select></div>
+            </div>
+            <Button size="sm" variant="outline" onClick={addBreakline} disabled={stations.length<2}>{T("Add breakline", "ব্রেকলাইন যোগ করুন")}</Button>
+            {breaklines.map((line,index)=><div key={line.from+"-"+line.to} className="flex items-center justify-between rounded bg-muted px-2 py-1 text-xs"><span>{line.from} → {line.to}</span><Button size="sm" variant="ghost" onClick={()=>setBreaklines((items)=>items.filter((_,i)=>i!==index))}>{T("Remove","সরান")}</Button></div>)}
+            <p className="text-[11px] text-muted-foreground">{T("Breaklines are visual 3D CAD constraints and export as CAD lines. They are not yet enforced in IDW/TIN interpolation or volume calculations.", "ব্রেকলাইন ভিজ্যুয়াল 3D CAD লাইন হিসেবে এক্সপোর্ট হয়; IDW/TIN ইন্টারপোলেশন বা ভলিউম হিসাবে এখনো প্রয়োগ হয় না।")}</p>
           </div>
           <div className="space-y-2">
             <p className="text-sm font-semibold">{T("Grid & TIN earthwork", "গ্রিড ও TIN আর্থওয়ার্ক")}</p>
