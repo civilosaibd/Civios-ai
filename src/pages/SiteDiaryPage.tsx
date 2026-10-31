@@ -155,7 +155,7 @@ export default function SiteDiaryPage() {
               <div><label className="text-xs text-muted-foreground">Activities</label><Textarea rows={3} value={activities} onChange={(e) => setActivities(e.target.value)} /></div>
               <div><label className="text-xs text-muted-foreground">Issues / delays</label><Textarea rows={2} value={issues} onChange={(e) => setIssues(e.target.value)} /></div>
 
-              <Button onClick={save} disabled={saving || (!!projectId && !projectReady)}>{saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving</> : "Save log"}</Button>
+              <Button onClick={save} disabled={saving || (!!projectId && (!projectReady || !!projectError))}>{saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving</> : "Save log"}</Button>
             </Card>
 
             <Card className="p-4">
