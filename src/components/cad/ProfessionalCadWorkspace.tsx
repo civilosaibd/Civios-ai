@@ -7,10 +7,15 @@ import {
   type CadToolId, type CadGridSettings,
 } from "@/lib/cad2d/professional-model";
 import {
-  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, type CadEntity, type CadDocument, type Point2D,
+  createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, scaleEntity, filletLines, chamferLines, polygonVertices, dimensionLength, deserializeCadDocument, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
+import { snapPoint } from "@/lib/cad2d/snap";
+import { documentToDxf, documentToSvg } from "@/lib/cad2d/export";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand, Upload } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import CadSelectionInspector from "@/components/cad/CadSelectionInspector";
+import CadRoomSchedule from "@/components/cad/CadRoomSchedule";
+
 import { useIsMobile } from "@/hooks/use-mobile";
 
 type DraftEntity = CadEntity & { id: string; layerId: string };
@@ -20,11 +25,11 @@ const palette: { id: CadToolId; label: string; group: string }[] = [
   { id: "line", label: "Line", group: "Draw" }, { id: "polyline", label: "Polyline", group: "Draw" },
   { id: "rectangle", label: "Rectangle", group: "Draw" }, { id: "circle", label: "Circle", group: "Draw" },
   { id: "arc", label: "Arc", group: "Draw" }, { id: "ellipse", label: "Ellipse", group: "Draw" },
-  { id: "polygon", label: "Polygon", group: "Draw" }, { id: "hatch", label: "Hatch", group: "Draw" },
+  { id: "polygon", label: "Polygon", group: "Draw" },
   { id: "move", label: "Move", group: "Modify" }, { id: "copy", label: "Copy", group: "Modify" }, { id: "erase", label: "Erase", group: "Modify" },
-  { id: "rotate", label: "Rotate", group: "Modify" }, { id: "mirror", label: "Mirror", group: "Modify" },
+  { id: "rotate", label: "Rotate", group: "Modify" }, { id: "mirror", label: "Mirror", group: "Modify" }, { id: "scale", label: "Scale", group: "Modify" },
   { id: "offset", label: "Offset", group: "Modify" }, { id: "trim", label: "Trim", group: "Modify" },
-  { id: "extend", label: "Extend", group: "Modify" }, { id: "fillet", label: "Fillet", group: "Modify" },
+  { id: "extend", label: "Extend", group: "Modify" }, { id: "fillet", label: "Fillet", group: "Modify" }, { id: "chamfer", label: "Chamfer", group: "Modify" },
   { id: "dimension", label: "Dimension", group: "Annotate" }, { id: "text", label: "Text", group: "Annotate" },
   { id: "wall", label: "Wall", group: "Architecture" }, { id: "door", label: "Door", group: "Architecture" },
   { id: "window", label: "Window", group: "Architecture" }, { id: "column", label: "Column", group: "Architecture" },
@@ -36,10 +41,10 @@ export default function ProfessionalCadWorkspace() {
   const [doc, setDoc] = useState<CadDocument>(() => {
     if (typeof window === "undefined") return createEmptyDocument("ft");
     try {
-      const saved = window.localStorage.getItem("civilos-cad-document-v1");
+      const saved = window.localStorage.getItem("civilos-cad-document-v2") ?? window.localStorage.getItem("civilos-cad-document-v1");
       if (!saved) return createEmptyDocument("ft");
-      const parsed = JSON.parse(saved) as CadDocument;
-      if (parsed?.version === 1 && Array.isArray(parsed.entities) && Array.isArray(parsed.layers) && parsed.layers.length > 0) return parsed;
+      const parsed = deserializeCadDocument(saved);
+      if (Array.isArray(parsed.entities) && Array.isArray(parsed.layers) && parsed.layers.length > 0) return parsed;
     } catch {
       // Ignore invalid or unavailable local storage and start with an empty drawing.
     }
@@ -47,6 +52,7 @@ export default function ProfessionalCadWorkspace() {
   });
   const [tool, setTool] = useState<CadToolId>("select");
   const [grid, setGrid] = useState<CadGridSettings>(DEFAULT_CAD_GRID);
+  const [wallThickness, setWallThickness] = useState(0.5);
   const [view, setView] = useState<View>({ x: 60, y: 50, scale: 1 });
   const [start, setStart] = useState<Point2D | null>(null);
   const [polylinePoints, setPolylinePoints] = useState<Point2D[]>([]);
@@ -69,7 +75,7 @@ export default function ProfessionalCadWorkspace() {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem("civilos-cad-document-v1", JSON.stringify(doc));
+      window.localStorage.setItem("civilos-cad-document-v2", JSON.stringify({ ...doc, version: 2 }));
     } catch {
       toast.error("Could not auto-save this drawing locally. Please export a JSON backup.");
     }
@@ -87,7 +93,9 @@ export default function ProfessionalCadWorkspace() {
     const canvasX = (event.clientX - rect.left) * (1000 / Math.max(rect.width, 1));
     const canvasY = (event.clientY - rect.top) * (640 / Math.max(rect.height, 1));
     let p = { x: (canvasX - view.x) / view.scale, y: (canvasY - view.y) / view.scale };
-    if (grid.snapEnabled) p = snapToGrid(p, grid.snapSpacing);
+    const objectSnap = snapPoint(p, doc.entities, ["endpoint", "midpoint", "intersection", "center", "perpendicular"], 8 / view.scale);
+    if (objectSnap) p = objectSnap.point;
+    else if (grid.snapEnabled) p = snapToGrid(p, grid.snapSpacing);
     // Ortho uses the previous polyline vertex, or the first point for other tools.
     const orthoAnchor = orthoAnchorOverride ?? (tool === "polyline" && polylinePoints.length
       ? polylinePoints[polylinePoints.length - 1]
@@ -120,10 +128,52 @@ export default function ProfessionalCadWorkspace() {
       return startAngle <= endAngle ? angle >= startAngle && angle <= endAngle : angle >= startAngle || angle <= endAngle;
     }
     if (e.type === "ellipse") { const t=Math.atan2((p.y-e.center.y)/Math.max(e.ry,.001),(p.x-e.center.x)/Math.max(e.rx,.001)); const q={x:e.center.x+e.rx*Math.cos(t),y:e.center.y+e.ry*Math.sin(t)}; return Math.hypot(p.x-q.x,p.y-q.y)<7/view.scale; }
-    if (e.type === "polyline") {
-      const segments = e.points.slice(1).map((point, index) => [e.points[index], point] as const);
-      if (e.closed && e.points.length > 2) segments.push([e.points[e.points.length - 1], e.points[0]]);
+    if (e.type === "polyline" || e.type === "polygon") {
+      const points = e.type === "polygon" ? polygonVertices(e) : e.points;
+      const segments = points.slice(1).map((point, index) => [points[index], point] as const);
+      if ((e.type === "polygon" || e.closed) && points.length > 2) segments.push([points[points.length - 1], points[0]]);
       return segments.some(([a, b]) => distanceToSegment(p, a, b) < 7 / view.scale);
+    }
+    if (e.type === "door" || e.type === "window") {
+      const half = e.width / 2;
+      const dx = Math.cos(e.rotation) * half;
+      const dy = Math.sin(e.rotation) * half;
+      const a = { x: e.at.x - dx, y: e.at.y - dy };
+      const b = { x: e.at.x + dx, y: e.at.y + dy };
+      if (distanceToSegment(p, a, b) < 8 / view.scale) return true;
+      // Match the visible quarter-circle swing arc, not an imaginary full circle.
+      if (e.type === "door") {
+        const radius = Math.hypot(p.x - e.at.x, p.y - e.at.y);
+        if (Math.abs(radius - e.width) >= 8 / view.scale) return false;
+        const normalize = (angle: number) => ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        const startAngle = normalize(e.rotation + Math.PI);
+        const endAngle = normalize(e.rotation + (e.swing === "left" ? 1 : -1) * Math.PI / 2);
+        const angle = normalize(Math.atan2(p.y - e.at.y, p.x - e.at.x));
+        const span = e.swing === "left"
+          ? normalize(startAngle - endAngle)
+          : normalize(endAngle - startAngle);
+        const progress = e.swing === "left"
+          ? normalize(startAngle - angle)
+          : normalize(angle - startAngle);
+        return progress <= span + 0.02;
+      }
+      return false;
+    }
+    if (e.type === "column") {
+      const bounds = entityBounds(e);
+      const tolerance = 7 / view.scale;
+      return p.x >= bounds.min.x - tolerance && p.x <= bounds.max.x + tolerance
+        && p.y >= bounds.min.y - tolerance && p.y <= bounds.max.y + tolerance;
+    }
+    if (e.type === "text") {
+      const bounds = entityBounds(e);
+      const tolerance = 7 / view.scale;
+      return p.x >= bounds.min.x - tolerance && p.x <= bounds.max.x + tolerance
+        && p.y >= bounds.min.y - tolerance && p.y <= bounds.max.y + tolerance;
+    }
+    if (e.type === "dimension") {
+      const tolerance = 8 / view.scale;
+      return distanceToSegment(p, e.a, e.b) < tolerance;
     }
     return false;
   })?.id;
@@ -219,6 +269,61 @@ export default function ProfessionalCadWorkspace() {
       }
       return;
     }
+    if (tool === "fillet" || tool === "chamfer") {
+      const id = findHit(p);
+      const entity = doc.entities.find((item) => item.id === id);
+      if (!modifyTargetId) {
+        if (!entity || entity.type !== "line") { toast.info("Click the first straight line."); return; }
+        setModifyTargetId(entity.id);
+        toast.info(tool === "fillet" ? "Click the second line to fillet." : "Click the second line to chamfer.");
+        return;
+      }
+      const first = doc.entities.find((item) => item.id === modifyTargetId);
+      if (!first || first.type !== "line" || !entity || entity.type !== "line" || entity.id === first.id) {
+        toast.info("Click a different straight line.");
+        return;
+      }
+      try {
+        if (tool === "fillet") {
+          const result = filletLines(first, entity, Math.max(grid.snapSpacing, 1));
+          const arc: CadEntity = { ...result.arc, id: makeId() };
+          commit({ ...doc, entities: doc.entities.map((item) => item.id === first.id ? result.first : item.id === entity.id ? result.second : item).concat(arc) });
+          toast.success("Fillet created.");
+        } else {
+          const result = chamferLines(first, entity, Math.max(grid.snapSpacing, 1));
+          const connector: CadEntity = { ...result.connector, id: makeId() };
+          commit({ ...doc, entities: doc.entities.map((item) => item.id === first.id ? result.first : item.id === entity.id ? result.second : item).concat(connector) });
+          toast.success("Chamfer created.");
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not edit these lines.");
+      }
+      setModifyTargetId(null);
+      return;
+    }
+    if (tool === "scale") {
+      const id = findHit(p);
+      if (!id) { toast.info("Click an object to scale about this point."); return; }
+      const factor = Number(window.prompt("Scale factor", "2"));
+      if (!Number.isFinite(factor) || factor <= 0) { toast.error("Scale factor must be a positive number."); return; }
+      const targets = selected.includes(id) ? selected : [id];
+      const targetSet = new Set(targets);
+      try {
+        commit({ ...doc, entities: doc.entities.map((entity) => targetSet.has(entity.id) ? scaleEntity(entity, factor, p) : entity) });
+        toast.success(`Scaled ${targets.length} object(s) by ${factor}.`);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not scale.");
+      }
+      return;
+    }
+    if (tool === "text") {
+      const value = window.prompt("Text", "Label");
+      if (!value?.trim()) return;
+      const entity: CadEntity = { id: makeId(), layerId: activeLayer.id, type: "text", at: p, text: value.trim(), height: Math.max(grid.snapSpacing, 1), rotation: 0 };
+      commit({ ...doc, entities: [...doc.entities, entity] });
+      toast.success("Text created.");
+      return;
+    }
     if (tool === "measure") {
       if (!start) {
         setStart(p);
@@ -298,16 +403,27 @@ export default function ProfessionalCadWorkspace() {
     if (tool==="line") entity={...base,type:"line",start:a,end:b};
     else if (tool==="rectangle" || tool==="wall") {
       const r=normalizeRect(a,b);
-      entity=tool==="wall" ? {...base,type:"wall",start:a,end:b,thickness:0.5} : {...base,type:"rectangle",...r};
+      entity=tool==="wall" ? {...base,type:"wall",start:a,end:b,thickness:wallThickness} : {...base,type:"rectangle",...r};
     } else if (tool==="circle") entity={...base,type:"circle",center:a,radius:Math.hypot(b.x-a.x,b.y-a.y)};
     else if (tool==="polyline") entity={...base,type:"polyline",points:[a,b],closed:false};
     else if (tool==="polygon") {
       const radius=Math.hypot(b.x-a.x,b.y-a.y);
-      if (radius > 0) {
-        const sides=6, angle=Math.atan2(b.y-a.y,b.x-a.x);
-        const points=Array.from({length:sides},(_,i)=>({x:a.x+radius*Math.cos(angle+i*2*Math.PI/sides),y:a.y+radius*Math.sin(angle+i*2*Math.PI/sides)}));
-        entity={...base,type:"polyline",points,closed:true};
+      if (radius > 0) entity={...base,type:"polygon",center:a,radius,sides:6,rotation:Math.atan2(b.y-a.y,b.x-a.x)};
+    }
+    else if (tool==="door" || tool==="window") {
+      const width=Math.hypot(b.x-a.x,b.y-a.y);
+      if (width > 1e-8) {
+        const at={x:(a.x+b.x)/2,y:(a.y+b.y)/2}, rotation=Math.atan2(b.y-a.y,b.x-a.x);
+        entity=tool==="door" ? {...base,type:"door",at,width,rotation,swing:"left"} : {...base,type:"window",at,width,rotation};
       }
+    }
+    else if (tool==="column") {
+      const r=normalizeRect(a,b);
+      const width=r.max.x-r.min.x, depth=r.max.y-r.min.y;
+      if (width>1e-8 && depth>1e-8) entity={...base,type:"column",at:{x:(r.min.x+r.max.x)/2,y:(r.min.y+r.max.y)/2},width,depth,rotation:0};
+    }
+    else if (tool==="dimension") {
+      if (Math.hypot(b.x-a.x,b.y-a.y) > 1e-8) entity={...base,type:"dimension",a,b,offset:Math.max(grid.snapSpacing,1)};
     }
     else if (tool==="arc") entity={...base,type:"arc",center:a,radius:Math.hypot(b.x-a.x,b.y-a.y),startAngle:0,endAngle:Math.PI*1.5};
     else if (tool==="ellipse") entity={...base,type:"ellipse",center:a,rx:Math.abs(b.x-a.x),ry:Math.abs(b.y-a.y)};
@@ -559,9 +675,9 @@ export default function ProfessionalCadWorkspace() {
       return { scale, x: canvasX - worldX * scale, y: canvasY - worldY * scale };
     });
   };
-  const exportFile = (kind:"json"|"svg") => {
-    const content=kind==="json" ? JSON.stringify(doc,null,2) : svgRef.current?.outerHTML ?? "";
-    const blob=new Blob([content],{type:kind==="json"?"application/json":"image/svg+xml"});
+  const exportFile = (kind:"json"|"svg"|"dxf") => {
+    const content=kind==="json" ? JSON.stringify({ ...doc, version: 2 },null,2) : kind==="dxf" ? documentToDxf(doc) : documentToSvg(doc);
+    const blob=new Blob([content],{type:kind==="json"?"application/json":kind==="dxf"?"application/dxf":"image/svg+xml"});
     const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`civilos-drawing.${kind}`;a.click();URL.revokeObjectURL(url);
   };
   const importJson = () => {
@@ -575,7 +691,7 @@ export default function ProfessionalCadWorkspace() {
         const parsed: unknown = JSON.parse(await file.text());
         if (!parsed || typeof parsed !== "object") throw new Error("The file is not a valid drawing document.");
         const candidate = parsed as Partial<CadDocument>;
-        if (candidate.version !== 1 || !Array.isArray(candidate.entities) || !Array.isArray(candidate.layers) || candidate.layers.length === 0) {
+        if ((candidate.version !== 1 && candidate.version !== 2) || !Array.isArray(candidate.entities) || !Array.isArray(candidate.layers) || candidate.layers.length === 0) {
           throw new Error("Unsupported drawing format. Choose a CivilOS AI JSON drawing backup.");
         }
         const validLayers = candidate.layers.every((layer) =>
@@ -604,6 +720,12 @@ export default function ProfessionalCadWorkspace() {
               Number.isFinite(entity.ry) && entity.ry > 0;
             case "arc": return isFinitePoint(entity.center) && Number.isFinite(entity.radius) && entity.radius > 0 &&
               Number.isFinite(entity.startAngle) && Number.isFinite(entity.endAngle);
+            case "polygon": return isFinitePoint(entity.center) && entity.radius > 0 && entity.sides >= 3;
+            case "door": return isFinitePoint(entity.at) && entity.width > 0 && (entity.swing === "left" || entity.swing === "right");
+            case "window": return isFinitePoint(entity.at) && entity.width > 0;
+            case "column": return isFinitePoint(entity.at) && entity.width > 0 && entity.depth > 0;
+            case "text": return isFinitePoint(entity.at) && typeof entity.text === "string" && entity.height > 0;
+            case "dimension": return isFinitePoint(entity.a) && isFinitePoint(entity.b);
             default: return false;
           }
         });
@@ -612,7 +734,7 @@ export default function ProfessionalCadWorkspace() {
         if (candidate.entities.some((entity) => !layerIds.has(entity.layerId))) {
           throw new Error("Some objects refer to layers that are missing from this file.");
         }
-        const imported = candidate as CadDocument;
+        const imported = { ...(candidate as CadDocument), version: 2 as const };
         commit(imported);
         setLayerName(imported.layers[0].name);
         setSelected([]);
@@ -653,6 +775,15 @@ export default function ProfessionalCadWorkspace() {
     if(e.type==="ellipse")return <ellipse key={e.id} cx={e.center.x} cy={e.center.y} rx={e.rx} ry={e.ry} {...common}/>;
     if(e.type==="polyline")return <polyline key={e.id} points={e.points.map((p)=>`${p.x},${p.y}`).join(" ")} {...common}/>;
     if(e.type==="arc")return <path key={e.id} d={`M ${e.center.x+e.radius*Math.cos(e.startAngle)} ${e.center.y+e.radius*Math.sin(e.startAngle)} A ${e.radius} ${e.radius} 0 1 1 ${e.center.x+e.radius*Math.cos(e.endAngle)} ${e.center.y+e.radius*Math.sin(e.endAngle)}`} {...common}/>;
+    if(e.type==="polygon"){ const pts=polygonVertices(e); return <polygon key={e.id} points={pts.map((pt)=>`${pt.x},${pt.y}`).join(" ")} {...common}/>; }
+    if(e.type==="door"||e.type==="window"){
+      const dx=Math.cos(e.rotation)*e.width/2, dy=Math.sin(e.rotation)*e.width/2;
+      const x1=e.at.x-dx, y1=e.at.y-dy, x2=e.at.x+dx, y2=e.at.y+dy;
+      return <g key={e.id}><line x1={x1} y1={y1} x2={x2} y2={y2} {...common}/>{e.type==="door" && <path d={`M ${x1} ${y1} A ${e.width} ${e.width} 0 0 ${e.swing==="left"?0:1} ${e.at.x+Math.cos(e.rotation+ (e.swing==="left"?1:-1)*Math.PI/2)*e.width/2} ${e.at.y+Math.sin(e.rotation+(e.swing==="left"?1:-1)*Math.PI/2)*e.width/2}`} {...common}/>}</g>;
+    }
+    if(e.type==="column") return <rect key={e.id} x={e.at.x-e.width/2} y={e.at.y-e.depth/2} width={e.width} height={e.depth} {...common} fill={color} fillOpacity={0.25}/>;
+    if(e.type==="text") return <text key={e.id} x={e.at.x} y={e.at.y} fontSize={e.height} fill={color}>{e.text}</text>;
+    if(e.type==="dimension") return <g key={e.id}><line x1={e.a.x} y1={e.a.y} x2={e.b.x} y2={e.b.y} {...common}/><text x={(e.a.x+e.b.x)/2} y={(e.a.y+e.b.y)/2 - e.offset} fontSize={Math.max(1, 8/view.scale)} fill={color}>{dimensionLength(e).toFixed(3)} {doc.units}</text></g>;
     return null;
   };
 
@@ -675,6 +806,7 @@ export default function ProfessionalCadWorkspace() {
         <Button size="icon" variant="outline" className="rounded-lg" onClick={()=>setView((v)=>({...v,scale:Math.max(.2,v.scale/1.25)}))} title="Zoom out"><ZoomOut className="h-4 w-4"/></Button>
         <Button size="sm" variant="outline" className="rounded-lg" onClick={importJson} title="Open a CivilOS AI JSON drawing backup"><Upload className="mr-1.5 h-4 w-4"/>Import JSON</Button>
         <Button size="sm" variant="outline" className="rounded-lg" onClick={()=>exportFile("svg")}><Download className="mr-1.5 h-4 w-4"/>Export SVG</Button>
+        <Button size="sm" variant="outline" className="rounded-lg" onClick={()=>exportFile("dxf")}><Download className="mr-1.5 h-4 w-4"/>Export DXF</Button>
         <Button size="sm" className="rounded-lg bg-orange-500 text-white hover:bg-orange-600" onClick={()=>exportFile("json")}><FileJson className="mr-1.5 h-4 w-4"/>Backup JSON</Button>
       </div>
     </div>
@@ -691,9 +823,21 @@ export default function ProfessionalCadWorkspace() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>Tool: {tool.toUpperCase()} · Objects: {doc.entities.length} · Selected: {selected.length} · Units: {doc.units}</span><span>Cursor: {cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"} · Wheel: zoom · Middle/right drag: pan</span></div>
       </div>
       <aside className="min-w-0 space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1">
+        <CadSelectionInspector
+          entities={doc.entities.filter((entity) => selected.includes(entity.id))}
+          layers={doc.layers}
+          units={doc.units}
+          onMoveToLayer={(layerId) => {
+            const selectedSet = new Set(selected);
+            commit({ ...doc, entities: doc.entities.map((entity) => selectedSet.has(entity.id) ? { ...entity, layerId } : entity) });
+            toast.success(`Moved ${selected.length} selected object(s) to the chosen layer.`);
+          }}
+        />
+        <CadRoomSchedule entities={doc.entities.filter((entity) => doc.layers.find((layer) => layer.id === entity.layerId)?.visible !== false)} units={doc.units} />
+        
         <div><h3 className="mb-2 flex items-center gap-2 text-sm font-semibold"><Layers3 className="h-4 w-4"/>Layers</h3><div className="space-y-1">{doc.layers.map((l)=><div key={l.id} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={l.visible} onChange={(e)=>commit({...doc,layers:doc.layers.map((x)=>x.id===l.id?{...x,visible:e.target.checked}:x)})}/><span className="h-3 w-3 rounded-sm border" style={{background:l.color}}/><button className="truncate text-left" onClick={()=>setLayerName(l.name)}>{l.name}</button><span className="ml-auto text-muted-foreground">{doc.entities.filter((e)=>e.layerId===l.id).length}</span></div>)}</div><div className="mt-2 grid grid-cols-2 gap-1.5"><Button size="sm" variant="outline" onClick={addLayer}>+ New layer</Button><Button size="sm" variant="outline" onClick={renameActiveLayer}>Rename</Button><Button size="sm" variant="outline" className="col-span-2" onClick={deleteActiveLayer} disabled={doc.layers.length <= 1 || doc.entities.some((entity) => entity.layerId === activeLayer.id)}>Delete empty active layer</Button></div></div>
         <div><label className="mb-1 block text-xs font-medium">Active layer</label><select className="w-full rounded-md border bg-background p-2 text-sm" value={layerName} onChange={(e)=>setLayerName(e.target.value)}>{doc.layers.map((l)=><option key={l.id}>{l.name}</option>)}</select></div><div><label className="mb-1 block text-xs font-medium">Drawing units</label><select aria-label="Drawing units" className="w-full rounded-md border bg-background p-2 text-sm" value={doc.units} onChange={(e)=>commit({...doc,units:e.target.value as CadDocument["units"]})}><option value="mm">Millimeters (mm)</option><option value="cm">Centimeters (cm)</option><option value="m">Meters (m)</option><option value="in">Inches (in)</option><option value="ft">Feet (ft)</option></select><p className="mt-1 text-[10px] text-muted-foreground">Changes the unit label/interpretation; existing coordinates are not converted.</p></div>
-        <div><label className="mb-1 block text-xs font-medium">Grid spacing (visual)</label><Input aria-label="Visual grid spacing" type="number" min=".01" step=".25" value={grid.gridSpacing} onChange={(e)=>setGrid((g)=>({...g,gridSpacing:Math.max(.01,Number(e.target.value)||1)}))}/><label className="mb-1 mt-2 block text-xs font-medium">Snap spacing (drawing units)</label><Input aria-label="Snap spacing" type="number" min=".01" step=".25" value={grid.snapSpacing} onChange={(e)=>setGrid((g)=>({...g,snapSpacing:Math.max(.01,Number(e.target.value)||1)}))}/><label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={grid.snapEnabled} onChange={(e)=>setGrid((g)=>({...g,snapEnabled:e.target.checked}))}/> Snap to grid</label><label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={grid.ortho} onChange={(e)=>setGrid((g)=>({...g,ortho:e.target.checked}))}/> Ortho mode (horizontal/vertical lock)</label><p className="mt-1 text-[10px] text-muted-foreground">Visual grid and snap spacing can be adjusted independently.</p></div>
+        <div><label className="mb-1 block text-xs font-medium">Wall thickness ({doc.units})</label><Input aria-label="Wall thickness" type="number" min="0.01" step="0.05" value={wallThickness} onChange={(e)=>setWallThickness(Math.max(0.01,Number(e.target.value)||0.01))}/><p className="mt-1 text-[10px] text-muted-foreground">Used for newly drawn walls. Existing wall thickness remains unchanged.</p></div><div><label className="mb-1 block text-xs font-medium">Grid spacing (visual)</label><Input aria-label="Visual grid spacing" type="number" min=".01" step=".25" value={grid.gridSpacing} onChange={(e)=>setGrid((g)=>({...g,gridSpacing:Math.max(.01,Number(e.target.value)||1)}))}/><label className="mb-1 mt-2 block text-xs font-medium">Snap spacing (drawing units)</label><Input aria-label="Snap spacing" type="number" min=".01" step=".25" value={grid.snapSpacing} onChange={(e)=>setGrid((g)=>({...g,snapSpacing:Math.max(.01,Number(e.target.value)||1)}))}/><label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={grid.snapEnabled} onChange={(e)=>setGrid((g)=>({...g,snapEnabled:e.target.checked}))}/> Snap to grid</label><label className="mt-2 flex items-center gap-2 text-xs"><input type="checkbox" checked={grid.ortho} onChange={(e)=>setGrid((g)=>({...g,ortho:e.target.checked}))}/> Ortho mode (horizontal/vertical lock)</label><p className="mt-1 text-[10px] text-muted-foreground">Visual grid and snap spacing can be adjusted independently.</p></div>
         <div><p className="mb-1 text-xs font-medium">Command line</p><form className="flex gap-1" onSubmit={(e)=>{e.preventDefault();runCommand();}}><Input value={command} onChange={(e)=>setCommand(e.target.value)} placeholder="LINE / RECTANG / CIRCLE"/><Button size="sm" type="submit">Run</Button></form><p className="mt-1 text-[10px] text-muted-foreground">Command aliases select the corresponding tool; geometry handlers are enabled for the initial draw tools.</p></div>
       </aside>
     </div>

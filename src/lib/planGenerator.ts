@@ -96,19 +96,53 @@ export function generatePlan(i: PlanInput): PlanResult {
   return { setbacks, buildW, buildD, footprint, plotArea, coverage, totalBuilt, far, rooms, checks, estCost: Math.round(totalBuilt * 3200) };
 }
 
-/** Parse "40x60 plot, south road, 3 bed 2 bath, 5 floors" (English or Bangla digits/words). */
+/** Parse common English and Bangla floor-plan briefs into the deterministic plan inputs. */
 export function parsePrompt(text: string, base: PlanInput = DEFAULT_INPUT): PlanInput {
-  const s = text.toLowerCase().replace(/[০-৯]/g, (d) => String("০১২৩৪৫৬৭৮৯".indexOf(d)));
-  const out = { ...base };
-  const dim = s.match(/(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)/);
-  if (dim) { out.plotWidth = +dim[1]; out.plotDepth = +dim[2]; }
-  const n = (re: RegExp) => { const m = s.match(re); return m ? +m[1] : undefined; };
-  out.bedrooms = n(/(\d+)\s*(?:bed|br|বেড|শয়ন)/) ?? out.bedrooms;
-  out.bathrooms = n(/(\d+)\s*(?:bath|toilet|wash|বাথ|টয়লেট)/) ?? out.bathrooms;
-  out.floors = n(/(\d+)\s*(?:floor|stor|storey|tola|তলা)/) ?? out.floors;
-  const dirs: [RoadSide, RegExp][] = [["north", /north|উত্তর/], ["south", /south|দক্ষিণ/], ["east", /east|পূর্ব/], ["west", /west|পশ্চিম/]];
-  for (const [d, re] of dirs) if (re.test(s)) { out.road = d; break; }
-  if (/no parking|পার্কিং ছাড়া/.test(s)) out.parking = false;
-  if (/no dining|ডাইনিং ছাড়া/.test(s)) out.dining = false;
-  return out;
+  const s = text.toLowerCase()
+    .replace(/[০-৯]/g, (d) => String("০১২৩৪৫৬৭৮৯".indexOf(d)))
+    .replace(/\s+/g, " ")
+    .trim();
+  const out: PlanInput = { ...base };
+  const dim = s.match(/(\d+(?:\.\d+)?)\s*(?:ft|feet|ফুট|m|meter|metre|মিটার)?\s*[x×*]\s*(\d+(?:\.\d+)?)/);
+  if (dim) {
+    out.plotWidth = Number(dim[1]);
+    out.plotDepth = Number(dim[2]);
+  }
+  const number = (patterns: RegExp[]) => {
+    for (const pattern of patterns) {
+      const match = s.match(pattern);
+      if (match) return Number(match[1]);
+    }
+    return undefined;
+  };
+  out.bedrooms = number([/(\d+)\s*(?:bedrooms?|beds?|br|বেডরুম|বেড|শয়নকক্ষ)/]) ?? out.bedrooms;
+  out.bathrooms = number([/(\d+)\s*(?:bathrooms?|baths?|toilets?|washrooms?|বাথরুম|বাথ|টয়লেট)/]) ?? out.bathrooms;
+  out.floors = number([/(\d+)\s*(?:floors?|stories|storeys|তলা|ফ্লোর)/]) ?? out.floors;
+
+  const dirs: [RoadSide, RegExp][] = [
+    ["north", /north|উত্তর/], ["south", /south|দক্ষিণ/],
+    ["east", /east|পূর্ব/], ["west", /west|পশ্চিম/],
+  ];
+  for (const [direction, pattern] of dirs) {
+    if (pattern.test(s)) { out.road = direction; break; }
+  }
+
+  const has = (patterns: RegExp[]) => patterns.some((pattern) => pattern.test(s));
+  if (has([/no\s+parking/, /without\s+parking/, /parking\s*না/, /পার্কিং\s*ছাড়া/])) out.parking = false;
+  else if (/with\s+parking|parking\s+সহ|পার্কিং\s+চাই/.test(s)) out.parking = true;
+  if (has([/no\s+dining/, /without\s+dining/, /ডাইনিং\s*ছাড়া/])) out.dining = false;
+  if (has([/no\s+drawing/, /without\s+drawing/, /ড্রয়িং\s*ছাড়া/])) out.drawing = false;
+  if (has([/no\s+kitchen/, /without\s+kitchen/, /রান্নাঘর\s*ছাড়া/])) out.kitchen = false;
+  if (has([/no\s+balcony/, /without\s+balcony/, /বারান্দা\s*ছাড়া/])) out.balcony = false;
+  if (has([/no\s+stair/, /without\s+stair/, /সিঁড়ি\s*ছাড়া/])) out.stair = false;
+
+  return {
+    ...out,
+    // Keep dimensions in the user's selected unit; the page converts metric values to feet.
+    plotWidth: dim && Number.isFinite(out.plotWidth) ? Math.max(1, Math.min(200, out.plotWidth)) : base.plotWidth,
+    plotDepth: dim && Number.isFinite(out.plotDepth) ? Math.max(1, Math.min(200, out.plotDepth)) : base.plotDepth,
+    floors: Number.isFinite(out.floors) ? Math.max(1, Math.min(20, Math.round(out.floors))) : base.floors,
+    bedrooms: Number.isFinite(out.bedrooms) ? Math.max(0, Math.min(8, Math.round(out.bedrooms))) : base.bedrooms,
+    bathrooms: Number.isFinite(out.bathrooms) ? Math.max(0, Math.min(8, Math.round(out.bathrooms))) : base.bathrooms,
+  };
 }

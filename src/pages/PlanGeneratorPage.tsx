@@ -70,13 +70,13 @@ export default function PlanGeneratorPage() {
 
   return (
     <SidebarProvider>
-      <SEO title="Create Your Own Plan — CivilOS AI" description="Generate a floor plan from plot size, road direction, rooms and floors with feasibility checks." />
+      <SEO title="Automatic Floor Plan Generator — CivilOS AI" description="Generate a conceptual floor plan from plot size, road direction, room requirements and floors." />
       <div className="flex min-h-screen w-full bg-background">
         <DashboardSidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 border-b flex items-center justify-between px-4 sticky top-0 bg-background/95 backdrop-blur z-10">
             <div className="flex items-center gap-2"><SidebarTrigger />
-              <h1 className="font-heading font-semibold flex items-center gap-2"><LayoutGrid className="h-4 w-4 text-accent" /> {L("Create Your Own Plan", "নিজের প্ল্যান তৈরি করুন")}</h1>
+              <h1 className="font-heading font-semibold flex items-center gap-2"><LayoutGrid className="h-4 w-4 text-accent" /> {L("Automatic Floor Plan Generator", "স্বয়ংক্রিয় ফ্লোর প্ল্যান জেনারেটর")}</h1>
             </div>
             <div className="flex items-center gap-2"><UnitsSwitch /><ThemeToggle /></div>
           </header>
@@ -93,7 +93,7 @@ export default function PlanGeneratorPage() {
                   const hasDims = parsePrompt(prompt, { ...inp, plotWidth: -1, plotDepth: -1 }).plotWidth !== -1;
                   if (hasDims && system === "metric") { parsed.plotWidth = roundTo(displayToFt(parsed.plotWidth, system), 4); parsed.plotDepth = roundTo(displayToFt(parsed.plotDepth, system), 4); }
                   setInp(parsed); toast.success(L("Plan updated", "প্ল্যান আপডেট হয়েছে")); }}>
-                  <Wand2 className="h-4 w-4 mr-1" /> {L("Generate from text", "লেখা থেকে তৈরি করুন")}
+                  <Wand2 className="h-4 w-4 mr-1" /> {L("Generate floor plan", "ফ্লোর প্ল্যান তৈরি করুন")}
                 </Button>
               </Card>
               <Card className="p-4 space-y-3">

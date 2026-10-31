@@ -52,6 +52,31 @@ export function generateEstimate(params: {
   rates?: RateOverrides;
 }): EstimateData {
   const { floors, wallThickness, quality, fileName, rates } = params;
+
+  // Reject invalid form/API values before calculations can produce NaN, Infinity,
+  // negative quantities, or a divide-by-zero cost-per-square-foot.
+  const positiveInputs: Array<[string, number]> = [
+    ["Plot length", params.plotLength],
+    ["Plot width", params.plotWidth],
+    ["Floor height", params.floorHeight],
+    ["Wall thickness", wallThickness],
+  ];
+  for (const [label, value] of positiveInputs) {
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error(`${label} must be a finite number greater than zero.`);
+    }
+  }
+  if (!Number.isInteger(floors) || floors < 1 || floors > 100) {
+    throw new Error("Floors must be a whole number between 1 and 100.");
+  }
+  if (!["feet", "meters"].includes(params.unit)) {
+    throw new Error("Unit must be either feet or meters.");
+  }
+  for (const [label, value] of Object.entries(rates ?? {})) {
+    if (value !== undefined && (!Number.isFinite(value) || value < 0)) {
+      throw new Error(`${label} rate must be a finite, non-negative number.`);
+    }
+  }
   // The whole estimator (areas in sft, rates per sft/cft) works in FEET. If the form was filled in metres, convert first —
   // otherwise 12 m would be priced as 12 ft (about 10x too small an area).
   const toFt = params.unit === "meters" ? 1 / 0.3048 : 1;

@@ -48,6 +48,8 @@ const AdminPage = () => {
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [userDetails, setUserDetails] = useState<any | null>(null);
   const [userDetailsLoading, setUserDetailsLoading] = useState(false);
+  const [auditEvents, setAuditEvents] = useState<any[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [search, setSearch] = useState("");
@@ -133,6 +135,19 @@ const AdminPage = () => {
     else { setAdminUsers((current) => [...current, ...(data?.users || [])]); setUsersPage(nextPage); setHasMoreUsers(!!data?.has_more); }
     setLoadingMoreUsers(false);
   };
+  const loadAccessAudit = async () => {
+    setAuditLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-user-data", { body: { action: "audit-list", limit: 100 } });
+      if (error) throw error;
+      setAuditEvents(data?.events || []);
+    } catch {
+      toast.error("Unable to load account inspection history.");
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
   const openUserDetails = async (account: any) => {
     setSelectedUser(account); setUserDetails(null); setUserDetailsLoading(true);
     const { data, error } = await supabase.functions.invoke("admin-user-data", { body: { action: "details", userId: account.id } });
@@ -149,7 +164,11 @@ const AdminPage = () => {
     }).eq("id", replyTo.id);
 
     // Open WhatsApp reply
-    const wa = encodeURIComponent(`Hi ${replyTo.name},\n\n${replyText}\n\n— AI Civil Engineering BD`);
+    const wa = encodeURIComponent(`Hi ${replyTo.name},
+
+${replyText}
+
+— AI Civil Engineering BD`);
     if (replyTo.phone) {
       const num = replyTo.phone.replace(/\D/g, "");
       window.open(`https://wa.me/${num}?text=${wa}`, "_blank", "noopener,noreferrer");
@@ -204,13 +223,14 @@ const AdminPage = () => {
             <StatCard icon={MessageSquare} label="Messages" value={messages.length} accent="bg-pink-500" />
           </div>
 
-          <Tabs defaultValue="messages">
+          <Tabs defaultValue="messages" onValueChange={(value) => { if (value === "audit") void loadAccessAudit(); }}>
             <TabsList className="flex-wrap h-auto bg-card shadow-sm">
               <TabsTrigger value="messages" className="gap-1"><MessageSquare className="h-4 w-4" />Messages{newMsgCount > 0 && <Badge className="ml-1 h-4 px-1.5 text-[10px] bg-red-500">{newMsgCount}</Badge>}</TabsTrigger>
               <TabsTrigger value="sponsors" className="gap-1"><Building className="h-4 w-4" />Sponsors{pendingSponsors > 0 && <Badge className="ml-1 h-4 px-1.5 text-[10px] bg-amber-500">{pendingSponsors}</Badge>}</TabsTrigger>
               <TabsTrigger value="ratings" className="gap-1"><Star className="h-4 w-4" />Ratings</TabsTrigger>
               <TabsTrigger value="users" className="gap-1"><Users className="h-4 w-4" />Users</TabsTrigger>
               <TabsTrigger value="projects" className="gap-1"><FolderKanban className="h-4 w-4" />Projects</TabsTrigger>
+              <TabsTrigger value="audit" className="gap-1"><ShieldCheck className="h-4 w-4" />Access Audit</TabsTrigger>
             </TabsList>
 
             {/* MESSAGES */}
@@ -335,6 +355,34 @@ const AdminPage = () => {
               {hasMoreUsers && <div className="flex justify-center pt-2"><Button variant="outline" onClick={loadMoreUsers} disabled={loadingMoreUsers}>{loadingMoreUsers && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Load more accounts</Button></div>}
             </TabsContent>
 
+            <TabsContent value="audit" className="space-y-3 mt-4">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <h2 className="font-semibold">Account inspection history</h2>
+                  <p className="text-xs text-muted-foreground">Latest 100 privileged account-detail views. This is not a login history.</p>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => void loadAccessAudit()} disabled={auditLoading}>
+                  {auditLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Refresh history
+                </Button>
+              </div>
+              {auditLoading && auditEvents.length === 0 ? (
+                <div className="py-10 flex justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>
+              ) : auditEvents.length === 0 ? (
+                <p className="text-center text-sm text-muted-foreground py-8">No account inspection events recorded yet.</p>
+              ) : auditEvents.map((event) => (
+                <div key={event.id} className="bg-card rounded-xl p-4 shadow-sm border flex items-start gap-3 flex-wrap">
+                  <ShieldCheck className="h-4 w-4 mt-0.5 text-emerald-600 shrink-0" />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-sm font-medium">{event.action.replaceAll("_", " ")}</p>
+                    <p className="text-xs text-muted-foreground break-all">Admin: {event.admin_email || event.admin_user_id}</p>
+                    <p className="text-xs text-muted-foreground break-all">Target: {event.target_email || event.target_user_id}</p>
+                    <p className="text-[11px] text-muted-foreground">{new Date(event.accessed_at).toLocaleString()} · Event {event.id}</p>
+                  </div>
+                  <Badge variant="outline">Audited</Badge>
+                </div>
+              ))}
+            </TabsContent>
+
             <TabsContent value="projects" className="space-y-2 mt-4">
               {projects.map((p) => (
                 <div key={p.id} className="bg-card rounded-xl p-4 shadow-sm border flex items-center justify-between gap-3">
@@ -365,7 +413,8 @@ const AdminPage = () => {
                 <p className="text-xs text-muted-foreground">Created: {userDetails.user?.created_at ? new Date(userDetails.user.created_at).toLocaleString() : "—"} · Last sign in: {userDetails.user?.last_sign_in_at ? new Date(userDetails.user.last_sign_in_at).toLocaleString() : "Never"}</p>
                 <p className="text-xs text-muted-foreground">Email verified: {userDetails.user?.email_confirmed_at ? "Yes" : "No"} · Providers: {(userDetails.user?.providers || []).join(", ") || "—"}</p>
               </div>
-              {!!userDetails.unavailable_tables?.length && <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200">Some data sources could not be loaded: {userDetails.unavailable_tables.join(", ")}. Empty results for these sources do not mean the user has no records.</div>}\n              {Object.entries(userDetails.records || {}).map(([table, rows]: [string, any]) => (
+              {!!userDetails.unavailable_tables?.length && <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200">Some data sources could not be loaded: {userDetails.unavailable_tables.join(", ")}. Empty results for these sources do not mean the user has no records.</div>}
+              {Object.entries(userDetails.records || {}).map(([table, rows]: [string, any]) => (
                 <section key={table} className="space-y-2">
                   <div className="flex items-center justify-between"><h3 className="font-semibold capitalize">{table.replaceAll("_", " ")}</h3><Badge variant="secondary">{rows.length} records</Badge></div>
                   {rows.length ? <pre className="text-[11px] leading-relaxed whitespace-pre-wrap break-all rounded-lg bg-muted/50 border p-3 max-h-48 overflow-auto">{JSON.stringify(rows, null, 2)}</pre> : <p className="text-xs text-muted-foreground">No records</p>}

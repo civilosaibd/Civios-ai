@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  createEmptyDocument, deserializeCadDocument, distance, entityBounds,
-  chamferLines, extendLineToBoundary, normalizeRect, offsetEntity, parseCadCommand, rotateEntity, serializeCadDocument, snapToGrid,
+  createEmptyDocument, deserializeCadDocument, dimensionLength, distance, entityBounds,
+  chamferLines, extendLineToBoundary, filletLines, normalizeRect, offsetEntity, parseCadCommand, polygonVertices, rotateEntity, scaleEntity, serializeCadDocument, snapToGrid,
   translateEntity, trimLineAtPoint, type CadEntity,
 } from "./geometry";
 
@@ -85,9 +85,44 @@ describe("2D CAD geometry foundation", () => {
     expect(() => chamferLines(first, second, 11)).toThrow(/shorter/);
   });
 
-  it("round-trips versioned documents", () => {
+  it("round-trips versioned documents and migrates version 1", () => {
     const doc = createEmptyDocument("mm");
+    expect(doc.version).toBe(2);
     expect(deserializeCadDocument(serializeCadDocument(doc))).toEqual(doc);
+    const legacy = JSON.stringify({ ...doc, version: 1 });
+    expect(deserializeCadDocument(legacy).version).toBe(2);
     expect(() => deserializeCadDocument("{}")).toThrow(/invalid CAD document format/i);
+  });
+
+  it("builds a square polygon on the cardinal axes", () => {
+    const entity: CadEntity = { id: "p", layerId: "layer-0", type: "polygon", center: { x: 0, y: 0 }, radius: 1, sides: 4, rotation: 0 };
+    const vertices = polygonVertices(entity);
+    expect(vertices[0].x).toBeCloseTo(1);
+    expect(vertices[0].y).toBeCloseTo(0);
+    expect(vertices[1].x).toBeCloseTo(0);
+    expect(vertices[1].y).toBeCloseTo(1);
+  });
+
+  it("scales a line about the origin without mutating it", () => {
+    const line: CadEntity = { id: "s1", layerId: "layer-0", type: "line", start: { x: 1, y: 0 }, end: { x: 2, y: 0 } };
+    expect(scaleEntity(line, 2)).toMatchObject({ start: { x: 2, y: 0 }, end: { x: 4, y: 0 } });
+    expect(line.end).toEqual({ x: 2, y: 0 });
+    expect(() => scaleEntity(line, 0)).toThrow(/positive/);
+  });
+
+  it("fillets a right-angle corner and shortens both lines by the radius", () => {
+    const first = { id: "f1", layerId: "layer-0", type: "line" as const, start: { x: 0, y: 0 }, end: { x: 10, y: 0 } };
+    const second = { id: "f2", layerId: "layer-0", type: "line" as const, start: { x: 10, y: 0 }, end: { x: 10, y: 10 } };
+    const result = filletLines(first, second, 1);
+    expect(result.first.end).toEqual({ x: 9, y: 0 });
+    expect(result.second.start.x).toBeCloseTo(10);
+    expect(result.second.start.y).toBeCloseTo(1);
+    expect(result.arc.radius).toBe(1);
+    expect(first.end).toEqual({ x: 10, y: 0 });
+  });
+
+  it("reports dimension length from geometry, not stored text", () => {
+    const dim: CadEntity = { id: "d", layerId: "layer-0", type: "dimension", a: { x: 0, y: 0 }, b: { x: 3, y: 4 }, offset: 1 };
+    expect(dimensionLength(dim)).toBe(5);
   });
 });

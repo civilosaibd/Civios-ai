@@ -43,13 +43,20 @@ export const constructionTools: NavCategory[] = [
     ],
   },
   {
+    label: "Floor Plan & Design",
+    icon: Building2,
+    items: [
+      { title: "Floor Plan & 3D Design Studio", url: "/floor-plan-studio", icon: Box },
+      { title: "Create Your Own Plan", url: "/plan-generator", icon: Building2 },
+      { title: "BIM Studio 3D", url: "/bim-studio", icon: Box },
+      { title: "3D Construction Visualization", url: "/visualizations", icon: Box },
+    ],
+  },
+  {
     label: "Estimation & Quantity",
     icon: Calculator,
     items: [
       { title: "Building Estimate", url: "/upload", icon: Upload },
-      { title: "Create Your Own Plan", url: "/plan-generator", icon: Building2 },
-      { title: "BIM Studio 3D", url: "/bim-studio", icon: Building2 },
-      { title: "3D Construction Viz", url: "/visualizations", icon: Box },
       { title: "BOQ Hub", url: "/boq-hub", icon: Calculator },
       { title: "BOQ Generator (Lite)", url: "/boq", icon: Calculator },
       { title: "Rate Analysis", url: "/rate-analysis", icon: ClipboardList },
