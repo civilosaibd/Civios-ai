@@ -361,7 +361,7 @@ export default function ProjectDetailPage() {
     toast.success("Member removed"); load();
   };
 
-  const updateMemberRole = async (memberId: string, nextRole: "viewer" | "engineer") => {
+  const updateMemberRole = async (memberId: string, nextRole: Role) => {
     if (!isAdmin) return;
     const { error } = await (supabase as any).from("project_members").update({ role: nextRole }).eq("id", memberId).eq("project_id", id);
     if (error) {
@@ -564,7 +564,7 @@ export default function ProjectDetailPage() {
                         <p className="text-sm font-medium truncate">{d.file_name}</p>
                         <p className="text-xs text-muted-foreground">{new Date(d.created_at).toLocaleString()}</p>
                       </button>
-                      {(isAdmin || d.uploaded_by === user?.id) &&
+                      {(isAdmin || (canEdit && d.uploaded_by === user?.id)) &&
                         <Button size="icon" variant="ghost" onClick={()=>deleteDoc(d)}><Trash2 className="h-4 w-4"/></Button>}
                     </div>
                   ))}
@@ -602,9 +602,10 @@ export default function ProjectDetailPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {isAdmin ? (
-                          <Select value={m.role} onValueChange={(value: "viewer" | "engineer") => updateMemberRole(m.id, value)}>
+                          <Select value={m.role} onValueChange={(value: Role) => updateMemberRole(m.id, value)}>
                             <SelectTrigger className="w-32 h-8"><SelectValue /></SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="admin">Admin · Manage project</SelectItem>
                               <SelectItem value="viewer">Viewer · Read only</SelectItem>
                               <SelectItem value="engineer">Engineer · Can edit</SelectItem>
                             </SelectContent>
