@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Loader2, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
+import { MapPin, Loader2 } from "lucide-react";
 import {
   DISTRICTS,
   getTodayRates,
-  getYesterdayRates,
   detectDistrict,
   type DistrictRates,
 } from "@/lib/marketRates";
@@ -27,13 +26,10 @@ const ROWS: { key: keyof DistrictRates; label: string; bn: string; unit: string 
 
 const DistrictRates = ({ district, onChange }: Props) => {
   const [detecting, setDetecting] = useState(false);
-  const [tick, setTick] = useState(0); // bump to refresh
+  const today = useMemo(() => getTodayRates(district), [district]);
 
-  const today = useMemo(() => getTodayRates(district), [district, tick]);
-  const yest = useMemo(() => getYesterdayRates(district), [district, tick]);
-
-  // Push rates upward whenever district changes
-  useEffect(() => { onChange(district, today); /* eslint-disable-next-line */ }, [district, tick]);
+  // Push indicative reference rates upward whenever the district changes.
+  useEffect(() => { onChange(district, today); /* eslint-disable-next-line */ }, [district]);
 
   const handleDetect = async () => {
     setDetecting(true);
@@ -64,13 +60,10 @@ const DistrictRates = ({ district, onChange }: Props) => {
             District Market Rates · জেলা-ভিত্তিক বাজার দর
           </h3>
           <p className="text-xs text-muted-foreground mt-1">
-            Live daily rates · প্রতিদিন স্বয়ংক্রিয় আপডেট হয় ও এস্টিমেট পুনঃহিসাব হয়।
+            Indicative reference rates · এগুলো লাইভ বাজারদর নয়; কেনার আগে স্থানীয় সরবরাহকারীর কাছ থেকে দর যাচাই করুন।
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => setTick((t) => t + 1)}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh
-          </Button>
           <Button type="button" variant="default" size="sm" onClick={handleDetect} disabled={detecting}>
             {detecting ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <MapPin className="h-3.5 w-3.5 mr-1" />}
             Auto-detect
@@ -90,18 +83,13 @@ const DistrictRates = ({ district, onChange }: Props) => {
           ))}
         </select>
         <span className="text-xs text-muted-foreground">
-          Updated: {new Date().toLocaleDateString("en-GB")}
+          Reference prices · supplier quotation দিয়ে যাচাই করুন
         </span>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {ROWS.map((row) => {
           const t = today[row.key];
-          const y = yest[row.key];
-          const diff = t - y;
-          const pct = y ? (diff / y) * 100 : 0;
-          const up = diff > 0;
-          const flat = diff === 0;
           return (
             <motion.div
               key={row.key}
@@ -113,12 +101,7 @@ const DistrictRates = ({ district, onChange }: Props) => {
                 <div className="font-heading text-lg font-bold">
                   ৳{t.toLocaleString()}<span className="text-xs font-normal text-muted-foreground">{row.unit}</span>
                 </div>
-                {!flat && (
-                  <span className={`text-[11px] font-medium flex items-center gap-0.5 ${up ? "text-red-500" : "text-emerald-500"}`}>
-                    {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                    {Math.abs(pct).toFixed(1)}%
-                  </span>
-                )}
+
               </div>
             </motion.div>
           );

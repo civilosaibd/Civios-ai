@@ -43,6 +43,15 @@ export const constructionTools: NavCategory[] = [
     ],
   },
   {
+    label: "Floor Plan & Design",
+    icon: Building2,
+    items: [
+      { title: "Floor Plan & 3D Design Studio", url: "/floor-plan-studio", icon: Box },
+      { title: "Create Your Own Plan", url: "/plan-generator", icon: Building2 },
+      { title: "BIM Studio 3D", url: "/bim-studio", icon: Box },
+    ],
+  },
+  {
     label: "Estimation & Quantity",
     icon: Calculator,
     items: [
