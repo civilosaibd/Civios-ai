@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calculator, RotateCcw, Download, Info, Save, Loader2 } from "lucide-react";
 import { saveProjectArtifact } from "@/lib/projectArtifacts";
+import { getActiveProjectId } from "@/lib/projectSelection";
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -40,7 +41,7 @@ export default function MaterialCalculatorPage() {
   const [barCount, setBarCount] = useState("10");
   const [waste, setWaste] = useState("5");
   const [savingToProject, setSavingToProject] = useState(false);
-  const projectId = new URLSearchParams(window.location.search).get("project");
+  const projectId = getActiveProjectId();
 
   const concrete = useMemo(() => {
     const wet = Math.max(0, number(volume));
