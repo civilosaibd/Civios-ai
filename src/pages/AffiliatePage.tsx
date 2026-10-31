@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { Copy, MessageCircle, Wallet, TrendingUp, Users, Share2 } from "lucide-react";
+import { Copy, MessageCircle, Wallet, TrendingUp, Users, Share2, Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { referralLink as buildReferralLink } from "@/lib/referral";
 
@@ -70,6 +70,24 @@ export default function AffiliatePage() {
   const ratePct = Math.round(Number(stats?.rate ?? 0.1) * 100);
   const money = (n: number) => `৳${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
+  const exportCsv = () => {
+    const rows = [
+      ["Record Type", "Date", "Status", "Amount", "Details"],
+      ...refs.map((r) => ["Referral", r.created_at || "", r.status || "", String(r.commission_amount ?? ""), r.plan || ""]),
+      ...commissions.map((c) => ["Commission", c.created_at, c.status, String(c.commission_amount), `${Math.round(Number(c.rate) * 100)}% of ${c.base_amount}`]),
+      ...withdrawals.map((w) => ["Withdrawal", w.requested_at || "", w.status || "", String(w.amount ?? ""), w.method || ""]),
+    ];
+    const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\\r\\n");
+    const blob = new Blob(["\\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "civilos-affiliate-report.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Affiliate report exported");
+  };
+
   const copy = async () => {
     if (!referralLink) return toast.error("Your referral link is not available yet.");
     try {
@@ -111,18 +129,56 @@ export default function AffiliatePage() {
         <div className="container max-w-5xl space-y-6">
           <div>
             <h1 className="font-heading text-2xl md:text-3xl font-bold">Affiliate Program</h1>
-            <p className="text-sm text-muted-foreground">Referred user-এর প্রতিটি verified payment-এ {ratePct}% commission (সার্ভার হিসাব করে)। Minimum withdrawal: ৳500।</p>
+            <p className="text-sm text-muted-foreground">প্রথম eligible successful payment-এ একবার {ratePct}% commission। Minimum withdrawal: ৳500।</p>
           </div>
 
           {loading && <p className="text-sm text-muted-foreground">Loading your referral details…</p>}
           {loadError && <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{loadError}</div>}
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="flex flex-wrap justify-end gap-2"><Button size="sm" variant="outline" onClick={exportCsv} disabled={loading}><Download className="h-4 w-4 mr-2"/>Export CSV</Button><Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className="h-4 w-4 mr-2"/>Refresh</Button></div>\n\n          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card><CardContent className="pt-6"><Users className="h-5 w-5 text-accent mb-2"/><p className="text-xs text-muted-foreground">Total Referrals</p><p className="text-2xl font-bold">{total}</p></CardContent></Card>
             <Card><CardContent className="pt-6"><TrendingUp className="h-5 w-5 text-green-500 mb-2"/><p className="text-xs text-muted-foreground">Conversions</p><p className="text-2xl font-bold">{converted}</p></CardContent></Card>
             <Card><CardContent className="pt-6"><Wallet className="h-5 w-5 text-accent mb-2"/><p className="text-xs text-muted-foreground">Total Earned</p><p className="text-2xl font-bold">{money(earned)}</p>{inReview > 0 && <p className="text-xs text-muted-foreground mt-1">{money(inReview)} under review</p>}</CardContent></Card>
             <Card><CardContent className="pt-6"><Wallet className="h-5 w-5 text-orange-500 mb-2"/><p className="text-xs text-muted-foreground">Available</p><p className="text-2xl font-bold">{money(available)}</p></CardContent></Card>
           </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card className="lg:col-span-2">
+              <CardHeader><CardTitle>Referral Growth</CardTitle><p className="text-xs text-muted-foreground">Monthly referral sign-ups · last 6 months · all loaded referral records</p></CardHeader>
+              <CardContent>
+                <div className="flex h-36 items-end gap-3 border-b pb-2">
+                  {referralTrend.map((item) => (
+                    <div key={item.key} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
+                      <span className="text-xs font-medium tabular-nums">{item.count}</span>
+                      <div className="w-full max-w-12 rounded-t-md bg-primary/80 transition-all" style={{ height: `${Math.max(item.count > 0 ? 8 : 2, (item.count / maxReferralCount) * 76)}%` }} />
+                      <span className="text-xs text-muted-foreground">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle>Conversion Overview</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div><div className="flex justify-between text-sm"><span className="text-muted-foreground">Conversion rate</span><b>{conversionRate.toFixed(1)}%</b></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, conversionRate)}%` }}/></div></div>
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Referred users</span><b>{total}</b></div>
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Converted</span><b>{converted}</b></div>
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Not converted</span><b>{Math.max(0, total - converted)}</b></div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader><CardTitle>Commission Status Snapshot</CardTitle><p className="text-xs text-muted-foreground">Latest {commissions.length} commission records (maximum 50 loaded)</p></CardHeader>
+            <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: "Approved", value: commissionStatusCounts.approved || 0 },
+                { label: "Under review", value: commissionStatusCounts.flagged || 0 },
+                { label: "Rejected", value: commissionStatusCounts.rejected || 0 },
+                { label: "Records shown", value: commissions.length },
+              ].map((item) => <div key={item.label} className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">{item.label}</p><p className="mt-1 text-xl font-semibold tabular-nums">{item.value}</p></div>)}
+            </CardContent>
+          </Card>
 
           <Card><CardHeader><CardTitle>Your Referral Link</CardTitle></CardHeader>
             <CardContent className="space-y-3">
@@ -184,7 +240,7 @@ export default function AffiliatePage() {
           </Card>
 
           {commissions.length > 0 && (
-            <Card><CardHeader><CardTitle>Commission History</CardTitle></CardHeader>
+            <Card><CardHeader><CardTitle>Recent Commission History</CardTitle><p className="text-xs text-muted-foreground">Showing the latest 50 records at most.</p></CardHeader>
               <CardContent>
                 <div className="border rounded-lg divide-y">
                   {commissions.map(c => (
