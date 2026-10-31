@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
@@ -38,6 +38,7 @@ export default function SitePhotosPage() {
   const [projectArtifactId, setProjectArtifactId] = useState<string | undefined>();
   const [projectReady, setProjectReady] = useState(false);
   const [projectError, setProjectError] = useState<string | null>(null);
+  const projectLoadSequence = useRef(0);
   const [photos, setPhotos] = useState<PhotoRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -56,8 +57,10 @@ export default function SitePhotosPage() {
     if (!user) return;
     setLoading(true);
     if (projectId) {
+      const requestId = ++projectLoadSequence.current;
       try {
         const items = await listProjectArtifacts(projectId);
+        if (requestId !== projectLoadSequence.current) return;
         const artifact = items.find((item) => item.artifact_type === "project-site-photos");
         const rows = Array.isArray(artifact?.data?.photos) ? artifact.data.photos as PhotoRecord[] : [];
         setProjectArtifactId(artifact?.id);
@@ -65,9 +68,11 @@ export default function SitePhotosPage() {
           const { data: signed } = await supabase.storage.from("site-photos").createSignedUrl(photo.storage_path, 60 * 60);
           return { ...photo, imageUrl: signed?.signedUrl };
         }));
+        if (requestId !== projectLoadSequence.current) return;
         setPhotos(withUrls);
         setProjectReady(true); setProjectError(null); setLoading(false);
       } catch (error) {
+        if (requestId !== projectLoadSequence.current) return;
         setProjectError(error instanceof Error ? error.message : "Could not load project photos.");
         setPhotos([]); setProjectReady(true); setLoading(false);
       }
@@ -91,6 +96,7 @@ export default function SitePhotosPage() {
   }, [user, projectId]);
 
   useEffect(() => {
+    projectLoadSequence.current += 1;
     setProjectReady(false); setProjectError(null); setProjectArtifactId(undefined); setPhotos([]);
     if (user) void loadPhotos();
   }, [user, projectId, loadPhotos]);
