@@ -1,4 +1,8 @@
 import { useCloudState } from "@/lib/cloudState";
+import { useEffect } from "react";
+import { useActiveProjectId } from "@/lib/projectSelection";
+import { listProjectArtifacts } from "@/lib/projectArtifacts";
+import { useProjectArtifactAutosave } from "@/hooks/useProjectArtifactAutosave";
 import { Suspense, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Canvas, useThree } from "@react-three/fiber";
@@ -79,12 +83,54 @@ export default function BimStudioPage() {
   const { lang } = useI18n();
   const bn = lang === "bn";
   const L = (en: string, b: string) => (bn ? b : en);
-  const [inp] = useCloudState<PlanInput>("civilos.plan", DEFAULT_INPUT, { merge: true });
-  const plan = useMemo(() => generatePlan(inp), [inp]);
-  const [shown, setShown] = useState(Math.min(inp.floors, 3));
+  const [globalInp] = useCloudState<PlanInput>("civilos.plan", DEFAULT_INPUT, { merge: true });
+  const projectId = useActiveProjectId();
+  const [projectInp, setProjectInp] = useState<PlanInput>(DEFAULT_INPUT);
+  const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null);
+  const [projectArtifactId, setProjectArtifactId] = useState<string | undefined>();
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
+  const [shown, setShown] = useState(Math.min(globalInp.floors, 3));
   const [fin, setFin] = useState<FinishKey>("white");
   const [furniture, setFurniture] = useState(true);
   const [view, setView] = useState("iso");
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadedProjectId(null);
+    setProjectArtifactId(undefined);
+    setProjectLoadError(null);
+    if (!projectId) return;
+    void listProjectArtifacts(projectId).then((items) => {
+      if (cancelled) return;
+      const planArtifact = items.find((item) => item.artifact_type === "floor-plan-design");
+      const savedInput = planArtifact?.data?.planInput;
+      setProjectInp(savedInput && typeof savedInput === "object" ? { ...DEFAULT_INPUT, ...(savedInput as Partial<PlanInput>) } : DEFAULT_INPUT);
+      const settings = items.find((item) => item.artifact_type === "bim-studio-settings");
+      const data = settings?.data ?? {};
+      const savedFloors = Number(data.shownFloors);
+      setShown(Number.isFinite(savedFloors) && savedFloors >= 1 ? Math.min(20, savedFloors) : Math.min((savedInput && typeof savedInput === "object" ? Number((savedInput as Partial<PlanInput>).floors) : DEFAULT_INPUT.floors), 3));
+      setFin(typeof data.finish === "string" && data.finish in FINISHES ? data.finish as FinishKey : "white");
+      setFurniture(typeof data.furniture === "boolean" ? data.furniture : true);
+      setView(["iso", "top", "front", "side"].includes(String(data.view)) ? String(data.view) : "iso");
+      setProjectArtifactId(settings?.id);
+      setLoadedProjectId(projectId);
+    }).catch((error) => {
+      if (!cancelled) { setProjectLoadError(error instanceof Error ? error.message : "Could not load this project's BIM settings."); setLoadedProjectId(projectId); }
+    });
+    return () => { cancelled = true; };
+  }, [projectId]);
+
+  const inp = projectId ? (loadedProjectId === projectId ? projectInp : DEFAULT_INPUT) : globalInp;
+  const plan = useMemo(() => generatePlan(inp), [inp]);
+  const projectSave = useProjectArtifactAutosave({
+    projectId: projectId ?? "", artifactId: projectArtifactId, artifactType: "bim-studio-settings",
+    title: "BIM Studio Settings", description: "Project-specific 3D visualization settings",
+    data: { shownFloors: shown, finish: fin, furniture, view },
+    enabled: !!projectId && loadedProjectId === projectId && !projectLoadError,
+    debounceMs: 1300,
+  });
+  useEffect(() => { if (projectSave.artifactId && projectSave.artifactId !== projectArtifactId) setProjectArtifactId(projectSave.artifactId); }, [projectSave.artifactId, projectArtifactId]);
+  useEffect(() => { setShown((current) => Math.max(1, Math.min(inp.floors, current))); }, [inp.floors]);
   const ox = -(plan.buildW * FT) / 2, oz = (plan.buildD * FT) / 2;
   const size = Math.max(plan.buildW, plan.buildD) * FT;
 
@@ -104,9 +150,11 @@ export default function BimStudioPage() {
             <div className="flex items-center gap-2"><SidebarTrigger />
               <h1 className="font-heading font-semibold flex items-center gap-2"><Box className="h-4 w-4 text-accent" /> BIM Studio 3D</h1>
             </div>
-            <ThemeToggle />
+            <div className="flex items-center gap-2"><span className="hidden sm:inline text-xs text-muted-foreground">{projectId ? (projectSave.status === "saving" ? L("Saving…", "সেভ হচ্ছে…") : projectSave.status === "saved" ? L("Saved to project", "প্রজেক্টে সেভ হয়েছে") : projectSave.status === "error" ? L("Save failed", "সেভ হয়নি") : L("Project linked", "প্রজেক্ট সংযুক্ত")) : L("Personal workspace", "ব্যক্তিগত ওয়ার্কস্পেস")}</span><ThemeToggle /></div>
           </header>
           <main className="p-4 md:p-6 grid lg:grid-cols-[300px_1fr] gap-5">
+            {projectLoadError && <div className="lg:col-span-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{L("Could not load project BIM data: ", "প্রজেক্টের BIM ডেটা লোড করা যায়নি: ")}{projectLoadError}</div>}
+            {projectSave.error && <div className="lg:col-span-2 rounded-md border border-destructive/40 p-3 text-xs text-destructive">{projectSave.error}</div>}
             <Card className="p-4 space-y-5 h-fit">
               <p className="text-sm text-muted-foreground">
                 {L("Model built from your plan", "আপনার প্ল্যান থেকে মডেল")}: {inp.plotWidth}'×{inp.plotDepth}', {inp.bedrooms} {L("bed", "বেড")}, {inp.floors} {L("floors", "তলা")}
