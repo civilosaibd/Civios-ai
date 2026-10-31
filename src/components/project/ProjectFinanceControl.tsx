@@ -24,6 +24,8 @@ const today = () => new Date().toISOString().slice(0,10);
 const newId = () => globalThis.crypto?.randomUUID?.() || `entry-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export default function ProjectFinanceControl({ projectId }: { projectId: string }) {
+  const { user } = useAuth();
+  const [canEdit,setCanEdit] = useState(false);
   const [data,setData] = useState<FinanceData>(EMPTY);
   const [artifactId,setArtifactId] = useState<string>();
   const [loading,setLoading] = useState(true);
@@ -35,6 +37,15 @@ export default function ProjectFinanceControl({ projectId }: { projectId: string
   const load = useCallback(async () => {
     setLoading(true); setLoadError(""); setCanEdit(false);
     try {
+      if (!user) throw new Error("Sign in to access project finance.");
+      const { data: project, error: projectError } = await supabase.from("projects").select("user_id").eq("id", projectId).single();
+      if (projectError || !project) throw projectError || new Error("Project access could not be verified.");
+      if (project.user_id === user.id) setCanEdit(true);
+      else {
+        const { data: membership, error: memberError } = await (supabase as any).from("project_members").select("role").eq("project_id", projectId).eq("user_id", user.id).maybeSingle();
+        if (memberError) throw memberError;
+        setCanEdit(membership?.role === "admin" || membership?.role === "engineer");
+      }
       const items = await listProjectArtifacts(projectId);
       const found = items.find(x=>x.artifact_type==="project-finance-control");
       setArtifactId(found?.id);
@@ -74,7 +85,7 @@ export default function ProjectFinanceControl({ projectId }: { projectId: string
     const next={...data,budgets:[...data.budgets.filter(x=>x.category!==budget.category),{id:newId(),category:budget.category,amount}]};
     try{await persist(next);setBudget({...budget,amount:""});toast.success("Budget saved.");}catch{}
   };
-  const addEntry=async(e:React.FormEvent)=>{
+  const addEntry=async(e:FormEvent)=>{
     e.preventDefault(); const amount=Number(entry.amount);
     if(!entry.title.trim()||!Number.isFinite(amount)||amount<=0){toast.error("Description and a valid amount are required.");return;}
     const quantity=entry.quantity===""?undefined:Number(entry.quantity);
