@@ -250,7 +250,7 @@ export default function RateAnalysisPage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<any[]>([]);
-  const [projectId, setProjectId] = useState<string>(() => new URLSearchParams(window.location.search).get("project") || "local");
+  const [projectId, setProjectId] = useState<string>(() => getActiveProjectId() || "local");
   const [savingArtifact, setSavingArtifact] = useState(false);
   const [savedArtifactId, setSavedArtifactId] = useState<string | null>(null);
   const [setName, setSetName] = useState("My rate set");
