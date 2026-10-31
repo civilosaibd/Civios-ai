@@ -24,6 +24,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { ExportButtons } from "@/components/ExportButtons";
 import { saveProjectArtifact } from "@/lib/projectArtifacts";
+import { getActiveProjectId } from "@/lib/projectSelection";
 
 
 type Row = { name: string; qty: number; unit: string; rate: number };
