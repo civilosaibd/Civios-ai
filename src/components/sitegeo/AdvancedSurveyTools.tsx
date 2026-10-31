@@ -121,11 +121,13 @@ export default function AdvancedSurveyTools({ T, projectId }: { T: (en: string, 
       const saved = items.find((item) => item.artifact_type === "site-geo-advanced-survey");
       const data = saved?.data ?? {};
       const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
-      if (data.start && isNum(data.start.easting) && isNum(data.start.northing)) setStart(data.start as typeof start);
+      const startData = data.start && typeof data.start === "object" ? data.start as Record<string, unknown> : null;
+      const earthData = data.earth && typeof data.earth === "object" ? data.earth as Record<string, unknown> : null;
+      if (startData && isNum(startData.easting) && isNum(startData.northing)) setStart({ easting: startData.easting, northing: startData.northing });
       if (Array.isArray(data.legs) && data.legs.every((v) => v && isNum(v.id) && isNum(v.bearing) && isNum(v.distance))) setLegs(data.legs as Leg[]);
       if (Array.isArray(data.stations) && data.stations.every((v) => v && typeof v.id === "string" && isNum(v.easting) && isNum(v.northing) && isNum(v.elevation) && typeof v.code === "string")) setStations(data.stations as Station[]);
       if (data.ts && ["azimuth","slopeDistance","verticalAngle","instrumentRL","instrumentHeight","prismHeight"].every((k) => isNum((data.ts as Record<string,unknown>)[k]))) setTs(data.ts as typeof ts);
-      if (data.earth && isNum(data.earth.designRL) && isNum(data.earth.cellArea)) setEarth(data.earth as typeof earth);
+      if (earthData && isNum(earthData.designRL) && isNum(earthData.cellArea)) setEarth({ designRL: earthData.designRL, cellArea: earthData.cellArea });
       if (Array.isArray(data.boundary) && data.boundary.every((v) => Number.isInteger(v) && v >= 0)) setBoundary(data.boundary as number[]);
       if (isNum(data.contourInterval) && data.contourInterval > 0) setContourInterval(data.contourInterval);
       if (typeof data.crsCode === "string") setCrsCode(data.crsCode.slice(0, 32));
