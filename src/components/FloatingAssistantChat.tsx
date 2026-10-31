@@ -120,7 +120,7 @@ export default function FloatingAssistantChat({ userId, isBangla }: { userId: st
           const currentAnswer = answer;
           setMessages((current) => {
             const next = [...current];
-            const lastAssistant = next.findLastIndex((message) => message.role === "assistant");
+            const lastAssistant = next.map((message) => message.role).lastIndexOf("assistant");
             if (lastAssistant >= 0) next[lastAssistant] = { role: "assistant", content: currentAnswer };
             return next;
           });
