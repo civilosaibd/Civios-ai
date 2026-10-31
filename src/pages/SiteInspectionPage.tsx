@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,6 @@ import { useCloudState } from "@/lib/cloudState";
 import { useAuth } from "@/lib/auth";
 import { useActiveProjectId } from "@/lib/projectSelection";
 import { listProjectArtifacts, saveProjectArtifact } from "@/lib/projectArtifacts";
-import { useEffect } from "react";
 
 const checks = [
   ["Before work", "Approved drawing and latest revision available"],
@@ -184,7 +183,7 @@ export default function SiteInspectionPage() {
                 <Button variant="outline" onClick={resetForm}><FilePlus2 className="mr-2 h-4 w-4" /> New report</Button>
                 <Button variant="outline" onClick={() => { setStatus(freshStatus()); setNotes(freshNotes()); }}><RotateCcw className="mr-2 h-4 w-4" /> Reset checks</Button>
                 <Button variant="outline" onClick={() => exportCsv()}><Download className="mr-2 h-4 w-4" /> Export CSV</Button>
-                <Button onClick={saveInspection} disabled={!!projectId && !projectReady}><Save className="mr-2 h-4 w-4" /> {activeId ? "Update report" : "Save report"}</Button>
+                <Button onClick={saveInspection} disabled={!!projectId && (!projectReady || !!projectError)}><Save className="mr-2 h-4 w-4" /> {activeId ? "Update report" : "Save report"}</Button>
               </div>
             </div>
 
