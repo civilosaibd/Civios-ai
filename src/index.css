@@ -554,3 +554,36 @@
     will-change: auto;
   }
 }
+
+
+/* Immersive depth for pricing, testimonials, ratings and FAQ. */
+.pricing-depth-card {
+  transform-style: preserve-3d;
+  box-shadow: 0 18px 45px -34px hsl(220 70% 18% / .42);
+}
+.pricing-depth-card::before, .social-proof-card::before, .faq-depth-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: .7;
+  background: linear-gradient(145deg, hsl(190 90% 65% / .07), transparent 38%, hsl(25 95% 60% / .05));
+}
+.pricing-depth-card:hover, .social-proof-card:hover {
+  transform: perspective(1000px) translateY(-5px) rotateX(1deg);
+  border-color: hsl(var(--accent) / .38);
+  box-shadow: 0 24px 55px -34px hsl(220 75% 18% / .55);
+}
+.pricing-depth-card--featured {
+  box-shadow: 0 24px 60px -32px hsl(var(--accent) / .32);
+}
+.social-proof-card { position: relative; transition: transform .35s ease, box-shadow .35s ease, border-color .35s ease; }
+.faq-depth-card { position: relative; transform-style: preserve-3d; transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease; }
+.faq-depth-card:hover { transform: translateY(-2px) rotateX(.4deg); }
+@media (max-width: 767px) {
+  .pricing-depth-card:hover, .social-proof-card:hover, .faq-depth-card:hover { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pricing-depth-card, .social-proof-card, .faq-depth-card { transition: none !important; transform: none !important; }
+}

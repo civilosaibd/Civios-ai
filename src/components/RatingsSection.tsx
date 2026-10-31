@@ -74,8 +74,8 @@ const RatingsSection = () => {
   const avg = ratings.length ? (ratings.reduce((s, r) => s + r.stars, 0) / ratings.length).toFixed(1) : "—";
 
   return (
-    <section className="py-16 bg-muted/30">
-      <div className="container max-w-4xl space-y-8">
+    <section className="homepage-depth-section relative py-16 bg-muted/25 overflow-hidden">
+      <div className="container max-w-4xl space-y-8 relative z-10">
         <div className="text-center space-y-2">
           <h2 className="font-heading text-3xl font-bold">User Ratings</h2>
           <div className="flex items-center justify-center gap-2 text-sm">
@@ -89,7 +89,7 @@ const RatingsSection = () => {
           <div className="flex justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>
         ) : ratings.length > 0 ? (
           <div className="relative max-w-md mx-auto">
-            <div className="bg-card rounded-xl shadow-card p-4 min-h-[120px]">
+            <div className="social-proof-card bg-card/90 backdrop-blur rounded-2xl shadow-card p-4 min-h-[120px] border border-border/60">
               <Stars value={ratings[idx].stars} />
               <p className="text-sm mt-2 text-foreground/90 line-clamp-3">{ratings[idx].comment || "No comment"}</p>
               <p className="text-xs text-muted-foreground mt-2">— {ratings[idx].display_name || "Anonymous"}</p>
@@ -108,7 +108,7 @@ const RatingsSection = () => {
           <p className="text-center text-muted-foreground text-sm">No ratings yet. Be the first!</p>
         )}
 
-        <div className="bg-card rounded-xl shadow-card p-5 max-w-md mx-auto space-y-3">
+        <div className="social-proof-card bg-card/90 backdrop-blur rounded-2xl shadow-card p-5 max-w-md mx-auto space-y-3 border border-border/60">
           <h3 className="font-semibold text-sm">Leave a rating</h3>
           {user ? (
             <>

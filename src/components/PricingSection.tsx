@@ -91,8 +91,8 @@ export default function PricingSection() {
             const rows = plan ? planFeatures(plan) : [];
             return (
               <div key={tier.code}
-                className={`relative rounded-2xl border bg-card p-6 flex flex-col ${
-                  tier.highlight ? "border-accent shadow-lg shadow-accent/10 ring-1 ring-accent/40" : ""
+                className={`homepage-depth-card pricing-depth-card relative rounded-2xl border bg-card/90 p-6 flex flex-col overflow-hidden transition-all duration-500 ${
+                  tier.highlight ? "border-accent shadow-lg shadow-accent/10 ring-1 ring-accent/40 pricing-depth-card--featured" : "border-border/70 hover:border-accent/35"
                 }`}>
                 {tier.highlight && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-accent text-accent-foreground px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider">
