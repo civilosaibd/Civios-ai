@@ -14,7 +14,7 @@ const csvCell = (v: string | number) => {
   const s = String(v);
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 };
-function escapeHtml(value: string) { return value.replace(/[&<>\"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '\"': "&quot;", "'": "&#39;" }[ch] || ch)); }
+function escapeHtml(value: string) { const entities: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }; return value.replace(/[&<>"']/g, (ch) => entities[ch] || ch); }
 function parseCsvLine(line: string): string[] {
   const out: string[] = []; let value = ""; let quoted = false;
   for (let i = 0; i < line.length; i++) {
