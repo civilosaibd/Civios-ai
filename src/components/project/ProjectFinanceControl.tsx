@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,7 +66,7 @@ export default function ProjectFinanceControl({ projectId }: { projectId: string
     return {actual,committed,received,receivable,totalBudget,remaining:totalBudget-actual-committed};
   },[data]);
 
-  const addBudget=async(e:React.FormEvent)=>{
+  const addBudget=async(e:FormEvent)=>{
     e.preventDefault(); const amount=Number(budget.amount);
     if(!Number.isFinite(amount)||amount<=0){toast.error("Enter a valid budget amount.");return;}
     const next={...data,budgets:[...data.budgets.filter(x=>x.category!==budget.category),{id:newId(),category:budget.category,amount}]};
@@ -100,11 +100,11 @@ export default function ProjectFinanceControl({ projectId }: { projectId: string
     <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><SidebarTrigger/><div><h1 className="text-xl font-bold">Project Finance & Cost Control</h1><p className="text-xs text-muted-foreground">Project-scoped financial register · Bangladeshi Taka (BDT)</p></div></div><div className="flex gap-2"><Button variant="outline" size="sm" onClick={()=>void load()} disabled={loading}><RefreshCw className="h-4 w-4 mr-1"/>Refresh</Button><Button variant="outline" size="sm" onClick={exportCsv}><Download className="h-4 w-4 mr-1"/>Export CSV</Button></div></div>
     {loadError&&<Card className="border-destructive"><CardContent className="p-4 text-sm text-destructive">Could not load this project's finance register. Saving is disabled to protect existing data. {loadError}</CardContent></Card>}
     {loading?<div className="flex items-center gap-2 p-8 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/>Loading project finance…</div>:<>
-    <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
       <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground flex gap-1"><Wallet className="h-3.5 w-3.5"/>Total Budget</p><p className="text-lg font-bold">{money(summary.totalBudget)}</p></CardContent></Card>
       <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground flex gap-1"><TrendingDown className="h-3.5 w-3.5"/>Actual Paid Cost</p><p className="text-lg font-bold">{money(summary.actual)}</p></CardContent></Card>
       <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Committed / Due</p><p className="text-lg font-bold">{money(summary.committed)}</p></CardContent></Card>
-      <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground flex gap-1"><TrendingUp className="h-3.5 w-3.5"/>Received Income</p><p className="text-lg font-bold">{money(summary.received)}</p></CardContent></Card>
+      <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground flex gap-1"><TrendingUp className="h-3.5 w-3.5"/>Received Income</p><p className="text-lg font-bold">{money(summary.received)}</p></CardContent></Card><Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Receivable</p><p className="text-lg font-bold">{money(summary.receivable)}</p></CardContent></Card>
       <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Budget Remaining*</p><p className={`text-lg font-bold ${summary.remaining<0?"text-destructive":""}`}>{money(summary.remaining)}</p></CardContent></Card>
     </div>
     <Card><CardHeader><CardTitle>Budget vs Actual Cost</CardTitle></CardHeader><CardContent className="space-y-3">
@@ -113,7 +113,7 @@ export default function ProjectFinanceControl({ projectId }: { projectId: string
     </CardContent></Card>
     <Card><CardHeader><CardTitle>New Financial Entry</CardTitle></CardHeader><CardContent><form onSubmit={addEntry} className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
       <div><Label>Entry type</Label><Select value={entry.kind} onValueChange={(v:"expense"|"income")=>setEntry({...entry,kind:v,category:v==="income"?"client_payment":"material"})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="expense">Expense / Payment</SelectItem><SelectItem value="income">Income / Client Payment</SelectItem></SelectContent></Select></div>
-      <div><Label>Category</Label><Select value={entry.category} onValueChange={(v:any)=>setEntry({...entry,category:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{(entry.kind==="expense"?categories:[{value:"client_payment",label:"Client Payment"},{value:"other_income",label:"Other Income"}]).map(c=><SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
+      <div><Label>Category</Label><Select value={entry.category} onValueChange={(v:Entry["category"])=>setEntry({...entry,category:v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{(entry.kind==="expense"?categories:[{value:"client_payment",label:"Client Payment"},{value:"other_income",label:"Other Income"}]).map(c=><SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
       <div><Label>Description / Work</Label><Input required value={entry.title} onChange={e=>setEntry({...entry,title:e.target.value})} placeholder="Cement purchase / slab work"/></div>
       <div><Label>Vendor / Client / Contractor</Label><Input value={entry.party} onChange={e=>setEntry({...entry,party:e.target.value})}/></div>
       <div><Label>Date</Label><Input type="date" value={entry.date} onChange={e=>setEntry({...entry,date:e.target.value})}/></div>
