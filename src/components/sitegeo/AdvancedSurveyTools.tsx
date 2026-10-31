@@ -362,7 +362,7 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
       <TabsContent value="earth" className="space-y-3">
         <p className="text-xs text-muted-foreground">{T("Uses imported total-station elevations as representative cells. Enter the design level and ground area represented by each point.", "ইমপোর্ট করা টোটাল স্টেশন উচ্চতাকে প্রতিনিধি সেল হিসেবে ব্যবহার করে। ডিজাইন লেভেল ও প্রতিটি পয়েন্টের প্রতিনিধিত্ব করা ভূমির ক্ষেত্রফল দিন।")}</p>
         <div className="grid grid-cols-2 gap-2">
-          <div><Label className="text-xs">{T("Design RL (m)", "ডিজাইন RL (মি)")}</Label><Input type="number" value={earth.designRL} onChange={(e) => setEarth({ ...earth, designRL: Number(e.target.value) })} /></div>
+          <div><Label className="text-xs">{T("Design RL", "ডিজাইন RL")} ({coordinateUnit})</Label><Input type="number" value={earth.designRL} onChange={(e) => setEarth({ ...earth, designRL: Number(e.target.value) })} /></div>
           <div><Label className="text-xs">{T("Cell area per point (m²)", "প্রতি পয়েন্ট সেলের ক্ষেত্রফল (মি²)")}</Label><Input type="number" min="0" value={earth.cellArea} onChange={(e) => setEarth({ ...earth, cellArea: Math.max(0, Number(e.target.value)) })} /></div>
         </div>
         {!elevationStats ? <p className="text-xs text-muted-foreground">{T("Import total-station CSV data first.", "প্রথমে টোটাল স্টেশন CSV ডেটা ইমপোর্ট করুন।")}</p> : <>
@@ -387,6 +387,11 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div><p className="text-sm font-semibold">{T("Survey drafting & terrain model", "সার্ভে ড্রাফটিং ও টেরেইন মডেল")}</p><p className="text-xs text-muted-foreground">{T("Generate a plot boundary, inspect the TIN surface, calculate grid/TIN earthwork and export CAD/report files.", "প্লট বাউন্ডারি তৈরি, TIN সারফেস দেখা, গ্রিড/TIN আর্থওয়ার্ক হিসাব এবং CAD/রিপোর্ট এক্সপোর্ট করুন।")}</p></div>
           <span className="text-xs rounded bg-muted px-2 py-1">{stations.length} {T("points", "পয়েন্ট")}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 rounded-md border p-3">
+          <div><Label className="text-xs">{T("Coordinate reference (metadata)", "কোঅর্ডিনেট রেফারেন্স (মেটাডেটা)")}</Label><Input value={crsCode} onChange={(e)=>setCrsCode(e.target.value.trim())} placeholder="EPSG:32646"/></div>
+          <div><Label className="text-xs">{T("Coordinate unit", "কোঅর্ডিনেট একক")}</Label><select className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={coordinateUnit} onChange={(e)=>setCoordinateUnit(e.target.value as "m"|"ft")}><option value="m">{T("Metres","মিটার")}</option><option value="ft">{T("Feet","ফুট")}</option></select></div>
+          <p className="col-span-2 text-[11px] text-muted-foreground">{T("Metadata only: no coordinate reprojection or unit conversion is performed. Use one consistent CRS and unit throughout the imported file and all design inputs; reported area/volume units follow this selection.", "শুধু মেটাডেটা: স্থানাঙ্ক রি-প্রজেকশন বা একক রূপান্তর হয় না। পুরো ফাইল ও ডিজাইন ইনপুটে একই CRS ও একক ব্যবহার করুন; ক্ষেত্রফল/ভলিউমের একক এই নির্বাচনের সঙ্গে মিলবে।")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={() => { if (hull.length < 3) return toast.error(T("At least three non-collinear points are required", "কমপক্ষে তিনটি একই সরলরেখায় নয় এমন পয়েন্ট লাগবে")); setBoundary(hull); toast.success(T("Automatic convex-hull boundary generated", "স্বয়ংক্রিয় কনভেক্স-হাল বাউন্ডারি তৈরি হয়েছে")); }} disabled={stations.length < 3}>{T("Auto plot boundary", "অটো প্লট বাউন্ডারি")}</Button>
@@ -445,13 +450,13 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
             <p className="text-sm font-semibold">{T("Grid & TIN earthwork", "গ্রিড ও TIN আর্থওয়ার্ক")}</p>
             <div className="grid grid-cols-2 gap-2">
               <div><Label className="text-xs">{T("Design RL (m)", "ডিজাইন RL (মি)")}</Label><Input type="number" value={earth.designRL} onChange={(e)=>setEarth({...earth,designRL:Number(e.target.value)})}/></div>
-              <div><Label className="text-xs">{T("Contour interval (m)", "কনট্যুর ইন্টারভ্যাল (মি)")}</Label><Input type="number" min="0.01" step="0.1" value={contourInterval} onChange={(e)=>setContourInterval(Math.max(0.01,Number(e.target.value)||0.01))}/></div><div><Label className="text-xs">{T("Grid resolution", "গ্রিড রেজোলিউশন")}</Label><select className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={gridResolution} onChange={(e)=>setGridResolution(Number(e.target.value))}><option value={10}>10 × 10</option><option value={20}>20 × 20</option><option value={40}>40 × 40</option></select></div>
+              <div><Label className="text-xs">{T("Contour interval", "কনট্যুর ইন্টারভ্যাল")} ({coordinateUnit})</Label><Input type="number" min="0.01" step="0.1" value={contourInterval} onChange={(e)=>setContourInterval(Math.max(0.01,Number(e.target.value)||0.01))}/></div><div><Label className="text-xs">{T("Grid resolution", "গ্রিড রেজোলিউশন")}</Label><select className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={gridResolution} onChange={(e)=>setGridResolution(Number(e.target.value))}><option value={10}>10 × 10</option><option value={20}>20 × 20</option><option value={40}>40 × 40</option></select></div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded bg-muted p-2">Grid cut / fill: <b>{gridStats?numberText(gridStats.cut)+" / "+numberText(gridStats.fill):"—"} m³</b></div>
-              <div className="rounded bg-muted p-2">TIN cut / fill: <b>{tinStats?numberText(tinStats.cut)+" / "+numberText(tinStats.fill):"—"} m³</b></div>
-              <div className="rounded bg-muted p-2">TIN surface area: <b>{tinStats?numberText(tinStats.area):"—"} m²</b></div>
-              <div className="rounded bg-muted p-2">TIN net fill (+) / cut (−): <b>{tinStats?numberText(tinStats.net):"—"} m³</b></div>
+              <div className="rounded bg-muted p-2">Grid cut / fill ({coordinateUnit}³): <b>{gridStats?numberText(gridStats.cut)+" / "+numberText(gridStats.fill):"—"}</b></div>
+              <div className="rounded bg-muted p-2">TIN cut / fill ({coordinateUnit}³): <b>{tinStats?numberText(tinStats.cut)+" / "+numberText(tinStats.fill):"—"}</b></div>
+              <div className="rounded bg-muted p-2">TIN surface area ({coordinateUnit}²): <b>{tinStats?numberText(tinStats.area):"—"}</b></div>
+              <div className="rounded bg-muted p-2">TIN net fill (+) / cut (−) ({coordinateUnit}³): <b>{tinStats?numberText(tinStats.net):"—"}</b></div>
             </div>
             <p className="text-[11px] text-muted-foreground">{T("Grid volume uses the existing IDW sample grid; TIN volume uses Delaunay triangles and average vertex depth. Both are preliminary estimates, do not model breaklines/voids or boundary clipping, and must be checked against a validated design surface.", "গ্রিড ভলিউম IDW স্যাম্পল গ্রিড এবং TIN ভলিউম Delaunay ট্রায়াঙ্গেল ও গড় ভার্টেক্স ডেপথ ব্যবহার করে। উভয়ই প্রাথমিক হিসাব; ব্রেকলাইন/ফাঁকা অংশ বা বাউন্ডারি ক্লিপিং বিবেচনা করে না। যাচাইকৃত ডিজাইন সারফেস দিয়ে পরীক্ষা করতে হবে।")}</p>
           </div>
