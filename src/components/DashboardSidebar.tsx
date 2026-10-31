@@ -65,7 +65,7 @@ function CategoryGroup({
 }
 
 
-type WorkspaceProject = { id: string; name: string; updated_at?: string };
+type WorkspaceProject = { id: string; name: string; created_at?: string };
 
 export function ProjectWorkspaceSelector({ collapsed = false }: { collapsed?: boolean }) {
   const { user } = useAuth();
@@ -78,7 +78,7 @@ export function ProjectWorkspaceSelector({ collapsed = false }: { collapsed?: bo
     if (!user) { setProjects([]); setSelected(""); setLoading(false); return; }
     let active = true;
     setLoading(true);
-    supabase.from("projects").select("id,name,updated_at").order("updated_at", { ascending: false })
+    supabase.from("projects").select("id,name,created_at").order("created_at", { ascending: true })
       .then(({ data, error }) => {
         if (!active) return;
         if (error) console.error("Could not load workspace projects", error);
