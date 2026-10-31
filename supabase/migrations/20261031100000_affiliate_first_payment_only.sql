@@ -1,7 +1,13 @@
--- Phase 3: enforce the agreed one-time affiliate commission rule.
--- Only the first eligible verified payment for a referred user can earn commission.
--- Existing ledger rows are intentionally preserved; this migration does not claw back
--- historical commissions or alter withdrawal balances.
+-- Phase 3: tiered recurring affiliate commissions.
+-- First eligible verified payment per referred user: 30%.
+-- Every subsequent eligible verified payment for that same user: 10%.
+-- Existing ledger entries are retained and count as prior commission events.
+INSERT INTO public.app_settings (key, value)
+VALUES
+  ('affiliate.first_payment_commission_rate', '0.30'::jsonb),
+  ('affiliate.commission_rate', '0.10'::jsonb)
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+
 CREATE OR REPLACE FUNCTION public.record_referral_commission(_payment_id uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -12,6 +18,9 @@ DECLARE
   pay public.payments%ROWTYPE;
   ref public.referrals%ROWTYPE;
   rate numeric;
+  first_rate numeric;
+  subsequent_rate numeric;
+  has_prior_commission boolean;
   reason text;
   digits text;
 BEGIN
@@ -23,26 +32,34 @@ BEGIN
   IF ref.referrer_id = pay.user_id THEN RETURN; END IF;
   IF coalesce(pay.amount, 0) <= 0 THEN RETURN; END IF;
 
-  -- Serialize commission eligibility checks for this referred account.
+  -- Serialize eligibility checks for this referred account, including concurrent approvals.
   PERFORM pg_advisory_xact_lock(hashtextextended('affiliate:' || ref.referred_user_id::text, 0));
 
-  -- The first eligible verified payment is the only commission event for this user.
-  IF EXISTS (
-    SELECT 1 FROM public.referral_commissions
-    WHERE referred_user_id = ref.referred_user_id
-  ) THEN
+  IF EXISTS (SELECT 1 FROM public.referral_commissions WHERE payment_id = pay.id) THEN
     RETURN;
   END IF;
 
-  SELECT least(greatest((value #>> '{}')::numeric, 0), 1) INTO rate
-    FROM public.app_settings WHERE key = 'affiliate.commission_rate';
-  rate := coalesce(rate, 0.10);
+  SELECT EXISTS (
+    SELECT 1 FROM public.referral_commissions
+    WHERE referred_user_id = ref.referred_user_id
+  ) INTO has_prior_commission;
 
-  digits := regexp_replace(coalesce(pay.sender_number, ''), '\\D', '', 'g');
+  SELECT least(greatest((value #>> '{}')::numeric, 0), 1)
+    INTO first_rate FROM public.app_settings
+    WHERE key = 'affiliate.first_payment_commission_rate';
+  SELECT least(greatest((value #>> '{}')::numeric, 0), 1)
+    INTO subsequent_rate FROM public.app_settings
+    WHERE key = 'affiliate.commission_rate';
+
+  first_rate := coalesce(first_rate, 0.30);
+  subsequent_rate := coalesce(subsequent_rate, 0.10);
+  rate := CASE WHEN has_prior_commission THEN subsequent_rate ELSE first_rate END;
+
+  digits := regexp_replace(coalesce(pay.sender_number, ''), '\D', '', 'g');
   IF length(digits) >= 5 AND EXISTS (
        SELECT 1 FROM public.payments p
         WHERE p.user_id = ref.referrer_id
-          AND regexp_replace(coalesce(p.sender_number, ''), '\\D', '', 'g') = digits) THEN
+          AND regexp_replace(coalesce(p.sender_number, ''), '\D', '', 'g') = digits) THEN
     reason := 'Payment sender number matches a payment made by the referrer';
   ELSIF length(trim(coalesce(pay.transaction_id, ''))) > 0 AND EXISTS (
        SELECT 1 FROM public.payments p
@@ -57,7 +74,9 @@ BEGIN
      CASE WHEN reason IS NULL THEN 'approved' ELSE 'flagged' END, reason)
   ON CONFLICT (payment_id) DO NOTHING;
 
-  UPDATE public.referrals SET plan = (SELECT code FROM public.plans WHERE id = pay.plan_id) WHERE id = ref.id;
+  UPDATE public.referrals
+     SET plan = (SELECT code FROM public.plans WHERE id = pay.plan_id)
+   WHERE id = ref.id;
   PERFORM public.refresh_referral_totals(ref.id);
 END;
 $$;
