@@ -16,7 +16,6 @@ type Revision = { id: string; documentId: string; documentNo: string; title: str
 type Transmittal = { id: string; number: string; recipient: string; purpose: string; date: string; revisionIds: string[]; message: string; createdAt: string };
 type Register = { revisions: Revision[]; transmittals: Transmittal[] };
 const EMPTY: Register = { revisions: [], transmittals: [] };
-const statuses = ["Draft", "For Review", "Approved", "Rejected", "Superseded"] as const;
 
 export default function ProjectDocumentControl({ projectId, docs, canEdit, isAdmin, onRefresh, onDownload }: {
   projectId: string; docs: Doc[]; canEdit: boolean; isAdmin: boolean; onRefresh: () => Promise<void>; onDownload: (doc: Doc) => void;
