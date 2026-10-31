@@ -12,7 +12,7 @@ import {
   Calculator, ClipboardList, Hammer, Camera, ClipboardCheck, FileText,
   Package, ShoppingCart, Truck, Wrench, Receipt, Wallet, TrendingUp,
   BarChart3, Lightbulb, FileBarChart, User, Building2, Shield, Sparkles,
-  Upload, Search, ArrowRight,
+  Upload, Search, ArrowRight, Box,
 } from "lucide-react";
 
 type Mod = { title: string; bn: string; url: string; icon: any; live?: boolean };
@@ -30,6 +30,11 @@ const GROUPS: Group[] = [
     { title: "File AI Analyzer", bn: "ফাইল বিশ্লেষক", url: "/file-assistant", icon: FileSearch, live: true },
     { title: "AI Office Writer", bn: "অফিস রাইটার", url: "/ai-writer", icon: PenTool },
     { title: "AI Drawing Reader", bn: "ড্রয়িং রিডার", url: "/ai-drawing", icon: Ruler },
+  ]},
+  { label: "Floor Plan & Design", bn: "ফ্লোর প্ল্যান ও ডিজাইন", items: [
+    { title: "Floor Plan & 3D Design Studio", bn: "ফ্লোর প্ল্যান ও 3D ডিজাইন", url: "/floor-plan-studio", icon: Box, live: true },
+    { title: "Create Your Own Plan", bn: "নিজের প্ল্যান তৈরি", url: "/plan-generator", icon: Building2, live: true },
+    { title: "BIM Studio 3D", bn: "বিআইএম স্টুডিও 3D", url: "/bim-studio", icon: Box, live: true },
   ]},
   { label: "Quantity Surveying", bn: "কোয়ান্টিটি সার্ভে", items: [
     { title: "BOQ Hub", bn: "বিওকিউ হাব", url: "/boq-hub", icon: Calculator, live: true },
