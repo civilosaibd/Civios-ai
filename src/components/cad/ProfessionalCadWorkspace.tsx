@@ -45,7 +45,7 @@ export default function ProfessionalCadWorkspace({ projectId: projectIdProp }: {
   const activeProjectId = useActiveProjectId();
   const projectId = projectIdProp === undefined ? activeProjectId : projectIdProp;
   const [doc, setDoc] = useState<CadDocument>(() => {
-    if (typeof window === "undefined") return createEmptyDocument("ft");
+    if (projectId || typeof window === "undefined") return createEmptyDocument("ft");
     try {
       const saved = window.localStorage.getItem("civilos-cad-document-v2") ?? window.localStorage.getItem("civilos-cad-document-v1");
       if (!saved) return createEmptyDocument("ft");
