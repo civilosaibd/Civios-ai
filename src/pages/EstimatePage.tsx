@@ -50,6 +50,7 @@ const EstimatePage = () => {
   const location = useLocation();
   const { t, lang, currency, fmt } = useI18n();
   const { user } = useAuth();
+  const activeProjectId = useActiveProjectId();
 
   const params = location.state || {
     plotLength: 40, plotWidth: 30, unit: "feet", floors: 1,
@@ -163,7 +164,7 @@ const EstimatePage = () => {
 
   const saveEstimateToWorkspace = async () => {
     if (!user) { toast.info("Please sign in to save this estimate."); return; }
-    const targetProjectId = (params as any)._projectId || useActiveProjectId();
+    const targetProjectId = (params as any)._projectId || activeProjectId;
     if (!targetProjectId) {
       toast.info("Save this project first to create a Project Workspace, then open the estimate from that project.");
       return;
