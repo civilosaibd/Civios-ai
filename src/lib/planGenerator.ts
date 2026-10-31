@@ -145,8 +145,8 @@ export function parsePrompt(text: string, base: PlanInput = DEFAULT_INPUT): Plan
 
   return {
     ...out,
-    plotWidth: Number.isFinite(out.plotWidth) ? Math.max(15, Math.min(200, out.plotWidth)) : base.plotWidth,
-    plotDepth: Number.isFinite(out.plotDepth) ? Math.max(15, Math.min(200, out.plotDepth)) : base.plotDepth,
+    plotWidth: dim && Number.isFinite(out.plotWidth) ? Math.max(15, Math.min(200, out.plotWidth)) : base.plotWidth,
+    plotDepth: dim && Number.isFinite(out.plotDepth) ? Math.max(15, Math.min(200, out.plotDepth)) : base.plotDepth,
     floors: Number.isFinite(out.floors) ? Math.max(1, Math.min(20, Math.round(out.floors))) : base.floors,
     bedrooms: Number.isFinite(out.bedrooms) ? Math.max(0, Math.min(8, Math.round(out.bedrooms))) : base.bedrooms,
     bathrooms: Number.isFinite(out.bathrooms) ? Math.max(0, Math.min(8, Math.round(out.bathrooms))) : base.bathrooms,
