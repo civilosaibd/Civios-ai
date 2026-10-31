@@ -17,6 +17,7 @@ import { PwaProvider } from "@/lib/pwa";
 import FloatingAssistant from "@/components/FloatingAssistant";
 import { UnitsProvider } from "@/lib/UnitsContext";
 import PlanFeatureGate from "@/components/PlanFeatureGate";
+import ImmersiveEngineeringBackground from "@/components/ImmersiveEngineeringBackground";
 
 const Index = lazy(() => import("./pages/Index.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
@@ -47,6 +48,7 @@ const CompanySettingsPage = lazy(() => import("./pages/CompanySettingsPage.tsx")
 const ProgressReportsPage = lazy(() => import("./pages/ProgressReportsPage.tsx"));
 const SiteDiaryPage = lazy(() => import("./pages/SiteDiaryPage.tsx"));
 const PlanGeneratorPage = lazy(() => import("./pages/PlanGeneratorPage.tsx"));
+const FloorPlanStudioPage = lazy(() => import("./pages/FloorPlanStudioPage.tsx"));
 const BimStudioPage = lazy(() => import("./pages/BimStudioPage.tsx"));
 const SiteGeoPage = lazy(() => import("./pages/SiteGeoPage.tsx"));
 const SchedulerPage = lazy(() => import("./pages/SchedulerPage.tsx"));
@@ -104,6 +106,7 @@ const App = () => (
                 <Sonner />
 
                 <BrowserRouter>
+                  <ImmersiveEngineeringBackground />
                   <AnimatedLogoIntro />
                   <ScrollToTop />
                   <ReferralCapture />
@@ -167,6 +170,7 @@ const App = () => (
                         element={<PlanGeneratorPage />}
                       />
                       <Route path="/bim-studio" element={<BimStudioPage />} />
+                      <Route path="/floor-plan-studio" element={<FloorPlanStudioPage />} />
 
                       <Route
                         path="/visualizations"

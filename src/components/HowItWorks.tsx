@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Upload, Settings, BarChart3, Download } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -11,8 +11,9 @@ const stepKeys = [
 
 const HowItWorks = () => {
   const { t } = useI18n();
+  const reduceMotion = useReducedMotion();
   return (
-    <section className="relative py-24 overflow-hidden bg-gradient-to-b from-muted/40 via-background to-muted/30">
+    <section className="relative py-24 overflow-hidden bg-gradient-to-b from-muted/40 via-background to-muted/30 homepage-depth-section">
       <div className="container relative">
         <div className="text-center mb-16 max-w-2xl mx-auto">
           <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary mb-4 uppercase tracking-wider">
@@ -27,11 +28,13 @@ const HowItWorks = () => {
           {stepKeys.map((s, i) => (
             <motion.div
               key={s.titleKey}
-              className="relative text-center space-y-4"
+              className="relative text-center space-y-4 rounded-2xl px-3 py-5 homepage-step-card"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.1 }}
+              viewport={{ once: true, amount: 0.25 }}
+              whileHover={reduceMotion ? undefined : { y: -5, rotateX: 2, scale: 1.02 }}
+              style={{ transformPerspective: 800, transformStyle: "preserve-3d" }}
+              transition={{ duration: 0.45, delay: i * 0.1 }}
             >
               <div className="relative mx-auto w-fit">
                 <div className="h-16 w-16 rounded-2xl bg-accent-gradient flex items-center justify-center shadow-xl shadow-accent/30">
