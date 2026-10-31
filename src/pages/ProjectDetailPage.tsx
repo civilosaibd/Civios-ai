@@ -370,7 +370,7 @@ export default function ProjectDetailPage() {
       return;
     }
     await logActivity("member_role_updated", { member_id: memberId, role: nextRole });
-    toast.success(nextRole === "viewer" ? "Viewer permission applied" : "Engineer edit permission applied");
+    toast.success(`${nextRole.toUpperCase()} permission applied`);
     await load();
   };
 
