@@ -295,7 +295,7 @@ export default function SiteGeoPage() {
       }
       if (geometry.type === "Polygon") { setMode("area"); setSurveyTool("polygon"); }
       else if (geometry.type === "LineString") { setMode("distance"); setSurveyTool("line"); }
-      else if (geometry.type === "MultiPoint" || geometry.type === "Point") setSurveyTool("point");
+      else if (geometry.type === "MultiPoint" || geometry.type === "Point") { setSurveyTool("point"); setMode("distance"); }
       toast.success(T(`Imported ${imported.length} coordinate point(s)`, `${imported.length}টি স্থানাঙ্ক বিন্দু ইমপোর্ট হয়েছে`));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : T("Could not read this GeoJSON file.", "GeoJSON ফাইলটি পড়া যায়নি।"));
@@ -359,7 +359,7 @@ export default function SiteGeoPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant={surveyTool === "point" ? "default" : "outline"} onClick={() => setSurveyTool("point")}><Crosshair className="h-4 w-4 mr-1" />{T("Point survey", "পয়েন্ট সার্ভে")}</Button>
+                <Button size="sm" variant={surveyTool === "point" ? "default" : "outline"} onClick={() => { setSurveyTool("point"); setMode("distance"); }}><Crosshair className="h-4 w-4 mr-1" />{T("Point survey", "পয়েন্ট সার্ভে")}</Button>
                 <Button size="sm" variant={surveyTool === "line" ? "default" : "outline"} onClick={() => { setSurveyTool("line"); setMode("distance"); }}><Ruler className="h-4 w-4 mr-1" />{T("Line survey", "লাইন সার্ভে")}</Button>
                 <Button size="sm" variant={surveyTool === "polygon" ? "default" : "outline"} onClick={() => { setSurveyTool("polygon"); setMode("area"); }}><Hexagon className="h-4 w-4 mr-1" />{T("Polygon survey", "পলিগন সার্ভে")}</Button>
                 <Button size="sm" variant="outline" onClick={() => setMode("area")}>{T("Measure area", "জমির মাপ")}</Button>
