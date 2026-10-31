@@ -158,5 +158,30 @@ Deno.serve(async (req) => {
       security_notice: "Private project contents, uploaded file references, invitation tokens, payment account identifiers, agent memory values, conversation content, authentication secrets, password hashes, MFA secrets, and session tokens are excluded.",
     }, 200, origin);
   }
+
+  if (body.action === "audit-list") {
+    const requestedLimit = Number((body as { limit?: number }).limit) || 50;
+    const limit = Math.max(1, Math.min(100, requestedLimit));
+    const { data: events, error: auditListError } = await admin.from("admin_user_access_audit")
+      .select("id,admin_user_id,target_user_id,action,accessed_at")
+      .order("accessed_at", { ascending: false })
+      .limit(limit);
+    if (auditListError) return json({ error: "Unable to load access audit history" }, 500, origin);
+
+    const ids = [...new Set((events || []).flatMap((event) => [event.admin_user_id, event.target_user_id]))];
+    const emailById = new Map<string, string | null>();
+    await Promise.all(ids.map(async (id) => {
+      const { data, error } = await admin.auth.admin.getUserById(id);
+      emailById.set(id, error ? null : data.user?.email || null);
+    }));
+    return json({
+      events: (events || []).map((event) => ({
+        ...event,
+        admin_email: emailById.get(event.admin_user_id) || null,
+        target_email: emailById.get(event.target_user_id) || null,
+      })),
+    }, 200, origin);
+  }
+
   return json({ error: "Unsupported action" }, 400, origin);
 });
