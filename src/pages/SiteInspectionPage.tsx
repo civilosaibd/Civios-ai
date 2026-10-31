@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useCloudState } from "@/lib/cloudState";
 import { useAuth } from "@/lib/auth";
+import { useActiveProjectId } from "@/lib/projectSelection";
+import { listProjectArtifacts, saveProjectArtifact } from "@/lib/projectArtifacts";
 
 const checks = [
   ["Before work", "Approved drawing and latest revision available"],
@@ -47,6 +49,11 @@ const newId = () => typeof crypto !== "undefined" && "randomUUID" in crypto
 
 export default function SiteInspectionPage() {
   const { user } = useAuth();
+  const projectId = useActiveProjectId();
+  const [projectArtifactId, setProjectArtifactId] = useState<string | undefined>();
+  const [projectReady, setProjectReady] = useState(false);
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const [projectRecords, setProjectRecords] = useState<InspectionRecord[]>([]);
   const [records, setRecords, synced] = useCloudState<InspectionRecord[]>("civilos.site-inspections", []);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [project, setProject] = useState("");
@@ -55,10 +62,30 @@ export default function SiteInspectionPage() {
   const [status, setStatus] = useState<CheckStatus[]>(freshStatus);
   const [notes, setNotes] = useState<string[]>(freshNotes);
   const [search, setSearch] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    setProjectReady(false); setProjectArtifactId(undefined); setProjectError(null); setProjectRecords([]);
+    if (!projectId) return;
+    void listProjectArtifacts(projectId).then((items) => {
+      if (cancelled) return;
+      const artifact = items.find((item) => item.artifact_type === "project-qaqc-inspections");
+      const rows = Array.isArray(artifact?.data?.records) ? artifact.data.records as InspectionRecord[] : [];
+      setProjectRecords(rows); setProjectArtifactId(artifact?.id); setProjectReady(true);
+    }).catch((error) => { if (!cancelled) { setProjectError(error instanceof Error ? error.message : "Could not load project inspections."); setProjectReady(true); } });
+    return () => { cancelled = true; };
+  }, [projectId]);
+  const activeRecords = projectId ? projectRecords : records;
+  const persistRecords = async (next: InspectionRecord[]) => {
+    if (!projectId) { setRecords(next); return; }
+    if (!projectReady || projectError) throw new Error(projectError || "Project inspections are still loading.");
+    const saved = await saveProjectArtifact({ id: projectArtifactId, projectId, artifactType: "project-qaqc-inspections", title: "QA/QC Inspection Register", description: "Project-specific field inspection records, checklist statuses and corrective-action notes", data: { records: next } });
+    setProjectArtifactId(saved.id); setProjectRecords(next);
+  };
+
 
   const orderedRecords = useMemo(
-    () => [...records].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    [records],
+    () => [...activeRecords].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    [activeRecords],
   );
   const filteredRecords = orderedRecords.filter((r) =>
     `${r.project} ${r.inspector} ${r.date}`.toLowerCase().includes(search.toLowerCase().trim()),
@@ -89,28 +116,24 @@ export default function SiteInspectionPage() {
     if (!date) return toast.error("Choose the inspection date.");
     const now = new Date().toISOString();
     if (activeId) {
-      setRecords((old) => old.map((r) => r.id === activeId
-        ? { ...r, project: project.trim(), inspector: inspector.trim(), date, status: [...status], notes: [...notes], updatedAt: now }
-        : r));
-      toast.success("Inspection report updated.");
+      const next = activeRecords.map((r) => r.id === activeId ? { ...r, project: project.trim(), inspector: inspector.trim(), date, status: [...status], notes: [...notes], updatedAt: now } : r);
+      void persistRecords(next).then(() => toast.success("Inspection report updated.")).catch((error) => toast.error(error.message));
     } else {
       const record: InspectionRecord = {
         id: newId(), project: project.trim(), inspector: inspector.trim(), date,
         status: [...status], notes: [...notes], createdAt: now, updatedAt: now,
       };
-      setRecords((old) => [record, ...old]);
+      void persistRecords([record, ...activeRecords]).then(() => toast.success("Inspection report saved.")).catch((error) => toast.error(error.message));
       setActiveId(record.id);
-      toast.success("Inspection report saved.");
     }
   };
 
   const deleteRecord = (id: string) => {
-    const record = records.find((r) => r.id === id);
+    const record = activeRecords.find((r) => r.id === id);
     if (!record) return;
     if (!window.confirm(`Delete the inspection report for "${record.project}"?`)) return;
-    setRecords((old) => old.filter((r) => r.id !== id));
+    void persistRecords(activeRecords.filter((r) => r.id !== id)).then(() => toast.success("Inspection report deleted.")).catch((error) => toast.error(error.message));
     if (activeId === id) resetForm();
-    toast.success("Inspection report deleted.");
   };
 
   const exportCsv = (record?: InspectionRecord) => {
@@ -153,14 +176,14 @@ export default function SiteInspectionPage() {
           <main className="mx-auto w-full max-w-6xl flex-1 space-y-5 p-4 md:p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-bold">Site Inspection Checklist</h2>
+                <h2 className="text-2xl font-bold">Site Inspection Checklist</h2>{projectId && <p className="text-xs text-muted-foreground">{projectError || (projectReady ? "Project-specific QA/QC register" : "Loading project inspections…")}</p>}
                 <p className="text-sm text-muted-foreground">Record field checks, keep inspection history, and export a CSV report.</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={resetForm}><FilePlus2 className="mr-2 h-4 w-4" /> New report</Button>
                 <Button variant="outline" onClick={() => { setStatus(freshStatus()); setNotes(freshNotes()); }}><RotateCcw className="mr-2 h-4 w-4" /> Reset checks</Button>
                 <Button variant="outline" onClick={() => exportCsv()}><Download className="mr-2 h-4 w-4" /> Export CSV</Button>
-                <Button onClick={saveInspection}><Save className="mr-2 h-4 w-4" /> {activeId ? "Update report" : "Save report"}</Button>
+                <Button onClick={saveInspection} disabled={!!projectId && (!projectReady || !!projectError)}><Save className="mr-2 h-4 w-4" /> {activeId ? "Update report" : "Save report"}</Button>
               </div>
             </div>
 
@@ -194,7 +217,7 @@ export default function SiteInspectionPage() {
 
               <aside className="space-y-3">
                 <Card className="space-y-3 p-4">
-                  <div><h3 className="font-semibold">Saved inspections</h3><p className="text-xs text-muted-foreground">{records.length} report{records.length === 1 ? "" : "s"} saved</p></div>
+                  <div><h3 className="font-semibold">Saved inspections</h3><p className="text-xs text-muted-foreground">{activeRecords.length} report{activeRecords.length === 1 ? "" : "s"} saved</p></div>
                   <Input aria-label="Search saved inspections" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search project or inspector…" />
                   {filteredRecords.length === 0 ? <p className="py-5 text-center text-sm text-muted-foreground">No saved inspections found.</p> : (
                     <div className="max-h-[65vh] space-y-2 overflow-y-auto">

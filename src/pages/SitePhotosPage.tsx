@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
@@ -11,6 +11,8 @@ import { useAuth } from "@/lib/auth";
 import { Camera, MapPin, Trash2, Loader2, Upload, Images, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import SEO from "@/components/SEO";
+import { useActiveProjectId } from "@/lib/projectSelection";
+import { listProjectArtifacts, saveProjectArtifact } from "@/lib/projectArtifacts";
 
 type PhotoRecord = {
   id: string;
@@ -32,6 +34,11 @@ const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/h
 export default function SitePhotosPage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const projectId = useActiveProjectId();
+  const [projectArtifactId, setProjectArtifactId] = useState<string | undefined>();
+  const [projectReady, setProjectReady] = useState(false);
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const projectLoadSequence = useRef(0);
   const [photos, setPhotos] = useState<PhotoRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -49,6 +56,28 @@ export default function SitePhotosPage() {
   const loadPhotos = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    if (projectId) {
+      const requestId = ++projectLoadSequence.current;
+      try {
+        const items = await listProjectArtifacts(projectId);
+        if (requestId !== projectLoadSequence.current) return;
+        const artifact = items.find((item) => item.artifact_type === "project-site-photos");
+        const rows = Array.isArray(artifact?.data?.photos) ? artifact.data.photos as PhotoRecord[] : [];
+        setProjectArtifactId(artifact?.id);
+        const withUrls = await Promise.all(rows.map(async (photo) => {
+          const { data: signed } = await supabase.storage.from("site-photos").createSignedUrl(photo.storage_path, 60 * 60);
+          return { ...photo, imageUrl: signed?.signedUrl };
+        }));
+        if (requestId !== projectLoadSequence.current) return;
+        setPhotos(withUrls);
+        setProjectReady(true); setProjectError(null); setLoading(false);
+      } catch (error) {
+        if (requestId !== projectLoadSequence.current) return;
+        setProjectError(error instanceof Error ? error.message : "Could not load project photos.");
+        setPhotos([]); setProjectReady(true); setLoading(false);
+      }
+      return;
+    }
     const { data, error } = await (supabase.from("site_photos" as any) as any)
       .select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100);
     if (error) {
@@ -64,11 +93,13 @@ export default function SitePhotosPage() {
     }));
     setPhotos(withUrls);
     setLoading(false);
-  }, [user]);
+  }, [user, projectId]);
 
   useEffect(() => {
+    projectLoadSequence.current += 1;
+    setProjectReady(false); setProjectError(null); setProjectArtifactId(undefined); setPhotos([]);
     if (user) void loadPhotos();
-  }, [user, loadPhotos]);
+  }, [user, projectId, loadPhotos]);
 
   const requestLocation = () => {
     if (!navigator.geolocation) {
@@ -97,6 +128,7 @@ export default function SitePhotosPage() {
     }
     setUploading(true);
     let succeeded = 0;
+    let projectRows: PhotoRecord[] = [];
     for (const file of files) {
       const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
       const storagePath = `${user.id}/${crypto.randomUUID()}.${extension}`;
@@ -106,6 +138,11 @@ export default function SitePhotosPage() {
       });
       if (uploadError) {
         toast.error(`Upload failed for ${file.name}: ${uploadError.message}`);
+        continue;
+      }
+      if (projectId) {
+        projectRows.push({ id: crypto.randomUUID(), user_id: user.id, project_name: projectName.trim() || null, activity: activity.trim(), caption: caption.trim(), storage_path: storagePath, taken_on: takenOn, latitude: location?.latitude ?? null, longitude: location?.longitude ?? null, created_at: new Date().toISOString() });
+        succeeded += 1;
         continue;
       }
       const { error: rowError } = await (supabase.from("site_photos" as any) as any).insert({
@@ -125,6 +162,17 @@ export default function SitePhotosPage() {
       }
       succeeded += 1;
     }
+    if (projectId && projectRows.length > 0) {
+      try {
+        const current = photos.map(({ imageUrl: _imageUrl, ...photo }) => photo);
+        const saved = await saveProjectArtifact({ id: projectArtifactId, projectId, artifactType: "project-site-photos", title: "Site Photo Library", description: "Private construction progress photos with activity, date and optional GPS coordinates", data: { photos: [...projectRows, ...current].slice(0, 500) } });
+        setProjectArtifactId(saved.id);
+      } catch (error) {
+        await supabase.storage.from("site-photos").remove(projectRows.map((row) => row.storage_path));
+        succeeded = 0;
+        toast.error(error instanceof Error ? error.message : "Could not save project photo records.");
+      }
+    }
     setUploading(false);
     if (succeeded > 0) {
       toast.success(`${succeeded} photo${succeeded === 1 ? "" : "s"} uploaded.`);
@@ -139,15 +187,19 @@ export default function SitePhotosPage() {
 
   const deletePhoto = async (photo: PhotoRecord) => {
     if (!window.confirm("Delete this photo permanently?")) return;
-    const { error: storageError } = await supabase.storage.from("site-photos").remove([photo.storage_path]);
-    if (storageError) {
-      toast.error(`Could not delete image file: ${storageError.message}`);
-      return;
+    if (projectId) {
+      try {
+        const remaining = photos.filter((item) => item.id !== photo.id).map(({ imageUrl: _imageUrl, ...row }) => row);
+        const saved = await saveProjectArtifact({ id: projectArtifactId, projectId, artifactType: "project-site-photos", title: "Site Photo Library", description: "Private construction progress photos with activity, date and optional GPS coordinates", data: { photos: remaining } });
+        setProjectArtifactId(saved.id);
+      } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update project photo register."); return; }
+    } else {
+      const { error } = await (supabase.from("site_photos" as any) as any).delete().eq("id", photo.id).eq("user_id", user?.id);
+      if (error) { toast.error(error.message); return; }
     }
-    const { error } = await (supabase.from("site_photos" as any) as any).delete().eq("id", photo.id).eq("user_id", user?.id);
-    if (error) {
-      toast.error(error.message);
-      return;
+    if (projectId) {
+      const { error: storageError } = await supabase.storage.from("site-photos").remove([photo.storage_path]);
+      if (storageError) toast.error("Photo record removed, but the private file could not be deleted: " + storageError.message);
     }
     toast.success("Photo deleted.");
     setPhotos((current) => current.filter((item) => item.id !== photo.id));
@@ -166,7 +218,7 @@ export default function SitePhotosPage() {
               <SidebarTrigger />
               <Camera className="h-5 w-5 text-accent" />
               <div>
-                <h1 className="font-heading font-bold leading-tight">Site Photos</h1>
+                <h1 className="font-heading font-bold leading-tight">Site Photos</h1>{projectId && <p className="text-xs text-muted-foreground">{projectError || (projectReady ? "Project-specific photo library" : "Loading project photos…")}</p>}
                 <p className="text-xs text-muted-foreground">Private photo records for your construction projects</p>
               </div>
             </header>
@@ -189,7 +241,7 @@ export default function SitePhotosPage() {
                   <div className="flex flex-wrap items-center gap-3">
                     <Button type="button" variant="outline" onClick={requestLocation}><MapPin className="mr-2 h-4 w-4" />{location ? "Location added" : "Add current location"}</Button>
                     {location && <span className="text-xs text-muted-foreground">{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span>}
-                    <Button className="sm:ml-auto" onClick={uploadPhotos} disabled={uploading || files.length === 0}>
+                    <Button className="sm:ml-auto" onClick={uploadPhotos} disabled={uploading || files.length === 0 || (!!projectId && (!projectReady || !!projectError))}>
                       {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                       {uploading ? "Uploading…" : "Upload photos"}
                     </Button>
