@@ -1,7 +1,8 @@
 import { checkAiEndpointRateLimit } from "../_shared/aiRateLimit.ts";
 import { consumeAiCredit } from "../_shared/aiUsageQuota.ts";
-// CivilOS AI — conversational engineering assistant (Lovable AI / Gemini)
+// CivilOS AI — authenticated engineering assistant with configurable server-side AI provider.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { toChatCompletionStream } from "../_shared/openaiResponsesStream.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -54,8 +55,6 @@ Deno.serve(async (req) => {
     }
 
     const { messages, context } = await req.json() as { messages: ChatMsg[]; context?: string };
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
     if (!Array.isArray(messages) || messages.length === 0 || messages.length > 30) {
       return new Response(JSON.stringify({ error: "Provide between 1 and 30 messages" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -82,43 +81,94 @@ Deno.serve(async (req) => {
     if (creditQuota) return new Response(JSON.stringify({ error: creditQuota.message }), { status: creditQuota.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
 
-    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [{ role: "system", content: sys }, ...messages],
-        stream: true,
-      }),
-    });
+    // Provider selection is controlled only by server-side secrets. Clients cannot
+    // switch providers or inject model names, which keeps cost and access policy central.
+    const provider = (Deno.env.get("AI_PROVIDER") || "lovable").toLowerCase();
+    const openAiKey = Deno.env.get("OPENAI_API_KEY");
+    const openAiModel = Deno.env.get("OPENAI_MODEL") || "gpt-5.5";
+
+    let resp: Response;
+    if (provider === "openai") {
+      if (!openAiKey) {
+        console.error("AI_PROVIDER is openai but OPENAI_API_KEY is not configured");
+        return new Response(JSON.stringify({ error: "OpenAI is not configured yet. Please contact the administrator." }), {
+          status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      resp = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openAiKey}`,
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+        },
+        body: JSON.stringify({
+          model: openAiModel,
+          instructions: sys,
+          input: messages.map(({ role, content }) => ({ role, content })),
+          stream: true,
+          store: false,
+        }),
+      });
+    } else if (provider === "lovable") {
+      const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+      if (!lovableApiKey) {
+        console.error("LOVABLE_API_KEY not configured");
+        return new Response(JSON.stringify({ error: "AI service is temporarily unavailable" }), {
+          status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${lovableApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [{ role: "system", content: sys }, ...messages],
+          stream: true,
+        }),
+      });
+    } else {
+      console.error("Unsupported AI_PROVIDER value");
+      return new Response(JSON.stringify({ error: "AI provider configuration is invalid." }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (resp.status === 429) {
-      return new Response(JSON.stringify({ error: "Rate limit — try again shortly." }), {
+      return new Response(JSON.stringify({ error: "AI provider rate limit reached. Please try again shortly." }), {
         status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     if (resp.status === 402) {
-      return new Response(JSON.stringify({ error: "AI credits exhausted." }), {
+      return new Response(JSON.stringify({ error: "AI provider credits or billing quota are exhausted." }), {
         status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     if (!resp.ok || !resp.body) {
-      const t = await resp.text();
-      console.error("AI gateway error", resp.status, t);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      // Do not log provider response bodies: they can contain request details.
+      console.error("AI provider request failed", { provider, status: resp.status });
+      return new Response(JSON.stringify({ error: "AI provider request failed. Please try again later." }), {
+        status: resp.status >= 500 ? 502 : 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(resp.body, {
+    const responseBody = provider === "openai"
+      ? toChatCompletionStream(resp.body, openAiModel)
+      : resp.body;
+
+    return new Response(responseBody, {
       headers: {
         ...corsHeaders,
         "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
+        "Cache-Control": "no-cache, no-transform",
         Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
       },
     });
   } catch (e) {
