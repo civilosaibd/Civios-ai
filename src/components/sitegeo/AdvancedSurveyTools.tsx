@@ -82,8 +82,24 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
   const [earth, setEarth] = useState({ designRL: 10, cellArea: 25 });
 
   const [boundary, setBoundary] = useState<number[]>([]);
+  const selectedPoint = stations.find((point) => point.id === selectedPointId) || null;
+  const updateSurveyPoint = (id: string, key: "easting" | "northing" | "elevation" | "code", value: number | string) => {
+    setStations((items) => items.map((point) => point.id === id ? { ...point, [key]: value } : point));
+  };
+  const addBreakline = () => {
+    if (!breaklineStart || !breaklineEnd || breaklineStart === breaklineEnd) return toast.error(T("Choose two different survey points", "দুটি আলাদা সার্ভে পয়েন্ট নির্বাচন করুন"));
+    if (breaklines.some((line) => (line.from === breaklineStart && line.to === breaklineEnd) || (line.from === breaklineEnd && line.to === breaklineStart))) return toast.error(T("This breakline already exists", "এই ব্রেকলাইন আগে থেকেই আছে"));
+    setBreaklines((items) => [...items, { from: breaklineStart, to: breaklineEnd }]);
+  };
   const [draftView, setDraftView] = useState<"points" | "tin" | "contours">("points");
   const [gridResolution, setGridResolution] = useState(20);
+  const [contourInterval, setContourInterval] = useState(0.5);
+  const [crsCode, setCrsCode] = useState("EPSG:32646");
+  const [coordinateUnit, setCoordinateUnit] = useState<"m" | "ft">("m");
+  const [selectedPointId, setSelectedPointId] = useState("");
+  const [breaklineStart, setBreaklineStart] = useState("");
+  const [breaklineEnd, setBreaklineEnd] = useState("");
+  const [breaklines, setBreaklines] = useState<Array<{ from: string; to: string }>>([]);
   useEffect(() => { setBoundary([]); }, [stations]);
   const hull = useMemo(() => stations.length >= 3 ? convexHull(stations) : [], [stations]);
   const tin = useMemo(() => triangulate(stations), [stations]);
@@ -135,6 +151,10 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
         lines.push("0","LINE","8","TIN_EDGES","10",String(a.easting),"20",String(a.northing),"30",String(a.elevation),"11",String(b.easting),"21",String(b.northing),"31",String(b.elevation));
       }
     });
+    breaklines.forEach((line) => {
+      const a = stations.find((point) => point.id === line.from), b = stations.find((point) => point.id === line.to);
+      if (a && b) lines.push("0","LINE","8","BREAKLINES","10",String(a.easting),"20",String(a.northing),"30",String(a.elevation),"11",String(b.easting),"21",String(b.northing),"31",String(b.elevation));
+    });
     lines.push("0","ENDSEC","0","EOF");
     const blob=new Blob([lines.join("\r\n")],{type:"application/dxf"});
     const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="civilos-survey-drawing.dxf"; a.click(); URL.revokeObjectURL(url);
@@ -142,7 +162,7 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
   const printReport = () => {
     if (!stations.length) return toast.error(T("Import survey data before creating a report", "রিপোর্ট তৈরির আগে সার্ভে ডেটা ইমপোর্ট করুন"));
     const rows=stations.map((p)=>"<tr><td>"+escapeHtml(p.id)+"</td><td>"+p.easting.toFixed(3)+"</td><td>"+p.northing.toFixed(3)+"</td><td>"+p.elevation.toFixed(3)+"</td><td>"+escapeHtml(p.code)+"</td></tr>").join("");
-    const report="<html><head><title>CivilOS Survey Report</title><style>body{font:12px Arial;padding:28px;color:#172033}h1{font-size:22px}table{border-collapse:collapse;width:100%;margin-top:16px}th,td{border:1px solid #ccd3df;padding:6px;text-align:left}th{background:#edf2f7}.meta{display:flex;gap:24px;flex-wrap:wrap}.note{margin-top:18px;color:#526071;font-size:11px}@media print{button{display:none}}</style></head><body><h1>CivilOS AI — Survey Report</h1><p>Generated: "+new Date().toLocaleString()+"</p><div class='meta'><p>Survey points: "+stations.length+"</p><p>Boundary vertices: "+boundary.length+"</p><p>TIN triangles: "+tin.length+"</p><p>Design RL: "+earth.designRL.toFixed(3)+" m</p></div><h2>Survey point register</h2><table><thead><tr><th>Point</th><th>Easting (m)</th><th>Northing (m)</th><th>RL (m)</th><th>Code</th></tr></thead><tbody>"+rows+"</tbody></table><p class='note'>Coordinate reference system and units are taken from the supplied field data and are not independently verified. TIN/grid quantities are preliminary estimates; verify the surface, boundary and field observations before engineering or payment use.</p><button onclick='window.print()'>Print / Save as PDF</button><script>window.onload=()=>window.print()</script></body></html>";
+    const report="<html><head><title>CivilOS Survey Report</title><style>body{font:12px Arial;padding:28px;color:#172033}h1{font-size:22px}table{border-collapse:collapse;width:100%;margin-top:16px}th,td{border:1px solid #ccd3df;padding:6px;text-align:left}th{background:#edf2f7}.meta{display:flex;gap:24px;flex-wrap:wrap}.note{margin-top:18px;color:#526071;font-size:11px}@media print{button{display:none}}</style></head><body><h1>CivilOS AI — Survey Report</h1><p>Generated: "+new Date().toLocaleString()+"</p><div class='meta'><p>Survey points: "+stations.length+"</p><p>Boundary vertices: "+boundary.length+"</p><p>TIN triangles: "+tin.length+"</p><p>Design RL: "+earth.designRL.toFixed(3)+" m</p><p>CRS: "+escapeHtml(crsCode)+"</p><p>Coordinate units: "+coordinateUnit+"</p><p>Breaklines: "+breaklines.length+"</p></div><h2>Survey point register</h2><table><thead><tr><th>Point</th><th>Easting (m)</th><th>Northing (m)</th><th>RL (m)</th><th>Code</th></tr></thead><tbody>"+rows+"</tbody></table><p class='note'>Coordinate reference system and units are taken from the supplied field data and are not independently verified. TIN/grid quantities are preliminary estimates; verify the surface, boundary and field observations before engineering or payment use.</p><button onclick='window.print()'>Print / Save as PDF</button><script>window.onload=()=>window.print()</script></body></html>";
     const win=window.open("","_blank");
     if(!win) return toast.error(T("Allow pop-ups to create the PDF report", "PDF রিপোর্টের জন্য পপ-আপ অনুমতি দিন"));
     win.document.write(report); win.document.close();
@@ -198,7 +218,10 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
       return weighted / weights;
     }));
     const min = Math.min(...stations.map((s) => s.elevation)), max = Math.max(...stations.map((s) => s.elevation));
-    const levels = Array.from({ length: 5 }, (_, i) => min + (max - min) * (i + 1) / 6);
+    const interval = Math.max(0.01, contourInterval);
+    const firstLevel = Math.ceil(min / interval) * interval;
+    const levelCount = Math.min(40, Math.max(0, Math.floor((max - firstLevel) / interval) + 1));
+    const levels = Array.from({ length: levelCount }, (_, i) => firstLevel + i * interval);
     const contours = levels.flatMap((level) => {
       const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
       for (let row = 0; row < size - 1; row++) for (let col = 0; col < size - 1; col++) {
@@ -214,13 +237,13 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
         }
         for (let i = 0; i + 1 < intersections.length; i += 2) {
           const a = intersections[i], b = intersections[i + 1];
-          segments.push({ x1: a.x / (size - 1) * 320, y1: a.y / (size - 1) * 180, x2: b.x / (size - 1) * 320, y2: b.y / (size - 1) * 180 });
+          segments.push({ x1: a.x / (size - 1) * 320, y1: a.y / (size - 1) * 180, x2: b.x / (size - 1) * 320, y2: b.y / (size - 1) * 180, level });
         }
       }
       return segments;
     });
     return { grid, min, max, contours, size };
-  }, [stations, gridResolution]);
+  }, [stations, gridResolution, contourInterval]);
 
   const profile = useMemo(() => {
     if (stations.length < 2) return null;
@@ -376,7 +399,8 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
               const xy=(p:Station)=>({x:40+(p.easting-minE)*scale+(560-spanE*scale)/2,y:340-(p.northing-minN)*scale-(300-spanN*scale)/2});
               return <>
                 {draftView==="tin" && tin.map((t,i)=>{const a=xy(stations[t.a]),b=xy(stations[t.b]),c=xy(stations[t.c]);return <polygon key={i} points={a.x+","+a.y+" "+b.x+","+b.y+" "+c.x+","+c.y} fill="none" stroke="#0ea5e9" strokeWidth="1" opacity=".75"/>;})}
-                {draftView==="contours" && surface?.contours.map((line,i)=><line key={i} x1={40+line.x1/320*560} y1={40+line.y1/180*300} x2={40+line.x2/320*560} y2={40+line.y2/180*300} stroke="#0d9488" strokeWidth="1.4" opacity=".75"/>)}
+                {draftView==="contours" && surface?.contours.map((line,i)=><g key={i}><line x1={40+line.x1/320*560} y1={40+line.y1/180*300} x2={40+line.x2/320*560} y2={40+line.y2/180*300} stroke="#0d9488" strokeWidth="1.4" opacity=".75"/>{i%18===0&&<text x={40+(line.x1+line.x2)/2/320*560} y={40+(line.y1+line.y2)/2/180*300} fontSize="8" fill="#0d9488">{numberText(line.level,2)}</text>}</g>)}
+                {breaklines.map((line,i)=>{const a=stations.find((p)=>p.id===line.from),b=stations.find((p)=>p.id===line.to);if(!a||!b)return null;const pa=xy(a),pb=xy(b);return <line key={i} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="#dc2626" strokeWidth="2.5" strokeDasharray="5 3"/>;})}
                 {boundary.length>=3 && <polygon points={boundary.map((i)=>{const p=xy(stations[i]);return p.x+","+p.y;}).join(" ")} fill="#f97316" fillOpacity=".08" stroke="#f97316" strokeWidth="2.5"/>}
                 {stations.slice(0,1000).map((p,i)=>{const q=xy(p);return <g key={p.id+"-"+i}><circle cx={q.x} cy={q.y} r="3.2" fill="#2563eb"/><text x={q.x+5} y={q.y-5} fontSize="9" fill="currentColor">{p.id.slice(0,14)}</text></g>;})}
               </>;
@@ -391,7 +415,7 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
             <p className="text-sm font-semibold">{T("Grid & TIN earthwork", "গ্রিড ও TIN আর্থওয়ার্ক")}</p>
             <div className="grid grid-cols-2 gap-2">
               <div><Label className="text-xs">{T("Design RL (m)", "ডিজাইন RL (মি)")}</Label><Input type="number" value={earth.designRL} onChange={(e)=>setEarth({...earth,designRL:Number(e.target.value)})}/></div>
-              <div><Label className="text-xs">{T("Grid resolution", "গ্রিড রেজোলিউশন")}</Label><select className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={gridResolution} onChange={(e)=>setGridResolution(Number(e.target.value))}><option value={10}>10 × 10</option><option value={20}>20 × 20</option><option value={40}>40 × 40</option></select></div>
+              <div><Label className="text-xs">{T("Contour interval (m)", "কনট্যুর ইন্টারভ্যাল (মি)")}</Label><Input type="number" min="0.01" step="0.1" value={contourInterval} onChange={(e)=>setContourInterval(Math.max(0.01,Number(e.target.value)||0.01))}/></div><div><Label className="text-xs">{T("Grid resolution", "গ্রিড রেজোলিউশন")}</Label><select className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={gridResolution} onChange={(e)=>setGridResolution(Number(e.target.value))}><option value={10}>10 × 10</option><option value={20}>20 × 20</option><option value={40}>40 × 40</option></select></div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="rounded bg-muted p-2">Grid cut / fill: <b>{gridStats?numberText(gridStats.cut)+" / "+numberText(gridStats.fill):"—"} m³</b></div>
