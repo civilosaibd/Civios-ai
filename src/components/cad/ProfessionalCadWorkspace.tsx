@@ -139,10 +139,21 @@ export default function ProfessionalCadWorkspace() {
       const a = { x: e.at.x - dx, y: e.at.y - dy };
       const b = { x: e.at.x + dx, y: e.at.y + dy };
       if (distanceToSegment(p, a, b) < 8 / view.scale) return true;
-      // Door swing arc is included in hit testing so the whole symbol is selectable.
+      // Match the visible quarter-circle swing arc, not an imaginary full circle.
       if (e.type === "door") {
         const radius = Math.hypot(p.x - e.at.x, p.y - e.at.y);
-        return Math.abs(radius - e.width) < 8 / view.scale && radius <= e.width + 8 / view.scale;
+        if (Math.abs(radius - e.width) >= 8 / view.scale) return false;
+        const normalize = (angle: number) => ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        const startAngle = normalize(e.rotation + Math.PI);
+        const endAngle = normalize(e.rotation + (e.swing === "left" ? 1 : -1) * Math.PI / 2);
+        const angle = normalize(Math.atan2(p.y - e.at.y, p.x - e.at.x));
+        const span = e.swing === "left"
+          ? normalize(startAngle - endAngle)
+          : normalize(endAngle - startAngle);
+        const progress = e.swing === "left"
+          ? normalize(startAngle - angle)
+          : normalize(angle - startAngle);
+        return progress <= span + 0.02;
       }
       return false;
     }
