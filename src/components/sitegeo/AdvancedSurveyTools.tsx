@@ -102,11 +102,12 @@ export default function AdvancedSurveyTools({ T, projectId }: { T: (en: string, 
   };
   const [draftView, setDraftView] = useState<"points" | "tin" | "contours">("points");
   const [gridResolution, setGridResolution] = useState(20);
-  useEffect(() => { setBoundary((items) => items.filter((index) => index >= 0 && index < stations.length)); setBreaklines((items) => items.filter((line) => stations.some((p) => p.id === line.from) && stations.some((p) => p.id === line.to))); }, [stations]);
+  useEffect(() => { if (hydratingStationsRef.current) { hydratingStationsRef.current = false; return; } setBoundary([]); setBreaklines((items) => items.filter((line) => stations.some((p) => p.id === line.from) && stations.some((p) => p.id === line.to))); }, [stations]);
 
   const [projectArtifactId, setProjectArtifactId] = useState<string | undefined>();
   const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null);
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
+  const hydratingStationsRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
     setLoadedProjectId(null); setProjectArtifactId(undefined); setProjectLoadError(null);
@@ -125,7 +126,7 @@ export default function AdvancedSurveyTools({ T, projectId }: { T: (en: string, 
       const earthData = data.earth && typeof data.earth === "object" ? data.earth as Record<string, unknown> : null;
       if (startData && isNum(startData.easting) && isNum(startData.northing)) setStart({ easting: startData.easting, northing: startData.northing });
       if (Array.isArray(data.legs) && data.legs.every((v) => v && isNum(v.id) && isNum(v.bearing) && isNum(v.distance))) setLegs(data.legs as Leg[]);
-      if (Array.isArray(data.stations) && data.stations.every((v) => v && typeof v.id === "string" && isNum(v.easting) && isNum(v.northing) && isNum(v.elevation) && typeof v.code === "string")) setStations(data.stations as Station[]);
+      if (Array.isArray(data.stations) && data.stations.every((v) => v && typeof v.id === "string" && isNum(v.easting) && isNum(v.northing) && isNum(v.elevation) && typeof v.code === "string")) { hydratingStationsRef.current = true; setStations(data.stations as Station[]); }
       if (data.ts && ["azimuth","slopeDistance","verticalAngle","instrumentRL","instrumentHeight","prismHeight"].every((k) => isNum((data.ts as Record<string,unknown>)[k]))) setTs(data.ts as typeof ts);
       if (earthData && isNum(earthData.designRL) && isNum(earthData.cellArea)) setEarth({ designRL: earthData.designRL, cellArea: earthData.cellArea });
       if (Array.isArray(data.boundary) && data.boundary.every((v) => Number.isInteger(v) && v >= 0)) setBoundary(data.boundary as number[]);
