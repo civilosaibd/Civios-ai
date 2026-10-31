@@ -84,6 +84,7 @@ const TrainingCornerPage = lazy(
 const MaterialCalculatorPage = lazy(
   () => import("./pages/MaterialCalculatorPage.tsx")
 );
+const CalculationCenterPage = lazy(() => import("./pages/CalculationCenterPage.tsx"));
 const VisualizationsPage = lazy(
   () => import("./pages/VisualizationsPage.tsx")
 );
