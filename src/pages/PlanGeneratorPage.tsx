@@ -22,6 +22,9 @@ import { useI18n } from "@/lib/i18n";
 import { DEFAULT_INPUT, generatePlan, parsePrompt, type PlanInput, type RoadSide } from "@/lib/planGenerator";
 import { toast } from "sonner";
 import ProfessionalCadWorkspace from "@/components/cad/ProfessionalCadWorkspace";
+import { useActiveProjectId } from "@/lib/projectSelection";
+import { listProjectArtifacts } from "@/lib/projectArtifacts";
+import { useProjectArtifactAutosave } from "@/hooks/useProjectArtifactAutosave";
 
 const zoneFill = { front: "hsl(var(--primary) / 0.14)", mid: "hsl(var(--accent) / 0.16)", rear: "hsl(var(--secondary))" };
 
@@ -36,6 +39,37 @@ export default function PlanGeneratorPage() {
   const [prompt, setPrompt] = useState("");
   const plan = useMemo(() => generatePlan(inp), [inp]);
   const set = <K extends keyof PlanInput>(k: K, v: PlanInput[K]) => setInp((p) => ({ ...p, [k]: v }));
+  const projectId = useActiveProjectId();
+  const [projectArtifactId, setProjectArtifactId] = useState<string | undefined>();
+  const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null);
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadedProjectId(null);
+    setProjectArtifactId(undefined);
+    setProjectLoadError(null);
+    if (!projectId) { setLoadedProjectId(null); return; }
+    void listProjectArtifacts(projectId).then((items) => {
+      if (cancelled) return;
+      const saved = items.find((item) => item.artifact_type === "floor-plan-design");
+      const savedInput = saved?.data?.planInput;
+      setInp(savedInput && typeof savedInput === "object" ? { ...DEFAULT_INPUT, ...(savedInput as Partial<PlanInput>) } : DEFAULT_INPUT);
+      setProjectArtifactId(saved?.id);
+      setLoadedProjectId(projectId);
+    }).catch((error) => {
+      if (!cancelled) { setProjectLoadError(error instanceof Error ? error.message : "Could not load this project floor plan."); setLoadedProjectId(projectId); }
+    });
+    return () => { cancelled = true; };
+  }, [projectId, setInp]);
+
+  const projectSave = useProjectArtifactAutosave({
+    projectId: projectId ?? "", artifactId: projectArtifactId, artifactType: "floor-plan-design",
+    title: "Floor Plan Design", description: "Project-scoped conceptual floor plan inputs",
+    data: { planInput: inp }, enabled: !!projectId && loadedProjectId === projectId && !projectLoadError,
+    debounceMs: 1400,
+  });
+  useEffect(() => { if (projectSave.artifactId && projectSave.artifactId !== projectArtifactId) setProjectArtifactId(projectSave.artifactId); }, [projectSave.artifactId, projectArtifactId]);
 
   const S = 8; // px per ft
   const pad = 30;
@@ -78,9 +112,11 @@ export default function PlanGeneratorPage() {
             <div className="flex items-center gap-2"><SidebarTrigger />
               <h1 className="font-heading font-semibold flex items-center gap-2"><LayoutGrid className="h-4 w-4 text-accent" /> {L("Automatic Floor Plan Generator", "স্বয়ংক্রিয় ফ্লোর প্ল্যান জেনারেটর")}</h1>
             </div>
-            <div className="flex items-center gap-2"><UnitsSwitch /><ThemeToggle /></div>
+            <div className="flex items-center gap-2"><span className="hidden sm:inline text-xs text-muted-foreground">{projectId ? (projectSave.status === "saving" ? L("Saving to project…", "প্রজেক্টে সেভ হচ্ছে…") : projectSave.status === "saved" ? L("Saved to project", "প্রজেক্টে সেভ হয়েছে") : projectSave.status === "error" ? L("Save failed", "সেভ হয়নি") : L("Project linked", "প্রজেক্ট সংযুক্ত")) : L("Personal workspace", "ব্যক্তিগত ওয়ার্কস্পেস")}</span><UnitsSwitch /><ThemeToggle /></div>
           </header>
           <main className="p-4 md:p-6 grid lg:grid-cols-[340px_1fr] gap-5">
+            {projectLoadError && <div className="lg:col-span-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{L("Could not load this project’s saved floor plan: ", "প্রজেক্টের সংরক্ষিত ফ্লোর প্ল্যান লোড করা যায়নি: ")}{projectLoadError}</div>}
+            {projectSave.error && <div className="lg:col-span-2 rounded-md border border-destructive/40 p-3 text-xs text-destructive">{projectSave.error}</div>}
             <div className="lg:col-span-2"><ProfessionalCadWorkspace /></div>
             <div className="space-y-4">
               <Card className="p-4 space-y-2">
