@@ -25,6 +25,7 @@ export type NavCategory = {
 export const topNav: NavLeaf[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Projects", url: "/projects", icon: FolderOpen },
+  { title: "Calculation", url: "/calculation", icon: Calculator },
 ];
 
 /** Everything construction-related lives inside this single grouped section */
