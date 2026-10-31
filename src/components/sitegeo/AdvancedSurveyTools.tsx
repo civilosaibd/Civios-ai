@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { listProjectArtifacts } from "@/lib/projectArtifacts";
+import { useProjectArtifactAutosave } from "@/hooks/useProjectArtifactAutosave";
 
 type Leg = { id: number; bearing: number; distance: number };
 type Station = { id: string; easting: number; northing: number; elevation: number; code: string };
@@ -73,7 +75,7 @@ function triangulate(points: Station[]): TinTriangle[] {
     .filter((t) => Math.abs((all[t.b].x - all[t.a].x) * (all[t.c].y - all[t.a].y) - (all[t.b].y - all[t.a].y) * (all[t.c].x - all[t.a].x)) > 1e-8);
 }
 
-export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string) => string }) {
+export default function AdvancedSurveyTools({ T, projectId }: { T: (en: string, bn: string) => string; projectId?: string | null }) {
   const [start, setStart] = useState({ easting: 500000, northing: 2600000 });
   const [legs, setLegs] = useState<Leg[]>([{ id: 1, bearing: 45, distance: 100 }, { id: 2, bearing: 135, distance: 100 }, { id: 3, bearing: 225, distance: 100 }, { id: 4, bearing: 315, distance: 100 }]);
   const [stations, setStations] = useState<Station[]>([]);
@@ -100,7 +102,52 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
   };
   const [draftView, setDraftView] = useState<"points" | "tin" | "contours">("points");
   const [gridResolution, setGridResolution] = useState(20);
-  useEffect(() => { setBoundary([]); setBreaklines((items) => items.filter((line) => stations.some((p) => p.id === line.from) && stations.some((p) => p.id === line.to))); }, [stations]);
+  useEffect(() => { setBoundary((items) => items.filter((index) => index >= 0 && index < stations.length)); setBreaklines((items) => items.filter((line) => stations.some((p) => p.id === line.from) && stations.some((p) => p.id === line.to))); }, [stations]);
+
+  const [projectArtifactId, setProjectArtifactId] = useState<string | undefined>();
+  const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null);
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setLoadedProjectId(null); setProjectArtifactId(undefined); setProjectLoadError(null);
+    setStart({ easting: 500000, northing: 2600000 });
+    setLegs([{ id: 1, bearing: 45, distance: 100 }, { id: 2, bearing: 135, distance: 100 }, { id: 3, bearing: 225, distance: 100 }, { id: 4, bearing: 315, distance: 100 }]);
+    setStations([]); setTs({ azimuth: 45, slopeDistance: 50, verticalAngle: 5, instrumentRL: 10, instrumentHeight: 1.5, prismHeight: 1.5 });
+    setEarth({ designRL: 10, cellArea: 25 }); setBoundary([]); setContourInterval(0.5); setCrsCode("EPSG:32646");
+    setCoordinateUnit("m"); setBreaklines([]); setDraftView("points"); setGridResolution(20);
+    if (!projectId) return;
+    void listProjectArtifacts(projectId).then((items) => {
+      if (cancelled) return;
+      const saved = items.find((item) => item.artifact_type === "site-geo-advanced-survey");
+      const data = saved?.data ?? {};
+      const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+      if (data.start && isNum(data.start.easting) && isNum(data.start.northing)) setStart(data.start as typeof start);
+      if (Array.isArray(data.legs) && data.legs.every((v) => v && isNum(v.id) && isNum(v.bearing) && isNum(v.distance))) setLegs(data.legs as Leg[]);
+      if (Array.isArray(data.stations) && data.stations.every((v) => v && typeof v.id === "string" && isNum(v.easting) && isNum(v.northing) && isNum(v.elevation) && typeof v.code === "string")) setStations(data.stations as Station[]);
+      if (data.ts && ["azimuth","slopeDistance","verticalAngle","instrumentRL","instrumentHeight","prismHeight"].every((k) => isNum((data.ts as Record<string,unknown>)[k]))) setTs(data.ts as typeof ts);
+      if (data.earth && isNum(data.earth.designRL) && isNum(data.earth.cellArea)) setEarth(data.earth as typeof earth);
+      if (Array.isArray(data.boundary) && data.boundary.every((v) => Number.isInteger(v) && v >= 0)) setBoundary(data.boundary as number[]);
+      if (isNum(data.contourInterval) && data.contourInterval > 0) setContourInterval(data.contourInterval);
+      if (typeof data.crsCode === "string") setCrsCode(data.crsCode.slice(0, 32));
+      if (data.coordinateUnit === "m" || data.coordinateUnit === "ft") setCoordinateUnit(data.coordinateUnit);
+      if (Array.isArray(data.breaklines) && data.breaklines.every((v) => v && typeof v.from === "string" && typeof v.to === "string")) setBreaklines(data.breaklines as Array<{from:string;to:string}>);
+      if (["points","tin","contours"].includes(String(data.draftView))) setDraftView(data.draftView as "points"|"tin"|"contours");
+      if ([10,20,40].includes(Number(data.gridResolution))) setGridResolution(Number(data.gridResolution));
+      setProjectArtifactId(saved?.id); setLoadedProjectId(projectId);
+    }).catch((error) => {
+      if (!cancelled) { setProjectLoadError(error instanceof Error ? error.message : "Could not load advanced survey data."); setLoadedProjectId(projectId); }
+    });
+    return () => { cancelled = true; };
+  }, [projectId]);
+  const projectSave = useProjectArtifactAutosave({
+    projectId: projectId ?? "", artifactId: projectArtifactId, artifactType: "site-geo-advanced-survey",
+    title: "Advanced Survey & Total Station", description: "Project-specific traverse, station register, total station setup, boundary, breaklines and DTM settings",
+    data: { start, legs, stations, ts, earth, boundary, contourInterval, crsCode, coordinateUnit, breaklines, draftView, gridResolution },
+    enabled: !!projectId && loadedProjectId === projectId && !projectLoadError,
+    debounceMs: 1500,
+  });
+  useEffect(() => { if (projectSave.artifactId && projectSave.artifactId !== projectArtifactId) setProjectArtifactId(projectSave.artifactId); }, [projectSave.artifactId, projectArtifactId]);
+
   const hull = useMemo(() => stations.length >= 3 ? convexHull(stations) : [], [stations]);
   const tin = useMemo(() => triangulate(stations), [stations]);
   const tinStats = useMemo(() => {
