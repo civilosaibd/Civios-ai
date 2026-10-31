@@ -34,6 +34,7 @@ interface PaymentRow {
 
 const statusColor: Record<string, string> = {
   active: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
+  trialing: "bg-blue-500/15 text-blue-600 border-blue-500/30",
   pending: "bg-amber-500/15 text-amber-600 border-amber-500/30",
   verified: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
   failed: "bg-destructive/15 text-destructive border-destructive/30",
@@ -58,6 +59,11 @@ export default function BillingPage() {
   const { toast } = useToast();
   const { t } = useI18n();
   const { loading, plans, plan, subscription, activeSub, usage, limitOf, percentUsed, reload } = useSubscription();
+  const trialEndsAt = activeSub?.status === "trialing" && activeSub.renewal_date ? new Date(activeSub.renewal_date) : null;
+  const trialDaysLeft = trialEndsAt ? Math.max(0, Math.ceil((trialEndsAt.getTime() - Date.now()) / 86400000)) : 0;
+  const subscriptionStatus = subscription?.status === "trialing" && subscription.renewal_date && Date.parse(subscription.renewal_date) <= Date.now()
+    ? "expired"
+    : subscription?.status || "active";
   const cycle = "yearly" as const; // billing currently supports yearly plans only
   const [checkoutPlan, setCheckoutPlan] = useState<Plan | null>(null);
   const [method, setMethod] = useState("bkash");
@@ -169,15 +175,24 @@ export default function BillingPage() {
                       <p className="text-xs text-muted-foreground">Your plan</p>
                       <div className="flex items-center gap-2 flex-wrap">
                         <h2 className="font-heading text-2xl font-bold">{plan?.name || "Free"}</h2>
-                        <Badge variant="outline" className={statusColor[subscription?.status || "active"]}>
-                          {subscription?.status || "active"}
+                        <Badge variant="outline" className={statusColor[subscriptionStatus]}>
+                          {subscriptionStatus === "trialing" ? "Free trial" : subscriptionStatus}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {activeSub?.renewal_date
-                          ? `Renews ${new Date(activeSub.renewal_date).toLocaleDateString()}`
-                          : "No renewal date — free plan"}
+                        {trialEndsAt
+                          ? `Professional trial ends ${trialEndsAt.toLocaleString()}`
+                          : activeSub?.renewal_date
+                            ? `Renews ${new Date(activeSub.renewal_date).toLocaleDateString()}`
+                            : subscriptionStatus === "expired"
+                              ? "Professional trial ended — you are now on the Free plan."
+                              : "No renewal date — Free plan"}
                       </p>
+                      {trialEndsAt && (
+                        <p className="text-xs font-medium text-blue-600">
+                          {trialDaysLeft} day{trialDaysLeft === 1 ? "" : "s"} left in your 3-day Professional free trial.
+                        </p>
+                      )}
                       <p className="text-xs text-muted-foreground">
                         Payment method: {activeSub?.payment_provider ? "bKash / Nagad (manual)" : "—"}
                       </p>
