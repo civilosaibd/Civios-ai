@@ -1,4 +1,5 @@
 import { dimensionLength, polygonVertices, type CadDocument, type CadEntity, type CadLayer, type Point2D } from "./geometry";
+import { getWallVisibleSegments } from "./wall-openings";
 
 const INSUNITS: Record<CadDocument["units"], number> = { in: 1, ft: 2, mm: 4, cm: 5, m: 6 };
 
@@ -35,7 +36,8 @@ export function documentToDxf(doc: CadDocument): string {
   for (const entity of doc.entities) {
     if (!visible(doc, entity)) continue;
     const layer = layerName(doc, entity);
-    if (entity.type === "line" || entity.type === "wall") body += lineEntity(layer, entity.start, entity.end);
+    if (entity.type === "line") body += lineEntity(layer, entity.start, entity.end);
+    else if (entity.type === "wall") getWallVisibleSegments(entity, doc.entities).forEach((segment) => { body += lineEntity(layer, segment.start, segment.end); });
     else if (entity.type === "polyline") body += polyEntity(layer, entity.points, entity.closed);
     else if (entity.type === "rectangle") body += polyEntity(layer, [entity.min, { x: entity.max.x, y: entity.min.y }, entity.max, { x: entity.min.x, y: entity.max.y }], true);
     else if (entity.type === "polygon") body += polyEntity(layer, polygonVertices(entity), true);
@@ -50,9 +52,16 @@ export function documentToDxf(doc: CadDocument): string {
       const dy = Math.sin(entity.rotation) * entity.width / 2;
       const a = { x: entity.at.x - dx, y: entity.at.y - dy };
       const b = { x: entity.at.x + dx, y: entity.at.y + dy };
-      body += lineEntity(layer, a, b);
       if (entity.type === "door") {
+        body += lineEntity(layer, a, b);
         body += `0\nARC\n8\n${layer}\n10\n${fmt(a.x)}\n20\n${fmt(a.y)}\n40\n${fmt(entity.width)}\n50\n${fmt((entity.rotation * 180) / Math.PI)}\n51\n${fmt(((entity.rotation + (entity.swing === "left" ? 1 : -1) * Math.PI / 2) * 180) / Math.PI)}\n`;
+      } else {
+        const nx = -Math.sin(entity.rotation), ny = Math.cos(entity.rotation);
+        const jamb = Math.max(0.08, entity.width * 0.06);
+        body += lineEntity(layer, { x: a.x + nx * jamb / 2, y: a.y + ny * jamb / 2 }, { x: b.x + nx * jamb / 2, y: b.y + ny * jamb / 2 });
+        body += lineEntity(layer, { x: a.x - nx * jamb / 2, y: a.y - ny * jamb / 2 }, { x: b.x - nx * jamb / 2, y: b.y - ny * jamb / 2 });
+        body += lineEntity(layer, { x: a.x - nx * jamb, y: a.y - ny * jamb }, { x: a.x + nx * jamb, y: a.y + ny * jamb });
+        body += lineEntity(layer, { x: b.x - nx * jamb, y: b.y - ny * jamb }, { x: b.x + nx * jamb, y: b.y + ny * jamb });
       }
     }
     else if (entity.type === "column") {
@@ -114,8 +123,20 @@ export function documentToSvg(doc: CadDocument): string {
   for (const entity of shown) {
     const stroke = color(entity.layerId);
     if (entity.type === "line") parts.push(`<line x1="${entity.start.x}" y1="${entity.start.y}" x2="${entity.end.x}" y2="${entity.end.y}" stroke="${stroke}" fill="none"/>`);
-    else if (entity.type === "wall") parts.push(`<line x1="${entity.start.x}" y1="${entity.start.y}" x2="${entity.end.x}" y2="${entity.end.y}" stroke="${stroke}" stroke-width="${entity.thickness}" stroke-linecap="square" fill="none"/>`);
+    else if (entity.type === "wall") getWallVisibleSegments(entity, shown).forEach((segment) => parts.push(`<line x1="${segment.start.x}" y1="${segment.start.y}" x2="${segment.end.x}" y2="${segment.end.y}" stroke="${stroke}" stroke-width="${entity.thickness}" stroke-linecap="square" fill="none"/>`));
     else if (entity.type === "circle") parts.push(`<circle cx="${entity.center.x}" cy="${entity.center.y}" r="${entity.radius}" stroke="${stroke}" fill="none"/>`);
+    else if (entity.type === "door" || entity.type === "window") {
+      const dx = Math.cos(entity.rotation) * entity.width / 2, dy = Math.sin(entity.rotation) * entity.width / 2;
+      const a = { x: entity.at.x - dx, y: entity.at.y - dy }, b = { x: entity.at.x + dx, y: entity.at.y + dy };
+      if (entity.type === "door") {
+        const endAngle = entity.rotation + (entity.swing === "left" ? 1 : -1) * Math.PI / 2;
+        const arcEnd = { x: entity.at.x + Math.cos(endAngle) * entity.width / 2, y: entity.at.y + Math.sin(endAngle) * entity.width / 2 };
+        parts.push(`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${stroke}"/><path d="M ${a.x} ${a.y} A ${entity.width / 2} ${entity.width / 2} 0 0 ${entity.swing === "left" ? 0 : 1} ${arcEnd.x} ${arcEnd.y}" stroke="${stroke}" fill="none"/>`);
+      } else {
+        const nx = -Math.sin(entity.rotation), ny = Math.cos(entity.rotation), jamb = Math.max(0.08, entity.width * 0.06);
+        parts.push(`<line x1="${a.x + nx * jamb / 2}" y1="${a.y + ny * jamb / 2}" x2="${b.x + nx * jamb / 2}" y2="${b.y + ny * jamb / 2}" stroke="${stroke}"/><line x1="${a.x - nx * jamb / 2}" y1="${a.y - ny * jamb / 2}" x2="${b.x - nx * jamb / 2}" y2="${b.y - ny * jamb / 2}" stroke="${stroke}"/><line x1="${a.x - nx * jamb}" y1="${a.y - ny * jamb}" x2="${a.x + nx * jamb}" y2="${a.y + ny * jamb}" stroke="${stroke}"/><line x1="${b.x - nx * jamb}" y1="${b.y - ny * jamb}" x2="${b.x + nx * jamb}" y2="${b.y + ny * jamb}" stroke="${stroke}"/>`);
+      }
+    }
     else if (entity.type === "text") parts.push(`<text x="${entity.at.x}" y="${entity.at.y}" font-size="${entity.height}" fill="${stroke}">${esc(entity.text)}</text>`);
     else if (entity.type === "dimension") parts.push(`<line x1="${entity.a.x}" y1="${entity.a.y}" x2="${entity.b.x}" y2="${entity.b.y}" stroke="${stroke}" fill="none"/><text x="${(entity.a.x + entity.b.x) / 2}" y="${(entity.a.y + entity.b.y) / 2}" font-size="1" fill="${stroke}">${fmt(dimensionLength(entity))}</text>`);
     else if (entity.type === "polyline" || entity.type === "polygon" || entity.type === "rectangle" || entity.type === "column") {
