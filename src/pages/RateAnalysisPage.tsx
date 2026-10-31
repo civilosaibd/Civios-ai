@@ -260,7 +260,7 @@ export default function RateAnalysisPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { if (!authLoading && !user) navigate("/auth"); }, [user, authLoading, navigate]);
-  useEffect(() => { if (activeProjectId) setProjectId(activeProjectId); else if (projectId !== "local") setProjectId("local"); }, [activeProjectId]);
+  useEffect(() => { setProjectId(activeProjectId || "local"); setSavedArtifactId(null); }, [activeProjectId]);
   useEffect(() => { setActiveId(analyses[0]?.id ?? ""); }, [analyses.length === 0]);
 
   useEffect(() => {
