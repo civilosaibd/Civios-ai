@@ -1,4 +1,5 @@
 import { useCloudState } from "@/lib/cloudState";
+import AdvancedSurveyTools from "@/components/sitegeo/AdvancedSurveyTools";
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -9,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Map as MapIcon, Ruler, Hexagon, Home, Undo2, Trash2, LocateFixed, Download, Search, Upload, Maximize2, Minimize2, Crosshair, Layers } from "lucide-react";
+import { Map as MapIcon, Ruler, Hexagon, Home, Undo2, Redo2, Trash2, LocateFixed, Download, Search, Upload, Maximize2, Minimize2, Crosshair, Layers } from "lucide-react";
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useI18n } from "@/lib/i18n";
@@ -22,6 +23,7 @@ import { DEFAULT_INPUT, generatePlan, type PlanInput } from "@/lib/planGenerator
 import { bearing, distance, landUnits, offset, pathLength, polygonArea, quadArea, SFT_PER_M2, type LatLng } from "@/lib/survey";
 
 type Mode = "distance" | "area";
+type SurveyTool = "point" | "line" | "polygon";
 const FT = 0.3048;
 const DHAKA: LatLng = { lat: 23.8103, lng: 90.4125 };
 
@@ -50,6 +52,13 @@ export default function SiteGeoPage() {
   const [query, setQuery] = useState("");
   const tiles = useRef<{ street: L.TileLayer; sat: L.TileLayer; terrain: L.TileLayer; labels: L.TileLayer } | null>(null);
   const modeRef = useRef(mode); modeRef.current = mode;
+  const [surveyTool, setSurveyTool] = useState<SurveyTool>("polygon");
+  const ptsRef = useRef(pts); ptsRef.current = pts;
+  const undoStack = useRef<LatLng[][]>([]);
+  const redoStack = useRef<LatLng[][]>([]);
+  const updateSurveyPoints = (next: LatLng[]) => { undoStack.current.push(ptsRef.current); if (undoStack.current.length > 100) undoStack.current.shift(); redoStack.current = []; ptsRef.current = next; setPts(next); };
+  const undoSurvey = () => { const previous = undoStack.current.pop(); if (!previous) return; redoStack.current.push(ptsRef.current); ptsRef.current = previous; setPts(previous); };
+  const redoSurvey = () => { const next = redoStack.current.pop(); if (!next) return; undoStack.current.push(ptsRef.current); ptsRef.current = next; setPts(next); };
 
   const [inp] = useCloudState<PlanInput>("civilos.plan", DEFAULT_INPUT, { merge: true });
 
@@ -66,7 +75,7 @@ export default function SiteGeoPage() {
     planLayer.current = L.layerGroup().addTo(m);
     gpsLayer.current = L.layerGroup().addTo(m);
     L.control.scale({ imperial: true, metric: true, position: "bottomleft" }).addTo(m);
-    m.on("click", (e: L.LeafletMouseEvent) => setPts((p) => [...p, { lat: e.latlng.lat, lng: e.latlng.lng }]));
+    m.on("click", (e: L.LeafletMouseEvent) => { const point = { lat: e.latlng.lat, lng: e.latlng.lng }; updateSurveyPoints([...ptsRef.current, point]); });
     m.on("mousemove", (e: L.LeafletMouseEvent) => setPointerCoords({ lat: e.latlng.lat, lng: e.latlng.lng }));
     m.on("moveend", () => {
       const center = m.getCenter();
@@ -133,8 +142,8 @@ export default function SiteGeoPage() {
     g.clearLayers();
     const ll = pts.map((p) => [p.lat, p.lng] as [number, number]);
     pts.forEach((p) => L.circleMarker([p.lat, p.lng], { radius: 5, color: "#f97316", fillOpacity: 1 }).addTo(g));
-    if (mode === "area" && pts.length >= 3) L.polygon(ll, { color: "#2563eb", fillOpacity: 0.2 }).addTo(g);
-    else if (pts.length >= 2) L.polyline(ll, { color: "#2563eb", weight: 3 }).addTo(g);
+    if (surveyTool === "polygon" && pts.length >= 3) L.polygon(ll, { color: "#2563eb", fillOpacity: 0.2 }).addTo(g);
+    else if (surveyTool === "line" && pts.length >= 2) L.polyline(ll, { color: "#2563eb", weight: 3 }).addTo(g);
     for (let i = 1; i < pts.length; i++) {
       const a = pts[i - 1], b = pts[i];
       L.marker([(a.lat + b.lat) / 2, (a.lng + b.lng) / 2], {
@@ -142,7 +151,7 @@ export default function SiteGeoPage() {
         interactive: false,
       }).addTo(g);
     }
-  }, [pts, mode, system]);
+  }, [pts, mode, system, surveyTool]);
 
   const placePlan = () => {
     const m = map.current, g = planLayer.current; if (!m || !g) return;
@@ -212,9 +221,9 @@ export default function SiteGeoPage() {
   };
 
   const exportGeoJSON = () => {
-    if (pts.length < 2) return toast.error(T("Draw at least 2 points", "কমপক্ষে ২টি বিন্দু দিন"));
+    if (pts.length < (surveyTool === "point" ? 1 : surveyTool === "polygon" ? 3 : 2)) return toast.error(T("Add enough points for this survey type", "এই সার্ভে টাইপের জন্য পর্যাপ্ত পয়েন্ট যোগ করুন"));
     const coords = pts.map((p) => [p.lng, p.lat]);
-    const geometry = mode === "area" && pts.length >= 3 ? { type: "Polygon", coordinates: [[...coords, coords[0]]] } : { type: "LineString", coordinates: coords };
+    const geometry = surveyTool === "point" ? { type: "MultiPoint", coordinates: coords } : surveyTool === "polygon" ? { type: "Polygon", coordinates: [[...coords, coords[0]]] } : { type: "LineString", coordinates: coords };
     const blob = new Blob([JSON.stringify({ type: "FeatureCollection", features: [{ type: "Feature", properties: { name: "CivilOS survey" }, geometry }] }, null, 2)], { type: "application/geo+json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "civilos-survey.geojson"; a.click();
   };
@@ -278,15 +287,16 @@ export default function SiteGeoPage() {
         throw new Error(T("A polygon needs at least 3 distinct vertices.", "একটি বহুভুজে অন্তত ৩টি শীর্ষবিন্দু দরকার।"));
       }
       centered.current = false;
-      setPts(imported);
+      updateSurveyPoints(imported);
       const m = map.current;
       if (m && imported.length > 1) {
         m.fitBounds(L.latLngBounds(imported.map((p) => [p.lat, p.lng] as [number, number])), { padding: [40, 40], maxZoom: 19 });
       } else if (m && imported.length === 1) {
         m.setView([imported[0].lat, imported[0].lng], 18);
       }
-      if (geometry.type === "Polygon") setMode("area");
-      else if (geometry.type === "LineString") setMode("distance");
+      if (geometry.type === "Polygon") { setMode("area"); setSurveyTool("polygon"); }
+      else if (geometry.type === "LineString") { setMode("distance"); setSurveyTool("line"); }
+      else if (geometry.type === "MultiPoint" || geometry.type === "Point") { setSurveyTool("point"); setMode("distance"); }
       toast.success(T(`Imported ${imported.length} coordinate point(s)`, `${imported.length}টি স্থানাঙ্ক বিন্দু ইমপোর্ট হয়েছে`));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : T("Could not read this GeoJSON file.", "GeoJSON ফাইলটি পড়া যায়নি।"));
@@ -350,10 +360,14 @@ export default function SiteGeoPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant={mode === "area" ? "default" : "outline"} onClick={() => setMode("area")}><Hexagon className="h-4 w-4 mr-1" />{T("Measure area", "জমির মাপ")}</Button>
-                <Button size="sm" variant={mode === "distance" ? "default" : "outline"} onClick={() => setMode("distance")}><Ruler className="h-4 w-4 mr-1" />{T("Measure distance", "দূরত্ব মাপ")}</Button>
-                <Button size="sm" variant="outline" onClick={() => setPts((p) => p.slice(0, -1))}><Undo2 className="h-4 w-4 mr-1" />{T("Undo", "পিছনে")}</Button>
-                <Button size="sm" variant="outline" onClick={() => setPts([])}><Trash2 className="h-4 w-4 mr-1" />{T("Clear", "মুছুন")}</Button>
+                <Button size="sm" variant={surveyTool === "point" ? "default" : "outline"} onClick={() => { setSurveyTool("point"); setMode("distance"); }}><Crosshair className="h-4 w-4 mr-1" />{T("Point survey", "পয়েন্ট সার্ভে")}</Button>
+                <Button size="sm" variant={surveyTool === "line" ? "default" : "outline"} onClick={() => { setSurveyTool("line"); setMode("distance"); }}><Ruler className="h-4 w-4 mr-1" />{T("Line survey", "লাইন সার্ভে")}</Button>
+                <Button size="sm" variant={surveyTool === "polygon" ? "default" : "outline"} onClick={() => { setSurveyTool("polygon"); setMode("area"); }}><Hexagon className="h-4 w-4 mr-1" />{T("Polygon survey", "পলিগন সার্ভে")}</Button>
+                <Button size="sm" variant="outline" onClick={() => setMode("area")}>{T("Measure area", "জমির মাপ")}</Button>
+                <Button size="sm" variant="outline" onClick={() => setMode("distance")}>{T("Measure distance", "দূরত্ব মাপ")}</Button>
+                <Button size="sm" variant="outline" disabled={!undoStack.current.length} onClick={undoSurvey}><Undo2 className="h-4 w-4 mr-1" />{T("Undo", "পিছনে")}</Button>
+                <Button size="sm" variant="outline" disabled={!redoStack.current.length} onClick={redoSurvey}><Redo2 className="h-4 w-4 mr-1" />{T("Redo", "আবার")}</Button>
+                <Button size="sm" variant="outline" onClick={() => updateSurveyPoints([])}><Trash2 className="h-4 w-4 mr-1" />{T("Clear", "মুছুন")}</Button>
                 <Button size="sm" variant="secondary" onClick={placePlan}><Home className="h-4 w-4 mr-1" />{T("Show my plan on map", "আমার প্ল্যান ম্যাপে দেখান")}</Button>
                 <input ref={importFileRef} type="file" accept=".geojson,.json,application/geo+json,application/json" className="hidden" onChange={importGeoJSON} />
                 <Button size="sm" variant="outline" onClick={() => importFileRef.current?.click()}><Upload className="h-4 w-4 mr-1" />{T("Import GeoJSON", "GeoJSON ইমপোর্ট")}</Button>
@@ -391,6 +405,23 @@ export default function SiteGeoPage() {
                 <p className="text-sm">{T("Perimeter / length", "পরিসীমা / দৈর্ঘ্য")}: <b>{system === "metric" ? `${fmt(len, 2)} m` : `${fmt(len / FT, 1)} ft`}</b> ({system === "metric" ? `${fmt(len / FT, 1)} ft` : `${fmt(len, 1)} m`})</p>
                 {pts.length >= 2 && <p className="text-xs text-muted-foreground">{T("Last bearing", "শেষ দিক")}: {bearing(pts[pts.length - 2], pts[pts.length - 1]).toFixed(1)}°</p>}
               </Card>
+              <Card className="p-4 space-y-3">
+                <div><p className="font-semibold text-sm">{T("Survey point register", "সার্ভে পয়েন্ট রেজিস্টার")}</p><p className="text-xs text-muted-foreground">{T("Edit coordinates, inspect segment distance and bearing, or remove a point.", "স্থানাঙ্ক সম্পাদনা, প্রতিটি অংশের দূরত্ব ও বেয়ারিং দেখুন অথবা পয়েন্ট মুছুন।")}</p></div>
+                <div className="max-h-72 overflow-auto space-y-2">
+                  {pts.length === 0 ? <p className="text-xs text-muted-foreground">{T("No survey points yet. Choose a tool and click the map.", "এখনো কোনো সার্ভে পয়েন্ট নেই। টুল বেছে ম্যাপে ক্লিক করুন।")}</p> : pts.map((point, index) => {
+                    const previous = pts[index - 1];
+                    const segment = previous ? distance(previous, point) : 0;
+                    const azimuth = previous ? ((bearing(previous, point) % 360) + 360) % 360 : null;
+                    return <div key={index} className="rounded-md border p-2 space-y-2">
+                      <div className="flex items-center justify-between"><span className="text-xs font-semibold">{T("Point", "পয়েন্ট")} {index + 1}</span><Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={() => updateSurveyPoints(pts.filter((_, i) => i !== index))}><Trash2 className="h-3.5 w-3.5" /></Button></div>
+                      <div className="grid grid-cols-2 gap-2"><label className="text-[11px] text-muted-foreground">Latitude<Input aria-label={"Point " + (index + 1) + " latitude"} type="number" step="0.000001" value={point.lat} onChange={(e) => { const value = Number(e.target.value); if (!Number.isFinite(value) || value < -90 || value > 90) return; const next = [...pts]; next[index] = { ...point, lat: value }; updateSurveyPoints(next); }} /></label><label className="text-[11px] text-muted-foreground">Longitude<Input aria-label={"Point " + (index + 1) + " longitude"} type="number" step="0.000001" value={point.lng} onChange={(e) => { const value = Number(e.target.value); if (!Number.isFinite(value) || value < -180 || value > 180) return; const next = [...pts]; next[index] = { ...point, lng: value }; updateSurveyPoints(next); }} /></label></div>
+                      {previous && <p className="text-[11px] text-muted-foreground">{T("Segment", "অংশ")}: {fmt(segment, 2)} m · {T("Azimuth", "আজিমুথ")}: {fmt(azimuth ?? 0, 1)}°</p>}
+                    </div>;
+                  })}
+                </div>
+                {pts.length >= 2 && <div className="rounded-md bg-muted/50 p-2 text-xs space-y-1"><p>{T("Total traverse length", "মোট ট্রাভার্স দৈর্ঘ্য")}: <b>{fmt(pathLength(pts), 2)} m</b></p><p>{T("First-to-last bearing", "প্রথম থেকে শেষ বেয়ারিং")}: <b>{fmt((((bearing(pts[0], pts[pts.length - 1]) % 360) + 360) % 360), 1)}°</b></p></div>}
+              </Card>
+              <AdvancedSurveyTools T={T} />
               <SurveyCalculator T={T} fmt={fmt} />
             </div>
             </div>
