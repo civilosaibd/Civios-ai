@@ -170,8 +170,8 @@ export default function ProjectDetailPage() {
     try {
       const binaryFiles: { path: string; bytes: Uint8Array; sourceName: string }[] = [];
       const omittedFiles: string[] = [];
-      const MAX_FILE_BYTES = 50 * 1024 * 1024;
-      const MAX_TOTAL_BYTES = 180 * 1024 * 1024;
+      const MAX_FILE_BYTES = 25 * 1024 * 1024;
+      const MAX_TOTAL_BYTES = 60 * 1024 * 1024;
       let totalBytes = 0;
       const safeName = (name: string) => name.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/\.\./g, "_").slice(0, 180) || "file";
 
