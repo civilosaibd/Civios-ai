@@ -2,6 +2,8 @@
 -- First eligible verified payment per referred user: 30%.
 -- Every subsequent eligible verified payment for that same user: 10%.
 -- Existing ledger entries are retained and count as prior commission events.
+-- Remove the legacy one-commission-per-referred-user index so repeat payments can earn 10%.
+DROP INDEX IF EXISTS public.referral_commissions_one_per_referred_user;
 INSERT INTO public.app_settings (key, value)
 VALUES
   ('affiliate.first_payment_commission_rate', '0.30'::jsonb),
