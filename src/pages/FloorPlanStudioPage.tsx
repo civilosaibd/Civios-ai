@@ -39,17 +39,8 @@ export default function FloorPlanStudioPage() {
       setIsFullscreen(Boolean(workspace && document.fullscreenElement === workspace));
     };
 
-    const onFullscreenError = () => {
-      setIsFullscreen(false);
-      toast.error("Full screen could not be opened. Please check your browser permissions.");
-    };
-
     document.addEventListener("fullscreenchange", onFullscreenChange);
-    document.addEventListener("fullscreenerror", onFullscreenError);
-    return () => {
-      document.removeEventListener("fullscreenchange", onFullscreenChange);
-      document.removeEventListener("fullscreenerror", onFullscreenError);
-    };
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
 
   const toggleFullscreen = async () => {
