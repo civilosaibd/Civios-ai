@@ -15,8 +15,9 @@ function projectToSegment(point: Point2D, wall: Wall): Point2D {
 
 /**
  * Finds a nearby point on the existing wall network.
- * Supports endpoints, perpendicular/T-junction projections, and finite
- * wall-to-wall intersections. It never mutates existing wall entities.
+ * Junctions/intersections take precedence over a nearby single-wall projection
+ * so a snapped endpoint remains connected to the complete wall network.
+ * It never mutates existing wall entities.
  */
 export function snapPointToWallNetwork(
   point: Point2D,
@@ -31,6 +32,16 @@ export function snapPointToWallNetwork(
   );
   if (!walls.length) return null;
 
+  const junctionCandidates: Point2D[] = [];
+  for (let i = 0; i < walls.length; i += 1) {
+    for (let j = i + 1; j < walls.length; j += 1) {
+      const first = walls[i], second = walls[j];
+      const hit = lineIntersection(first.start, first.end, second.start, second.end);
+      if (!hit || hit.t < -1e-8 || hit.t > 1 + 1e-8 || hit.u < -1e-8 || hit.u > 1 + 1e-8) continue;
+      if (distance(point, hit.point) <= tolerance) junctionCandidates.push(hit.point);
+    }
+  }
+
   const candidates: Point2D[] = [];
   for (const wall of walls) {
     const projected = projectToSegment(point, wall);
@@ -39,18 +50,11 @@ export function snapPointToWallNetwork(
     if (distance(point, wall.end) <= tolerance) candidates.push({ ...wall.end });
   }
 
-  for (let i = 0; i < walls.length; i += 1) {
-    for (let j = i + 1; j < walls.length; j += 1) {
-      const first = walls[i], second = walls[j];
-      const hit = lineIntersection(first.start, first.end, second.start, second.end);
-      if (!hit || hit.t < -1e-8 || hit.t > 1 + 1e-8 || hit.u < -1e-8 || hit.u > 1 + 1e-8) continue;
-      if (distance(point, hit.point) <= tolerance) candidates.push(hit.point);
-    }
-  }
-
+  // Prefer a nearby network junction to a closer projection onto only one wall.
+  const preferredCandidates = junctionCandidates.length ? junctionCandidates : candidates;
   let nearest: Point2D | null = null;
   let bestDistance = tolerance + 1e-9;
-  for (const candidate of candidates) {
+  for (const candidate of preferredCandidates) {
     const candidateDistance = distance(point, candidate);
     if (candidateDistance < bestDistance) {
       nearest = candidate;
