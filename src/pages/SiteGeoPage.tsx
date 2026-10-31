@@ -1,4 +1,5 @@
 import { useCloudState } from "@/lib/cloudState";
+import AdvancedSurveyTools from "@/components/sitegeo/AdvancedSurveyTools";
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -420,6 +421,7 @@ export default function SiteGeoPage() {
                 </div>
                 {pts.length >= 2 && <div className="rounded-md bg-muted/50 p-2 text-xs space-y-1"><p>{T("Total traverse length", "মোট ট্রাভার্স দৈর্ঘ্য")}: <b>{fmt(pathLength(pts), 2)} m</b></p><p>{T("First-to-last bearing", "প্রথম থেকে শেষ বেয়ারিং")}: <b>{fmt((((bearing(pts[0], pts[pts.length - 1]) % 360) + 360) % 360), 1)}°</b></p></div>}
               </Card>
+              <AdvancedSurveyTools T={T} />
               <SurveyCalculator T={T} fmt={fmt} />
             </div>
             </div>
