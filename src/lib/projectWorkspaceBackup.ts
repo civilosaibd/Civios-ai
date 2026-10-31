@@ -94,8 +94,8 @@ function createZip(entries: ZipEntry[]) {
 }
 
 /**
- * Creates a ZIP-compatible, uncompressed workspace backup. It includes project metadata
- * and structured artifacts; it deliberately does not include private uploaded binary files.
+ * Creates a ZIP-compatible, uncompressed workspace backup with project metadata,
+ * structured artifacts, and any private binary files supplied by the authenticated page.
  */
 export function createProjectWorkspaceBackup(
   project: BackupProject,
@@ -128,7 +128,7 @@ export function createProjectWorkspaceBackup(
     artifactCount: artifacts.length,
     documentCount: documents.length,
     includedBinaryFileCount: binaryFiles.length,
-    omittedFiles, 
+    omittedFiles,
     documents: documents.map(({ id, file_name, file_type, file_size, created_at }) => ({
       id, file_name, file_type: file_type ?? null, file_size: file_size ?? null, created_at: created_at ?? null,
     })),
@@ -154,7 +154,7 @@ export function createProjectWorkspaceBackup(
       "Uploaded files are stored under uploaded-files/. See manifest.json for any files that could not be included.\n" +
       "Treat this archive as confidential project data and store it securely.\n"
     ) },
-    ...binaryFiles.map((file, index) => ({
+    ...binaryFiles.map((file) => ({
       name: file.path.split("/").map((part) => part.replace(/\.\./g, "_")).join("/"),
       bytes: file.bytes,
     })),
