@@ -45,12 +45,12 @@ const faqs = [
 const steps = [
   { icon: Users, number: "01", title: "Join the program", body: "Sign in to CivilOS AI and open your Affiliate Dashboard to access your personal referral link." },
   { icon: Link2, number: "02", title: "Share your link", body: "Share it with your engineering community, students, contractors, clients, or relevant audience." },
-  { icon: BadgeCheck, number: "03", title: "A referral becomes a customer", body: "A new user follows your link, creates an account, and completes their first eligible payment." },
+  { icon: BadgeCheck, number: "03", title: "A referral becomes a customer", body: "A new user follows your link, creates an account, and completes an eligible payment. The first pays 30%; later eligible payments pay 10%." },
   { icon: Wallet, number: "04", title: "Track and withdraw", body: "Your verified commission appears in your dashboard. Request withdrawal when your approved balance reaches ৳500." },
 ];
 
 const benefits = [
-  { icon: TrendingUp, title: "Reward for real conversions", body: "Earn when a referred customer completes an eligible first payment—not simply for clicks." },
+  { icon: TrendingUp, title: "Reward for real conversions", body: "Earn 30% on the first eligible payment and 10% on each later eligible verified payment—not simply for clicks." },
   { icon: BarChart3, title: "Transparent tracking", body: "Monitor referrals, conversions, commission status, and available balance in one dashboard." },
   { icon: Wallet, title: "Local withdrawal options", body: "Request approved earnings through bKash, Nagad, or bank transfer." },
   { icon: ShieldCheck, title: "Verified commission records", body: "Payments and commissions are validated by the CivilOS AI referral and billing workflow." },
@@ -195,12 +195,12 @@ export default function AffiliateProgramPage() {
             <div className="mt-7 max-w-sm space-y-2">
               <label htmlFor="affiliate-payment-amount" className="text-sm font-medium">Example eligible payment amount (BDT)</label>
               <Input id="affiliate-payment-amount" type="number" min="0" step="1" inputMode="decimal" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="h-12 text-base" />
-              <p className="text-xs text-muted-foreground">Use any amount to preview the standard commission calculation.</p>
+              <p className="text-xs text-muted-foreground">Use any amount to preview both the first-payment and repeat-payment commission calculations.</p>
             </div>
           </div>
           <Card className="overflow-hidden border-primary/20 shadow-xl">
             <CardContent className="p-7 sm:p-9">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><Gift className="h-4 w-4 text-primary" /> Estimated commission</div>
+              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><Gift className="h-4 w-4 text-primary" /> Estimated first-payment commission</div>
               <p className="mt-4 text-5xl font-bold tracking-tight text-primary">{money(estimatedFirstCommission)}</p>
               <div className="mt-6 space-y-3 border-t pt-5 text-sm">
                 <div className="flex justify-between gap-4"><span className="text-muted-foreground">Example payment</span><strong>{money(Math.max(0, Number(paymentAmount) || 0))}</strong></div>
