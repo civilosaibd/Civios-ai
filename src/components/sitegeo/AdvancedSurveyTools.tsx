@@ -64,6 +64,61 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
     return { min, max, average, cut, fill, net: fill - cut, bands };
   }, [stations, earth]);
 
+
+  const surface = useMemo(() => {
+    if (stations.length < 3) return null;
+    const minE = Math.min(...stations.map((s) => s.easting)), maxE = Math.max(...stations.map((s) => s.easting));
+    const minN = Math.min(...stations.map((s) => s.northing)), maxN = Math.max(...stations.map((s) => s.northing));
+    if (maxE === minE || maxN === minN) return null;
+    const size = 22;
+    const grid = Array.from({ length: size }, (_, row) => Array.from({ length: size }, (_, col) => {
+      const x = minE + (maxE - minE) * col / (size - 1);
+      const y = maxN - (maxN - minN) * row / (size - 1);
+      let weighted = 0, weights = 0;
+      for (const point of stations) {
+        const d2 = (point.easting - x) ** 2 + (point.northing - y) ** 2;
+        if (d2 < 1e-8) return point.elevation;
+        const w = 1 / d2; weighted += point.elevation * w; weights += w;
+      }
+      return weighted / weights;
+    }));
+    const min = Math.min(...stations.map((s) => s.elevation)), max = Math.max(...stations.map((s) => s.elevation));
+    const levels = Array.from({ length: 5 }, (_, i) => min + (max - min) * (i + 1) / 6);
+    const contours = levels.flatMap((level) => {
+      const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+      for (let row = 0; row < size - 1; row++) for (let col = 0; col < size - 1; col++) {
+        const values = [grid[row][col], grid[row][col + 1], grid[row + 1][col + 1], grid[row + 1][col]];
+        const corners = [{ x: col, y: row }, { x: col + 1, y: row }, { x: col + 1, y: row + 1 }, { x: col, y: row + 1 }];
+        const intersections: Array<{ x: number; y: number }> = [];
+        for (let edge = 0; edge < 4; edge++) {
+          const next = (edge + 1) % 4, a = values[edge], b = values[next];
+          if ((a < level && b >= level) || (a >= level && b < level)) {
+            const t = (level - a) / (b - a);
+            intersections.push({ x: corners[edge].x + (corners[next].x - corners[edge].x) * t, y: corners[edge].y + (corners[next].y - corners[edge].y) * t });
+          }
+        }
+        for (let i = 0; i + 1 < intersections.length; i += 2) {
+          const a = intersections[i], b = intersections[i + 1];
+          segments.push({ x1: a.x / (size - 1) * 320, y1: a.y / (size - 1) * 180, x2: b.x / (size - 1) * 320, y2: b.y / (size - 1) * 180 });
+        }
+      }
+      return segments;
+    });
+    return { grid, min, max, contours, size };
+  }, [stations]);
+
+  const profile = useMemo(() => {
+    if (stations.length < 2) return null;
+    let chainage = 0;
+    const rows = stations.map((point, index) => {
+      if (index > 0) chainage += Math.hypot(point.easting - stations[index - 1].easting, point.northing - stations[index - 1].northing);
+      return { chainage, elevation: point.elevation };
+    });
+    const maxChainage = rows[rows.length - 1].chainage || 1;
+    const minRL = Math.min(...rows.map((r) => r.elevation)), maxRL = Math.max(...rows.map((r) => r.elevation));
+    const range = maxRL - minRL || 1;
+    return { rows, minRL, maxRL, points: rows.map((r) => (r.chainage / maxChainage * 320) + "," + (170 - (r.elevation - minRL) / range * 150)).join(" ") };
+  }, [stations]);
   const updateLeg = (id: number, key: "bearing" | "distance", value: number) => setLegs((items) => items.map((item) => item.id === id ? { ...item, [key]: value } : item));
   const importTotalStation = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.target.value = "";
@@ -171,9 +226,14 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
             <div className="rounded-md bg-muted p-2">{T("Estimated fill", "আনুমানিক ফিল")}: <b>{numberText(elevationStats.fill)} m³</b></div>
           </div>
           <p className="text-xs">{T("Net fill (+) / cut (−)", "নেট ফিল (+) / কাট (−)")}: <b>{numberText(elevationStats.net)} m³</b></p>
-          <div className="space-y-1"><p className="text-xs font-medium">{T("Elevation bands (not interpolated contour lines)", "উচ্চতা ব্যান্ড (ইন্টারপোলেটেড কনট্যুর লাইন নয়)")}</p>{elevationStats.bands.map((band, i) => <div key={i} className="flex justify-between rounded bg-muted/60 px-2 py-1 text-xs"><span>{numberText(band.low, 2)} – {numberText(band.high, 2)} m</span><b>{band.count} {T("points", "পয়েন্ট")}</b></div>)}</div>
+          <div className="space-y-1"><p className="text-xs font-medium">{T("Elevation bands (point classification)", "উচ্চতা ব্যান্ড (পয়েন্ট শ্রেণিবিন্যাস)")}</p>{elevationStats.bands.map((band, i) => <div key={i} className="flex justify-between rounded bg-muted/60 px-2 py-1 text-xs"><span>{numberText(band.low, 2)} – {numberText(band.high, 2)} m</span><b>{band.count} {T("points", "পয়েন্ট")}</b></div>)}</div>
+          {surface && <div className="space-y-2"><p className="text-xs font-medium">{T("IDW interpolated contour preview", "IDW ইন্টারপোলেটেড কনট্যুর প্রিভিউ")}</p><svg viewBox="0 0 320 180" role="img" aria-label="Interpolated elevation contour preview" className="w-full rounded border bg-muted/20">
+            {surface.grid.slice(0, -1).map((row, y) => row.slice(0, -1).map((value, x) => { const ratio = (value - surface.min) / (surface.max - surface.min || 1); return <rect key={y + "-" + x} x={x / (surface.size - 1) * 320} y={y / (surface.size - 1) * 180} width={320 / (surface.size - 1) + 1} height={180 / (surface.size - 1) + 1} fill={"hsl(" + (220 - ratio * 190) + " 65% 55%)"} opacity="0.28" />; }))}
+            {surface.contours.map((line, i) => <line key={i} x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} stroke="currentColor" strokeWidth="1.1" opacity="0.8" />)}
+          </svg><p className="text-[11px] text-muted-foreground">{T("Interpolated from imported XYZ points using inverse-distance weighting. Use as a visual preview only.", "ইমপোর্ট করা XYZ পয়েন্ট থেকে inverse-distance weighting পদ্ধতিতে ইন্টারপোলেট করা। শুধু ভিজ্যুয়াল প্রিভিউ হিসেবে ব্যবহার করুন।")}</p></div>}
+          {profile && <div className="space-y-2"><p className="text-xs font-medium">{T("Elevation profile by point order", "পয়েন্টের ক্রম অনুযায়ী এলিভেশন প্রোফাইল")}</p><svg viewBox="0 0 320 180" role="img" aria-label="Elevation profile" className="w-full rounded border bg-muted/20"><line x1="0" y1="170" x2="320" y2="170" stroke="currentColor" opacity="0.35" /><polyline points={profile.points} fill="none" stroke="currentColor" strokeWidth="2" />{profile.rows.map((r, i) => <circle key={i} cx={r.chainage / (profile.rows[profile.rows.length - 1].chainage || 1) * 320} cy={170 - (r.elevation - profile.minRL) / (profile.maxRL - profile.minRL || 1) * 150} r="3" fill="currentColor" />)}</svg><p className="text-[11px] text-muted-foreground">{T("Chainage", "চেইনেজ")}: {numberText(profile.rows[profile.rows.length - 1].chainage)} m · RL: {numberText(profile.minRL)}–{numberText(profile.maxRL)} m</p></div>}
         </>}
-        <p className="text-[11px] text-muted-foreground">{T("Preliminary estimate only: the cell-area method is not a TIN/grid surface model and does not interpolate contours. For design, payment or construction, use a validated terrain model and a qualified surveyor/engineer.", "এটি প্রাথমিক হিসাব: cell-area পদ্ধতি TIN/grid surface model নয় এবং কনট্যুর ইন্টারপোলেট করে না। ডিজাইন, বিল বা নির্মাণের জন্য যাচাইকৃত terrain model ও যোগ্য সার্ভেয়ার/ইঞ্জিনিয়ার ব্যবহার করুন।")}</p>
+        <p className="text-[11px] text-muted-foreground">{T("Preliminary estimate only: the cell-area method is not a TIN/grid volume model. The contour preview is IDW-based and is not a survey-grade terrain surface. For design, payment or construction, use a validated terrain model and a qualified surveyor/engineer.", "এটি প্রাথমিক হিসাব: cell-area পদ্ধতি TIN/grid volume model নয়। কনট্যুর প্রিভিউ IDW-ভিত্তিক, সার্ভে-গ্রেড terrain surface নয়। ডিজাইন, বিল বা নির্মাণের জন্য যাচাইকৃত terrain model ও যোগ্য সার্ভেয়ার/ইঞ্জিনিয়ার ব্যবহার করুন।")}</p>
       </TabsContent>
     </Tabs>
   </Card>;
