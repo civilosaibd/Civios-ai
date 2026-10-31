@@ -8,8 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
 import {
-  ArrowRight, BadgeCheck, Banknote, BarChart3, CheckCircle2, Gift,
-  Link2, MousePointerClick, ShieldCheck, Sparkles, TrendingUp, Users, Wallet,
+  ArrowRight, BadgeCheck, BarChart3, CheckCircle2, Gift,
+  Link2, ShieldCheck, Sparkles, TrendingUp, Users, Wallet,
 } from "lucide-react";
 
 const COMMISSION_RATE = 0.10;
