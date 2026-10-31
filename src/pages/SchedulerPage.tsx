@@ -55,6 +55,10 @@ export default function SchedulerPage() {
     setProjectArtifactId(undefined);
     setProjectLoadError(null);
     setSelectedScheduleId("");
+    setProjectTasks(TEMPLATE);
+    setProjectQa(QA_TEMPLATE);
+    setProjectStart(new Date().toISOString().slice(0, 10));
+    setProjectSavedSchedules([]);
     if (!projectId) return;
     void listProjectArtifacts(projectId).then((items) => {
       if (cancelled) return;
