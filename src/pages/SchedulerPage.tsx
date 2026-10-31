@@ -1,4 +1,8 @@
 import { useAuth } from "@/lib/auth";
+import { toast } from "sonner";
+import { useActiveProjectId } from "@/lib/projectSelection";
+import { listProjectArtifacts } from "@/lib/projectArtifacts";
+import { useProjectArtifactAutosave } from "@/hooks/useProjectArtifactAutosave";
 import { useCloudState } from "@/lib/cloudState";
 import { useEffect, useMemo, useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -19,6 +23,7 @@ import { QA_TEMPLATE, schedule, TEMPLATE, type DepType, type QAItem, type Task }
 export default function SchedulerPage() {
   const { lang } = useI18n();
   const { user } = useAuth();
+  const projectId = useActiveProjectId();
   const bn = lang === "bn";
   const T = (en: string, b: string) => (bn ? b : en);
   const [tasks, setTasks] = useCloudState<Task[]>("civilos.schedule", TEMPLATE);
@@ -28,6 +33,44 @@ export default function SchedulerPage() {
   const [savedSchedules, setSavedSchedules] = useCloudState<SavedSchedule[]>("civilos.saved-schedules", []);
   const [scheduleName, setScheduleName] = useState("");
   const [selectedScheduleId, setSelectedScheduleId] = useState("");
+  const [projectArtifactId, setProjectArtifactId] = useState<string | undefined>();
+  const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null);
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadedProjectId(null);
+    setProjectArtifactId(undefined);
+    setProjectLoadError(null);
+    setSelectedScheduleId("");
+    if (!projectId) return;
+    void listProjectArtifacts(projectId).then((items) => {
+      if (cancelled) return;
+      const saved = items.find((item) => item.artifact_type === "project-schedule");
+      const data = saved?.data ?? {};
+      if (Array.isArray(data.tasks) && data.tasks.every((task) => task && typeof task.id === "string" && typeof task.name === "string" && Number.isFinite(task.duration))) setTasks(data.tasks as Task[]);
+      else setTasks(TEMPLATE);
+      if (Array.isArray(data.qa) && data.qa.every((item) => item && typeof item.id === "string" && typeof item.done === "boolean")) setQa(data.qa as QAItem[]);
+      else setQa(QA_TEMPLATE);
+      if (typeof data.start === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.start)) setStart(data.start);
+      else setStart(new Date().toISOString().slice(0, 10));
+      if (Array.isArray(data.savedSchedules)) setSavedSchedules(data.savedSchedules as SavedSchedule[]);
+      else setSavedSchedules([]);
+      setProjectArtifactId(saved?.id);
+      setLoadedProjectId(projectId);
+    }).catch((error) => {
+      if (!cancelled) { setProjectLoadError(error instanceof Error ? error.message : "Could not load this project's schedule."); setLoadedProjectId(projectId); }
+    });
+    return () => { cancelled = true; };
+  }, [projectId, setTasks, setQa, setStart, setSavedSchedules]);
+
+  const projectSave = useProjectArtifactAutosave({
+    projectId: projectId ?? "", artifactId: projectArtifactId, artifactType: "project-schedule",
+    title: "Construction Schedule & QA/QC", description: "Project-scoped WBS, dependencies, progress, dates and QA/QC checklist",
+    data: { tasks, qa, start, savedSchedules }, enabled: !!projectId && loadedProjectId === projectId && !projectLoadError,
+    debounceMs: 1600,
+  });
+  useEffect(() => { if (projectSave.artifactId && projectSave.artifactId !== projectArtifactId) setProjectArtifactId(projectSave.artifactId); }, [projectSave.artifactId, projectArtifactId]);
 
   const { rows, total, cycle } = useMemo(() => schedule(tasks), [tasks]);
   const date = (d: number) => { const x = new Date(start); x.setDate(x.getDate() + d); return x.toLocaleDateString(bn ? "bn-BD" : "en-GB", { day: "2-digit", month: "short" }); };
@@ -95,9 +138,11 @@ export default function SchedulerPage() {
             <div className="flex items-center gap-2"><SidebarTrigger />
               <h1 className="font-heading font-semibold flex items-center gap-2"><CalendarRange className="h-4 w-4 text-accent" /> {T("Project Scheduler", "প্রজেক্ট সময়সূচি")}</h1>
             </div>
-            <ThemeToggle />
+            <div className="flex items-center gap-2"><span className="hidden sm:inline text-xs text-muted-foreground">{projectId ? (projectSave.status === "saving" ? T("Saving to project…", "প্রজেক্টে সেভ হচ্ছে…") : projectSave.status === "saved" ? T("Saved to project", "প্রজেক্টে সেভ হয়েছে") : projectSave.status === "error" ? T("Save failed", "সেভ হয়নি") : T("Project linked", "প্রজেক্ট সংযুক্ত")) : T("Personal workspace", "ব্যক্তিগত ওয়ার্কস্পেস")}</span><ThemeToggle /></div>
           </header>
           <main className="p-4 md:p-6 space-y-4 min-w-0">
+            {projectLoadError && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{T("Could not load this project schedule: ", "প্রজেক্টের শিডিউল লোড করা যায়নি: ")}{projectLoadError}</div>}
+            {projectSave.error && <div className="rounded-md border border-destructive/40 p-3 text-xs text-destructive">{projectSave.error}</div>}
             <Card className="p-4 space-y-3">
               <div className="flex items-center gap-2"><FolderOpen className="h-4 w-4 text-accent" /><div><h2 className="font-semibold text-sm">{T("Saved schedule plans", "সংরক্ষিত শিডিউল")}</h2><p className="text-xs text-muted-foreground">{T("Save separate plans for different projects. Saving an existing name updates that plan.", "বিভিন্ন প্রজেক্টের জন্য আলাদা শিডিউল রাখুন। একই নাম দিলে আগেরটি আপডেট হবে।")}</p></div></div>
               <div className="grid sm:grid-cols-[1fr_1fr_auto_auto] gap-2">
