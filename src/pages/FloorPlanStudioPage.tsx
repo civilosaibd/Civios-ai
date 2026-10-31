@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
-import { Building2, Box, Maximize2, RefreshCw, ShieldCheck } from "lucide-react";
+import { Building2, Box, Maximize2, Minimize2, RefreshCw, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 
 type ToolId = "floorplanmaker" | "floorplandrawer";
 
@@ -33,19 +34,33 @@ export default function FloorPlanStudioPage() {
   const selected = TOOLS.find((tool) => tool.id === active)!;
 
   useEffect(() => {
-    const onFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    const onFullscreenChange = () => {
+      const workspace = document.getElementById("floor-plan-design-workspace");
+      setIsFullscreen(Boolean(workspace && document.fullscreenElement === workspace));
+    };
+
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
 
   const toggleFullscreen = async () => {
-    const workspace = document.getElementById("floor-plan-embed-workspace");
+    const workspace = document.getElementById("floor-plan-design-workspace");
     if (!workspace) return;
+
     try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await workspace.requestFullscreen();
+      if (document.fullscreenElement === workspace) {
+        await document.exitFullscreen();
+        return;
+      }
+
+      if (!document.fullscreenEnabled || typeof workspace.requestFullscreen !== "function") {
+        toast.error("Full screen is not supported by this browser.");
+        return;
+      }
+
+      await workspace.requestFullscreen();
     } catch {
-      // Fullscreen is optional; the embedded workspace remains available.
+      toast.error("Unable to enter full screen. Please try again or check browser permissions.");
     }
   };
 
@@ -103,22 +118,50 @@ export default function FloorPlanStudioPage() {
               </div>
             </section>
 
-            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card">
+            <section
+              id="floor-plan-design-workspace"
+              className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:rounded-none [&:fullscreen]:border-0 [&:fullscreen]:bg-background"
+            >
               <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{selected.name}</p>
                   <p className="text-[11px] text-muted-foreground">{selected.subtitle}</p>
                 </div>
-                <Button size="icon" variant="ghost" aria-label="Reload design tool" onClick={() => setReloadKey((key) => key + 1)}>
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-                <Button size="sm" variant="outline" onClick={toggleFullscreen} className="gap-2">
-                  <Maximize2 className="h-4 w-4" />
-                  <span className="hidden sm:inline">{isFullscreen ? "Exit full screen" : "Full screen"}</span>
-                </Button>
+
+                <div
+                  className="flex min-w-0 items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1.5 text-[11px] text-muted-foreground"
+                  role="note"
+                  aria-label="Drawing workspace tip"
+                >
+                  <Maximize2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  <span className="leading-tight">Drawing করার সুবিধার্থে Full Screen করে নিন</span>
+                </div>
+
+                <div className="ml-auto flex shrink-0 items-center gap-2">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label="Reload design tool"
+                    title="Reload design tool"
+                    onClick={() => setReloadKey((key) => key + 1)}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={isFullscreen ? "default" : "outline"}
+                    onClick={toggleFullscreen}
+                    className="gap-2"
+                    aria-label={isFullscreen ? "Exit full screen" : "Enter full screen for drawing"}
+                    aria-pressed={isFullscreen}
+                  >
+                    {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                    <span>{isFullscreen ? "Exit Full Screen" : "Full Screen"}</span>
+                  </Button>
+                </div>
               </div>
 
-              <div id="floor-plan-embed-workspace" className="relative min-h-0 flex-1 bg-muted/20">
+              <div className="relative min-h-0 flex-1 bg-muted/20">
                 <iframe
                   key={active + "-" + reloadKey}
                   title={selected.name}

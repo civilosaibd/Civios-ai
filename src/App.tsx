@@ -67,6 +67,7 @@ const NotificationSettingsPage = lazy(
   () => import("./pages/NotificationSettingsPage.tsx")
 );
 const AffiliatePage = lazy(() => import("./pages/AffiliatePage.tsx"));
+const AffiliateProgramPage = lazy(() => import("./pages/AffiliateProgramPage.tsx"));
 const AdminAffiliatePage = lazy(() => import("./pages/AdminAffiliatePage.tsx"));
 const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage.tsx"));
 const ModulesPage = lazy(() => import("./pages/ModulesPage.tsx"));
@@ -245,6 +246,7 @@ const App = () => (
                       />
                       <Route path="/reports" element={<PlanFeatureGate feature="analytics"><ReportsPage /></PlanFeatureGate>} />
 
+                      <Route path="/affiliate-program" element={<AffiliateProgramPage />} />
                       <Route path="/affiliate" element={<AffiliatePage />} />
                       <Route
                         path="/admin/affiliate"
