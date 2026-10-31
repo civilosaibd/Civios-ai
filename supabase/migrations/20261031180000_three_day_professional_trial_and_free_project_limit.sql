@@ -32,7 +32,7 @@ BEGIN
   END IF;
 
   LOOP
-    code := 'CIVIL-' || upper(substr(encode(extensions.gen_random_bytes(6), 'hex'), 1, 10));
+    code := 'CIVIL-' || upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 10));
     EXIT WHEN NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.referral_code = code);
   END LOOP;
 
