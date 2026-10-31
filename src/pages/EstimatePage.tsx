@@ -218,6 +218,15 @@ const EstimatePage = () => {
   };
 
   const generatePDF = () => {
+    try {
+      if (!data || !quotation || !Array.isArray(boq) || !Array.isArray(timeline)) {
+        toast.error("The estimate report is missing required project data. Please refresh and try again.");
+        return;
+      }
+      if (!Number.isFinite(quotation.total) || quotation.total <= 0) {
+        toast.error("The estimate total is invalid. Review the project inputs before exporting the report.");
+        return;
+      }
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -305,7 +314,7 @@ const EstimatePage = () => {
       autoTable(doc, {
         startY: y + 4,
         head: [head],
-        body: body.length ? body : [["No data available for this section"]],
+        body: body.length ? body : [["No data available for this section", ...Array(Math.max(0, head.length - 1)).fill("—")]],
         theme: "grid",
         headStyles: { fillColor: [20, 55, 92], textColor: 255, fontStyle: "bold" },
         alternateRowStyles: { fillColor: [245, 248, 252] },
@@ -320,11 +329,20 @@ const EstimatePage = () => {
       item.category, number(item.amount), reportTotal > 0 ? `${(item.amount / reportTotal * 100).toFixed(1)}%` : "—",
     ]));
     addSection("2. Material schedule", ["Material", "Quantity", "Unit", "Unit rate (BDT)", "Line total (BDT)"],
-      Object.entries(data.materials || {}).map(([name, item]) => [name, number(item.qty), item.unit, number(item.rate), number(item.total)]));
+      [
+        ...Object.entries(data.materials || {}).map(([name, item]) => [name, number(item.qty), item.unit, number(item.rate), number(item.total)]),
+        ["TOTAL MATERIALS", "", "", "", number(Object.values(data.materials || {}).reduce((sum, item) => sum + (Number.isFinite(item.total) ? item.total : 0), 0))],
+      ]);
     addSection("3. Labor & daily rate analysis", ["Labor / crew", "Days", "Daily rate (BDT)", "Line total (BDT)"],
-      Object.entries(data.labor || {}).map(([name, item]) => [name, number(item.days), number(item.rate), number(item.total)]));
+      [
+        ...Object.entries(data.labor || {}).map(([name, item]) => [name, number(item.days), number(item.rate), number(item.total)]),
+        ["TOTAL LABOR", "", "", number(Object.values(data.labor || {}).reduce((sum, item) => sum + (Number.isFinite(item.total) ? item.total : 0), 0))],
+      ]);
     addSection("4. Detailed Bill of Quantities (BOQ)", ["Work item", "Quantity", "Unit", "Rate (BDT)", "Amount (BDT)"],
-      boq.map((item) => [item.item, number(item.qty), item.unit, number(item.rate), number(item.total)]));
+      [
+        ...boq.map((item) => [item.item, number(item.qty), item.unit, number(item.rate), number(item.total)]),
+        ["TOTAL BOQ", "", "", "", number(boq.reduce((sum, item) => sum + (Number.isFinite(item.total) ? item.total : 0), 0))],
+      ]);
     addSection("5. Contractor quotation & adjustments", ["Item", "Amount (BDT)", "Basis / notes"], [
       ...quotation.justification.map((item) => [item.label, number(item.amount), item.note]),
       ["Full project cost before profit", number(quotation.baseProjectCost), "Quotation base as supplied by the estimate engine"],
@@ -367,7 +385,11 @@ const EstimatePage = () => {
     }
 
     doc.save(`${safeName}_Professional_Estimate_Report.pdf`);
-    toast.success("Professional estimate report PDF generated.");
+      toast.success("Professional estimate report PDF generated.");
+    } catch (error) {
+      console.error("Professional estimate PDF export failed:", error);
+      toast.error("Could not generate the PDF report. Please try again; if the problem continues, review the project data.");
+    }
   };
 
   const SectionCard = ({ title, icon: Icon, children, action }: { title: string; icon: any; children: React.ReactNode; action?: React.ReactNode }) => (
