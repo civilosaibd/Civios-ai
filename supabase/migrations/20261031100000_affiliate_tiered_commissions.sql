@@ -14,8 +14,8 @@ CREATE OR REPLACE FUNCTION public.record_referral_commission(_payment_id uuid)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
-AS $$
+SET search_path = pg_catalog, public, pg_temp
+AS $
 DECLARE
   pay public.payments%ROWTYPE;
   ref public.referrals%ROWTYPE;
