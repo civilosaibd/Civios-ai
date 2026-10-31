@@ -21,6 +21,8 @@ import {
   type BillStatus, type Finance, type InvoiceStatus,
 } from "@/lib/finance";
 import { uid } from "@/lib/inventory";
+import { useActiveProjectId } from "@/lib/projectSelection";
+import ProjectFinanceControl from "@/components/project/ProjectFinanceControl";
 
 const tk = (n: number) => `৳${Math.round(n).toLocaleString("en-IN")}`;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -28,6 +30,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 export default function FinancePage() {
   const { lang } = useI18n();
   const { user } = useAuth();
+  const activeProjectId = useActiveProjectId();
   const bn = lang === "bn";
   const T = (en: string, b: string) => (bn ? b : en);
   const [fin, setFin] = useCloudState<Finance>("civilos.finance", DEFAULT_FINANCE, { merge: true });
@@ -104,6 +107,8 @@ export default function FinancePage() {
 
   const th = "text-left text-xs font-medium text-muted-foreground p-2";
   const td = "p-2 text-sm";
+
+  if (activeProjectId) return <ProjectFinanceControl projectId={activeProjectId} />;
 
   return (
     <SidebarProvider>
