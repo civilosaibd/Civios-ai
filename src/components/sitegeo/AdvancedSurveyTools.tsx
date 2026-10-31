@@ -121,8 +121,9 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
       lines.push("0","TEXT","8","POINT_LABELS","10",String(p.easting),"20",String(p.northing),"30",String(p.elevation),"40","0.5","1",p.id);
     });
     if (boundary.length >= 3) {
-      lines.push("0","LWPOLYLINE","8","PLOT_BOUNDARY","90",String(boundary.length),"70","1");
-      boundary.forEach((index) => lines.push("10",String(stations[index].easting),"20",String(stations[index].northing)));
+      lines.push("0","POLYLINE","8","PLOT_BOUNDARY","66","1","70","1");
+      boundary.forEach((index) => lines.push("0","VERTEX","8","PLOT_BOUNDARY","10",String(stations[index].easting),"20",String(stations[index].northing),"30",String(stations[index].elevation),"70","0"));
+      lines.push("0","SEQEND","8","PLOT_BOUNDARY");
     }
     const edgeSet = new Set<string>();
     tin.forEach((triangle) => {
