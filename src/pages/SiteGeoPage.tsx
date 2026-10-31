@@ -83,8 +83,8 @@ export default function SiteGeoPage() {
       if (savedPoints.every((point) => Number.isFinite(point?.lat) && Number.isFinite(point?.lng) && point.lat >= -90 && point.lat <= 90 && point.lng >= -180 && point.lng <= 180)) {
         ptsRef.current = savedPoints; setPts(savedPoints);
       } else { ptsRef.current = []; setPts([]); }
-      if (data.mode === "area" || data.mode === "distance") setMode(data.mode);
-      if (data.surveyTool === "point" || data.surveyTool === "line" || data.surveyTool === "polygon") setSurveyTool(data.surveyTool);
+      setMode(data.mode === "distance" ? "distance" : "area");
+      setSurveyTool(data.surveyTool === "point" || data.surveyTool === "line" ? data.surveyTool : "polygon");
       setProjectArtifactId(saved?.id);
       setLoadedProjectId(projectId);
     }).catch((error) => {
