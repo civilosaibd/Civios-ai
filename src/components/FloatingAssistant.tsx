@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import FloatingAssistantChat from "@/components/FloatingAssistantChat";
 import { useI18n } from "@/lib/i18n";
 
 /** Pages where the launcher would be redundant or cover a focused workspace. */
@@ -94,7 +95,7 @@ export default function FloatingAssistant() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduceMotion ? undefined : { opacity: 0, y: 12, scale: 0.97 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-[1.4rem] border border-white/15 bg-slate-950/95 text-white shadow-[0_24px_80px_-18px_rgba(2,6,23,0.8)] ring-1 ring-cyan-300/20 backdrop-blur-2xl"
+            className="w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-[1.4rem] border border-white/15 bg-slate-950/95 text-white shadow-[0_24px_80px_-18px_rgba(2,6,23,0.8)] ring-1 ring-cyan-300/20 backdrop-blur-2xl"
           >
             <div className="relative overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,.42),transparent_42%),radial-gradient(circle_at_100%_20%,rgba(168,85,247,.34),transparent_40%),linear-gradient(135deg,#07152f,#11102c_58%,#24113b)] p-4">
               <div className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full border border-cyan-200/20 shadow-[0_0_55px_rgba(34,211,238,.18)]" />
@@ -107,11 +108,11 @@ export default function FloatingAssistant() {
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[.2em] text-cyan-200/80">CivilOS AI</p>
                     <h2 className="mt-0.5 text-base font-bold tracking-tight">
-                      {isBangla ? "ইঞ্জিনিয়ারিং সহকারী" : "Engineering Assistant"}
+                      {isBangla ? "আপনার AI ইঞ্জিনিয়ারিং সহকারী" : "Your AI Engineering Assistant"}
                     </h2>
                     <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-emerald-200">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.9)]" />
-                      {isBangla ? "সহায়তার জন্য প্রস্তুত" : "Ready to help"}
+                      {isBangla ? "সরাসরি AI চ্যাট" : "Live AI chat"}
                     </div>
                   </div>
                 </div>
@@ -126,31 +127,17 @@ export default function FloatingAssistant() {
               </div>
               <p className="relative mt-4 max-w-[19rem] text-xs leading-relaxed text-slate-200/80">
                 {isBangla
-                  ? "আপনার Civil Engineering কাজের জন্য সঠিক AI টুল বেছে নিন।"
-                  : "Choose the right AI workspace for your civil engineering task."}
+                  ? "বাংলা বা ইংরেজিতে প্রশ্ন করুন — CivilOS AI উত্তর দেবে।"
+                  : "Ask in Bangla or English — CivilOS AI will help you."}
               </p>
             </div>
 
-            <div className="space-y-2 p-3">
-              {shortcuts.map(({ to, icon: Icon, title, description, tone }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  onClick={() => setOpen(false)}
-                  className="group flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.035] p-3 transition duration-200 hover:-translate-y-0.5 hover:border-cyan-300/25 hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-                >
-                  <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br ${tone} shadow-lg shadow-black/20`}>
-                    <Icon className="h-[18px] w-[18px] text-white" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-xs font-semibold text-white">{isBangla ? (
-                      to === "/ai-engineer" ? "ইঞ্জিনিয়ারিং সহকারী" : to === "/agent" ? "AI এজেন্ট" : "ড্রয়িং বিশ্লেষণ"
-                    ) : title}</span>
-                    <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-400">{isBangla ? (
-                      to === "/ai-engineer" ? "প্রকৌশল ও নির্মাণ বিষয়ে প্রশ্ন করুন" : to === "/agent" ? "CivilOS Workspace-এর সঙ্গে কাজ করুন" : "প্ল্যান ও প্রজেক্ট ডকুমেন্ট যাচাই করুন"
-                    ) : description}</span>
-                  </span>
-                  <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-500 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-cyan-200" />
+            <FloatingAssistantChat userId={user?.id ?? "guest"} isBangla={isBangla} />
+            <div className="flex items-center gap-1 border-t border-white/[0.08] px-3 py-2">
+              {shortcuts.map(({ to, icon: Icon, title }) => (
+                <Link key={to} to={to} onClick={() => setOpen(false)} className="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-2 text-[9px] text-slate-400 transition hover:bg-white/[0.07] hover:text-cyan-200">
+                  <Icon className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{isBangla ? (to === "/ai-engineer" ? "ইঞ্জিনিয়ার" : to === "/agent" ? "এজেন্ট" : "ড্রয়িং") : title === "Engineering Assistant" ? "Engineer" : title === "Analyze a Drawing" ? "Drawing" : "Agent"}</span>
                 </Link>
               ))}
             </div>
