@@ -10,6 +10,7 @@ import {
   createEmptyDocument, normalizeRect, snapToGrid, translateEntity, rotateEntity, mirrorEntity, entityBounds, offsetEntity, trimLineAtPoint, extendLineToBoundary, scaleEntity, filletLines, chamferLines, polygonVertices, dimensionLength, deserializeCadDocument, type CadEntity, type CadDocument, type Point2D,
 } from "@/lib/cad2d/geometry";
 import { snapPoint } from "@/lib/cad2d/snap";
+import { snapPointToWallNetwork } from "@/lib/cad2d/wall-network";
 import { documentToDxf, documentToSvg } from "@/lib/cad2d/export";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand, Upload } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -96,6 +97,8 @@ export default function ProfessionalCadWorkspace() {
     const objectSnap = snapPoint(p, doc.entities, ["endpoint", "midpoint", "intersection", "center", "perpendicular"], 8 / view.scale);
     if (objectSnap) p = objectSnap.point;
     else if (grid.snapEnabled) p = snapToGrid(p, grid.snapSpacing);
+    // Architectural walls additionally snap to existing wall endpoints, centerlines, and intersections.
+    if (tool === "wall") p = snapPointToWallNetwork(p, doc.entities, 8 / view.scale) ?? p;
     // Ortho uses the previous polyline vertex, or the first point for other tools.
     const orthoAnchor = orthoAnchorOverride ?? (tool === "polyline" && polylinePoints.length
       ? polylinePoints[polylinePoints.length - 1]
