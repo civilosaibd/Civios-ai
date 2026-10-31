@@ -173,7 +173,7 @@ export default function ProjectDetailPage() {
       const MAX_FILE_BYTES = 50 * 1024 * 1024;
       const MAX_TOTAL_BYTES = 180 * 1024 * 1024;
       let totalBytes = 0;
-      const safeName = (name: string) => name.replace(/[\\/\\\\\\u0000-\\u001f]/g, "_").replace(/\\.\\./g, "_").slice(0, 180) || "file";
+      const safeName = (name: string) => name.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/\.\./g, "_").slice(0, 180) || "file";
 
       for (const document of docs) {
         const path = typeof document.file_url === "string" ? document.file_url : "";
