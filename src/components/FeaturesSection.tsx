@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Ruler, Boxes, Hammer, Paintbrush, Zap, Droplets,
   LayoutGrid, FileText, Brain, DollarSign, Layers, Building
@@ -22,6 +22,7 @@ const featureKeys = [
 
 const FeaturesSection = () => {
   const { t } = useI18n();
+  const reduceMotion = useReducedMotion();
   return (
     <section className="relative py-24 bg-background overflow-hidden">
       <div className="absolute inset-0 bg-dots opacity-40 pointer-events-none" />
@@ -39,10 +40,12 @@ const FeaturesSection = () => {
           {featureKeys.map((f, i) => (
             <motion.div
               key={f.titleKey}
-              className="group relative p-4 sm:p-6 rounded-2xl bg-card border border-border/60 shadow-card hover:shadow-card-hover hover:-translate-y-1 transition-all duration-500 overflow-hidden"
+              className="group relative p-4 sm:p-6 rounded-2xl bg-card/90 backdrop-blur-sm border border-border/60 shadow-card hover:shadow-card-hover transition-all duration-500 overflow-hidden homepage-depth-card"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
+              viewport={{ once: true, amount: 0.18 }}
+              whileHover={reduceMotion ? undefined : { y: -7, rotateX: 2, rotateY: i % 2 === 0 ? 2 : -2, scale: 1.015 }}
+              style={{ transformPerspective: 900, transformStyle: "preserve-3d" }}
               transition={{ duration: 0.4, delay: i * 0.05 }}
             >
               <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full bg-accent/0 group-hover:bg-accent/10 blur-2xl transition-all duration-500" />

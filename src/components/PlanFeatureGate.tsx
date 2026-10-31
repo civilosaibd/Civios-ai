@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { LockKeyhole, Sparkles } from "lucide-react";
+import { AlertCircle, LockKeyhole, RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSubscription } from "@/lib/subscription";
@@ -15,10 +15,32 @@ type PlanFeatureGateProps = {
  * Server-side authorization and RLS remain the security boundary for data/API access.
  */
 export default function PlanFeatureGate({ feature, children }: PlanFeatureGateProps) {
-  const { loading, plan, hasFeature } = useSubscription();
+  const { loading, error, plan, hasFeature, reload } = useSubscription();
 
   if (loading) {
-    return <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">Checking your plan access…</div>;
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
+        <RefreshCw className="h-4 w-4 animate-spin" />
+        Checking your plan access…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="mx-auto flex min-h-[55vh] max-w-2xl items-center justify-center p-4">
+        <Card className="w-full border-destructive/30">
+          <CardHeader className="items-center text-center">
+            <div className="mb-2 rounded-full bg-destructive/10 p-4 text-destructive"><AlertCircle className="h-7 w-7" /></div>
+            <CardTitle>Unable to verify plan access</CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center">
+            <Button onClick={() => void reload()}><RefreshCw className="mr-2 h-4 w-4" />Try again</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   if (hasFeature(feature)) return <>{children}</>;
