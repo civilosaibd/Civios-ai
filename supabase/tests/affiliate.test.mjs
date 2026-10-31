@@ -101,11 +101,11 @@ test("Business first verified payment earns 30%, and the following payment earns
   assert.equal(first.status, "approved");
   const later = await pay(hank, "starter", "TX-HANK-2", "01866666666");
   await approve(later);
-  const hankRows = await q("SELECT rate::numeric r, base_amount::numeric b, commission_amount::numeric c FROM public.referral_commissions WHERE referred_user_id=$1 ORDER BY created_at", [HANK]);
-  assert.equal(hankRows.length, 2);
-  near(hankRows[1].r, 0.10);
+  const [repeat] = await q("SELECT rate::numeric r, base_amount::numeric b, commission_amount::numeric c FROM public.referral_commissions WHERE payment_id=$1", [later]);
+  assert.equal((await q("SELECT count(*)::int n FROM public.referral_commissions WHERE referred_user_id=$1", [HANK]))[0].n, 2);
+  near(repeat.r, 0.10);
   const starter = await plan("starter");
-  near(hankRows[1].b, starter.p); near(hankRows[1].c, pct(starter.p));
+  near(repeat.b, starter.p); near(repeat.c, pct(starter.p));
 });
 
 test("Starter, Professional and Business payments are eligible for 30% first and 10% repeat commissions", async () => {
