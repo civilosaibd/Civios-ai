@@ -43,6 +43,15 @@ export const constructionTools: NavCategory[] = [
     ],
   },
   {
+    label: "Floor Plan & Design",
+    icon: Building2,
+    items: [
+      { title: "Floor Plan & 3D Design Studio", url: "/floor-plan-studio", icon: Box },
+      { title: "Create Your Own Plan", url: "/plan-generator", icon: Building2 },
+      { title: "BIM Studio 3D", url: "/bim-studio", icon: Box },
+    ],
+  },
+  {
     label: "Estimation & Quantity",
     icon: Calculator,
     items: [
@@ -143,10 +152,13 @@ export const bottomNav: NavLeaf[] = [
 
 export const allToolCategories: NavCategory[] = [...constructionTools, learningNav, analyticsNav];
 
+const isRouteActive = (pathname: string, url: string) =>
+  pathname === url || (url !== "/" && pathname.startsWith(`${url}/`));
+
 export function findActiveCategory(pathname: string): string | null {
   for (const cat of allToolCategories) {
-    if (cat.items.some((i) => i.url === pathname)) return cat.label;
+    if (cat.items.some((i) => isRouteActive(pathname, i.url))) return cat.label;
   }
-  if (settingsNav.items.some((i) => i.url === pathname)) return settingsNav.label;
+  if (settingsNav.items.some((i) => isRouteActive(pathname, i.url))) return settingsNav.label;
   return null;
 }
