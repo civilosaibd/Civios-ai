@@ -52,7 +52,6 @@ const EstimatePage = () => {
   const { t, lang, currency, fmt } = useI18n();
   const { user } = useAuth();
   const activeProjectId = useActiveProjectId();
-  useEffect(() => { setWorkspaceArtifactId(null); }, [activeProjectId]);
 
   const params = location.state || {
     plotLength: 40, plotWidth: 30, unit: "feet", floors: 1,
@@ -67,6 +66,7 @@ const EstimatePage = () => {
   const [saving, setSaving] = useState(false);
   const [savingWorkspace, setSavingWorkspace] = useState(false);
   const [workspaceArtifactId, setWorkspaceArtifactId] = useState<string | null>(null);
+  useEffect(() => { setWorkspaceArtifactId(null); }, [activeProjectId]);
   const [projectName, setProjectName] = useState<string>(params._projectName || params.fileName || "House Project");
   const [district, setDistrict] = useState<string>(params.district || "Dhaka");
   const [rates, setRates] = useState(params.rates || undefined);
