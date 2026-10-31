@@ -62,6 +62,75 @@ function CategoryGroup({
   );
 }
 
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { FolderKanban } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
+
+type WorkspaceProject = { id: string; name: string; updated_at?: string };
+
+export const ACTIVE_PROJECT_STORAGE_KEY = "civilos.activeProjectId";
+
+export function ProjectWorkspaceSelector({ collapsed = false }: { collapsed?: boolean }) {
+  const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [projects, setProjects] = useState<WorkspaceProject[]>([]);
+  const [selected, setSelected] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) { setProjects([]); setSelected(""); setLoading(false); return; }
+    let active = true;
+    setLoading(true);
+    supabase.from("projects").select("id,name,updated_at").order("updated_at", { ascending: false })
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) console.error("Could not load workspace projects", error);
+        const rows = (data || []) as WorkspaceProject[];
+        setProjects(rows);
+        const urlProject = searchParams.get("project");
+        const storedProject = window.localStorage.getItem(ACTIVE_PROJECT_STORAGE_KEY);
+        const candidate = urlProject || storedProject || "";
+        const valid = rows.some((project) => project.id === candidate) ? candidate : "";
+        setSelected(valid);
+        if (valid) window.localStorage.setItem(ACTIVE_PROJECT_STORAGE_KEY, valid);
+        else window.localStorage.removeItem(ACTIVE_PROJECT_STORAGE_KEY);
+        setLoading(false);
+      });
+    return () => { active = false; };
+  }, [user, searchParams]);
+
+  const changeProject = (value: string) => {
+    const next = value === "__none__" ? "" : value;
+    setSelected(next);
+    if (next) window.localStorage.setItem(ACTIVE_PROJECT_STORAGE_KEY, next);
+    else window.localStorage.removeItem(ACTIVE_PROJECT_STORAGE_KEY);
+    const params = new URLSearchParams(searchParams);
+    if (next) params.set("project", next);
+    else params.delete("project");
+    setSearchParams(params, { replace: true });
+  };
+
+  if (!user) return null;
+  return (
+    <div className={collapsed ? "px-1 py-2" : "px-3 py-3"}>
+      {!collapsed && <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"><FolderKanban className="h-3.5 w-3.5" /> Active Project</div>}
+      <Select value={selected || "__none__"} onValueChange={changeProject} disabled={loading}>
+        <SelectTrigger className={collapsed ? "h-9 w-full justify-center px-1" : "h-9 w-full text-xs"} aria-label="Choose active project" title="Choose active project">
+          {collapsed ? <FolderKanban className="h-4 w-4" /> : <SelectValue placeholder={loading ? "Loading projects…" : "Select project"} />}
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">Personal / No project</SelectItem>
+          {projects.map((project, index) => <SelectItem key={project.id} value={project.id}>Project #{index + 1} · {project.name}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      {!collapsed && <p className="mt-1 text-[10px] text-muted-foreground">নতুন কাজ এই প্রজেক্টে সংরক্ষণের জন্য এটি নির্বাচন করুন।</p>}
+    </div>
+  );
+}
+
 export function DashboardSidebar() {
   const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
@@ -113,6 +182,7 @@ export function DashboardSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
+        <ProjectWorkspaceSelector collapsed={collapsed} />
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
