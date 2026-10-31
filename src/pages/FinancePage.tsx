@@ -14,7 +14,6 @@ import { toast } from "sonner";
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useI18n } from "@/lib/i18n";
-import { useAuth } from "@/lib/auth";
 import { useCloudState } from "@/lib/cloudState";
 import {
   DEFAULT_FINANCE, billDue, billNet, cashFlowSummary, invoiceDue, invoiceTotal, monthlySeries,
@@ -29,7 +28,6 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 export default function FinancePage() {
   const { lang } = useI18n();
-  const { user } = useAuth();
   const activeProjectId = useActiveProjectId();
   const bn = lang === "bn";
   const T = (en: string, b: string) => (bn ? b : en);
