@@ -4,7 +4,7 @@ import Footer from "@/components/Footer";
 import SEO from "@/components/SEO";
 import Building3D from "@/components/Building3D";
 import { useLocation } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { generateEstimate } from "@/lib/estimateEngine";
 import {
   computeBNBCLoads,
@@ -52,6 +52,7 @@ const EstimatePage = () => {
   const { t, lang, currency, fmt } = useI18n();
   const { user } = useAuth();
   const activeProjectId = useActiveProjectId();
+  useEffect(() => { setWorkspaceArtifactId(null); }, [activeProjectId]);
 
   const params = location.state || {
     plotLength: 40, plotWidth: 30, unit: "feet", floors: 1,
