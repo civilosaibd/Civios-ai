@@ -155,7 +155,7 @@ export function createProjectWorkspaceBackup(
       "Treat this archive as confidential project data and store it securely.\n"
     ) },
     ...binaryFiles.map((file, index) => ({
-      name: file.path.replace(/^\\/+/, "").split("/").map((part) => part.replace(/\\.\\./g, "_")).join("/"),
+      name: file.path.split("/").map((part) => part.replace(/\.\./g, "_")).join("/"),
       bytes: file.bytes,
     })),
     ...artifacts.map((artifact, index) => {
