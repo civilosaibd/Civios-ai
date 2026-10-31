@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,9 @@ function convexHull(points: Station[]): number[] {
 }
 function triangulate(points: Station[]): TinTriangle[] {
   if (points.length < 3 || points.length > 250) return [];
-  const coords = points.map((p) => ({ x: p.easting, y: p.northing }));
+  const raw = points.map((p) => ({ x: p.easting, y: p.northing }));
+  const originX = Math.min(...raw.map((p) => p.x)), originY = Math.min(...raw.map((p) => p.y));
+  const coords = raw.map((p) => ({ x: p.x - originX, y: p.y - originY }));
   const minX = Math.min(...coords.map((p) => p.x)), maxX = Math.max(...coords.map((p) => p.x));
   const minY = Math.min(...coords.map((p) => p.y)), maxY = Math.max(...coords.map((p) => p.y));
   const span = Math.max(maxX - minX, maxY - minY) || 1, midX = (minX + maxX) / 2, midY = (minY + maxY) / 2;
@@ -82,6 +84,7 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
   const [boundary, setBoundary] = useState<number[]>([]);
   const [draftView, setDraftView] = useState<"points" | "tin" | "contours">("points");
   const [gridResolution, setGridResolution] = useState(20);
+  useEffect(() => { setBoundary([]); }, [stations]);
   const hull = useMemo(() => stations.length >= 3 ? convexHull(stations) : [], [stations]);
   const tin = useMemo(() => triangulate(stations), [stations]);
   const tinStats = useMemo(() => {
@@ -121,6 +124,16 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
       lines.push("0","LWPOLYLINE","8","PLOT_BOUNDARY","90",String(boundary.length),"70","1");
       boundary.forEach((index) => lines.push("10",String(stations[index].easting),"20",String(stations[index].northing)));
     }
+    const edgeSet = new Set<string>();
+    tin.forEach((triangle) => {
+      for (const [u,v] of [[triangle.a,triangle.b],[triangle.b,triangle.c],[triangle.c,triangle.a]] as [number,number][]) {
+        const key = u < v ? u + ":" + v : v + ":" + u;
+        if (edgeSet.has(key)) continue;
+        edgeSet.add(key);
+        const a=stations[u], b=stations[v];
+        lines.push("0","LINE","8","TIN_EDGES","10",String(a.easting),"20",String(a.northing),"30",String(a.elevation),"11",String(b.easting),"21",String(b.northing),"31",String(b.elevation));
+      }
+    });
     lines.push("0","ENDSEC","0","EOF");
     const blob=new Blob([lines.join("\r\n")],{type:"application/dxf"});
     const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="civilos-survey-drawing.dxf"; a.click(); URL.revokeObjectURL(url);
