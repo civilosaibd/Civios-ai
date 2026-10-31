@@ -26,11 +26,23 @@ export default function SchedulerPage() {
   const projectId = useActiveProjectId();
   const bn = lang === "bn";
   const T = (en: string, b: string) => (bn ? b : en);
-  const [tasks, setTasks] = useCloudState<Task[]>("civilos.schedule", TEMPLATE);
-  const [qa, setQa] = useCloudState<QAItem[]>("civilos.qa", QA_TEMPLATE);
-  const [start, setStart] = useCloudState<string>("civilos.scheduleStart", new Date().toISOString().slice(0, 10));
+  const [cloudTasks, setCloudTasks] = useCloudState<Task[]>("civilos.schedule", TEMPLATE);
+  const [cloudQa, setCloudQa] = useCloudState<QAItem[]>("civilos.qa", QA_TEMPLATE);
+  const [cloudStart, setCloudStart] = useCloudState<string>("civilos.scheduleStart", new Date().toISOString().slice(0, 10));
   type SavedSchedule = { id: string; name: string; tasks: Task[]; qa: QAItem[]; start: string; updatedAt: string };
-  const [savedSchedules, setSavedSchedules] = useCloudState<SavedSchedule[]>("civilos.saved-schedules", []);
+  const [cloudSavedSchedules, setCloudSavedSchedules] = useCloudState<SavedSchedule[]>("civilos.saved-schedules", []);
+  const [projectTasks, setProjectTasks] = useState<Task[]>(TEMPLATE);
+  const [projectQa, setProjectQa] = useState<QAItem[]>(QA_TEMPLATE);
+  const [projectStart, setProjectStart] = useState(new Date().toISOString().slice(0, 10));
+  const [projectSavedSchedules, setProjectSavedSchedules] = useState<SavedSchedule[]>([]);
+  const tasks = projectId ? projectTasks : cloudTasks;
+  const qa = projectId ? projectQa : cloudQa;
+  const start = projectId ? projectStart : cloudStart;
+  const savedSchedules = projectId ? projectSavedSchedules : cloudSavedSchedules;
+  const setTasks = (next: Task[] | ((previous: Task[]) => Task[])) => projectId ? setProjectTasks(next) : setCloudTasks(next);
+  const setQa = (next: QAItem[] | ((previous: QAItem[]) => QAItem[])) => projectId ? setProjectQa(next) : setCloudQa(next);
+  const setStart = (next: string | ((previous: string) => string)) => projectId ? setProjectStart(next) : setCloudStart(next);
+  const setSavedSchedules = (next: SavedSchedule[] | ((previous: SavedSchedule[]) => SavedSchedule[])) => projectId ? setProjectSavedSchedules(next) : setCloudSavedSchedules(next);
   const [scheduleName, setScheduleName] = useState("");
   const [selectedScheduleId, setSelectedScheduleId] = useState("");
   const [projectArtifactId, setProjectArtifactId] = useState<string | undefined>();
@@ -62,7 +74,7 @@ export default function SchedulerPage() {
       if (!cancelled) { setProjectLoadError(error instanceof Error ? error.message : "Could not load this project's schedule."); setLoadedProjectId(projectId); }
     });
     return () => { cancelled = true; };
-  }, [projectId, setTasks, setQa, setStart, setSavedSchedules]);
+  }, [projectId]);
 
   const projectSave = useProjectArtifactAutosave({
     projectId: projectId ?? "", artifactId: projectArtifactId, artifactType: "project-schedule",
