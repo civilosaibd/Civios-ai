@@ -91,8 +91,9 @@ export default function SitePhotosPage() {
   }, [user, projectId]);
 
   useEffect(() => {
+    setProjectReady(false); setProjectError(null); setProjectArtifactId(undefined); setPhotos([]);
     if (user) void loadPhotos();
-  }, [user, loadPhotos]);
+  }, [user, projectId, loadPhotos]);
 
   const requestLocation = () => {
     if (!navigator.geolocation) {
@@ -180,11 +181,6 @@ export default function SitePhotosPage() {
 
   const deletePhoto = async (photo: PhotoRecord) => {
     if (!window.confirm("Delete this photo permanently?")) return;
-    const { error: storageError } = await supabase.storage.from("site-photos").remove([photo.storage_path]);
-    if (storageError) {
-      toast.error(`Could not delete image file: ${storageError.message}`);
-      return;
-    }
     if (projectId) {
       try {
         const remaining = photos.filter((item) => item.id !== photo.id).map(({ imageUrl: _imageUrl, ...row }) => row);
@@ -194,6 +190,10 @@ export default function SitePhotosPage() {
     } else {
       const { error } = await (supabase.from("site_photos" as any) as any).delete().eq("id", photo.id).eq("user_id", user?.id);
       if (error) { toast.error(error.message); return; }
+    }
+    if (projectId) {
+      const { error: storageError } = await supabase.storage.from("site-photos").remove([photo.storage_path]);
+      if (storageError) toast.error("Photo record removed, but the private file could not be deleted: " + storageError.message);
     }
     toast.success("Photo deleted.");
     setPhotos((current) => current.filter((item) => item.id !== photo.id));
@@ -235,7 +235,7 @@ export default function SitePhotosPage() {
                   <div className="flex flex-wrap items-center gap-3">
                     <Button type="button" variant="outline" onClick={requestLocation}><MapPin className="mr-2 h-4 w-4" />{location ? "Location added" : "Add current location"}</Button>
                     {location && <span className="text-xs text-muted-foreground">{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span>}
-                    <Button className="sm:ml-auto" onClick={uploadPhotos} disabled={uploading || files.length === 0 || (!!projectId && !projectReady)}>
+                    <Button className="sm:ml-auto" onClick={uploadPhotos} disabled={uploading || files.length === 0 || (!!projectId && (!projectReady || !!projectError))}>
                       {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                       {uploading ? "Uploading…" : "Upload photos"}
                     </Button>
