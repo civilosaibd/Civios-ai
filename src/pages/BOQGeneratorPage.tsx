@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ export default function BOQGeneratorPage() {
   const [savingToProject, setSavingToProject] = useState(false);
   const [savedArtifactId, setSavedArtifactId] = useState<string | null>(null);
   const projectId = useActiveProjectId();
+  useEffect(() => { setSavedArtifactId(null); }, [projectId]);
 
   const generate = async () => {
     if (!input.trim()) return toast.error("Project description দিন");
