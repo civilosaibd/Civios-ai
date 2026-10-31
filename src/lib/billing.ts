@@ -24,6 +24,7 @@ export interface PaymentProvider {
 }
 
 export const MANUAL_PAYMENT_NUMBER = "+8801832313998";
+export const BANK_ACCOUNT_NUMBER = "4170331088939983";
 
 export const VAT_RATE = 0; // set > 0 when VAT registration is active
 
