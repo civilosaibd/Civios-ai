@@ -1,4 +1,5 @@
-import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import { Bot, Loader2, Send, Trash2, UserRound, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -112,7 +113,7 @@ export default function FloatingAssistantChat({ userId, isBangla }: { userId: st
   const onSubmit = (event: FormEvent) => { event.preventDefault(); void send(); };
 
   return (
-    <div className="flex h-[min(27rem,65vh)] min-h-[18rem] flex-col">
+    <div className="flex h-[min(24rem,52vh)] min-h-[18rem] flex-col">
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3" aria-live="polite">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
@@ -137,7 +138,7 @@ export default function FloatingAssistantChat({ userId, isBangla }: { userId: st
               {message.role === "user" ? <UserRound className="h-3.5 w-3.5 text-white" /> : <Bot className="h-3.5 w-3.5" />}
             </span>
             <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-[11px] leading-relaxed ${message.role === "user" ? "bg-blue-600 text-white" : "border border-white/[0.08] bg-white/[0.06] text-slate-100"}`}>
-              {message.role === "assistant" ? <div className="prose prose-xs prose-invert max-w-none break-words"><ReactMarkdown>{message.content || "…"}</ReactMarkdown></div> : <p className="whitespace-pre-wrap">{message.content}</p>}
+              {message.role === "assistant" ? <div className="prose prose-sm prose-invert max-w-none break-words"><ReactMarkdown>{message.content || "…"}</ReactMarkdown></div> : <p className="whitespace-pre-wrap">{message.content}</p>}
             </div>
           </div>
         ))}
