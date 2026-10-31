@@ -100,7 +100,7 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
   };
   const [draftView, setDraftView] = useState<"points" | "tin" | "contours">("points");
   const [gridResolution, setGridResolution] = useState(20);
-  useEffect(() => { setBoundary([]); }, [stations]);
+  useEffect(() => { setBoundary([]); setBreaklines((items) => items.filter((line) => stations.some((p) => p.id === line.from) && stations.some((p) => p.id === line.to))); }, [stations]);
   const hull = useMemo(() => stations.length >= 3 ? convexHull(stations) : [], [stations]);
   const tin = useMemo(() => triangulate(stations), [stations]);
   const tinStats = useMemo(() => {
@@ -118,7 +118,7 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
   }, [tin, stations, earth.designRL]);
   const exportDxf = () => {
     if (!stations.length) return toast.error(T("Import survey points first", "প্রথমে সার্ভে পয়েন্ট ইমপোর্ট করুন"));
-    const lines = ["0","SECTION","2","ENTITIES"];
+    const lines = ["0","SECTION","2","ENTITIES","0","TEXT","8","DRAWING_METADATA","10","0","20","0","30","0","40","0.5","1",csvCell("CRS "+crsCode+" | Units "+coordinateUnit+" (metadata only)")];
     stations.forEach((p) => {
       lines.push("0","POINT","8","SURVEY_POINTS","10",String(p.easting),"20",String(p.northing),"30",String(p.elevation));
       lines.push("0","TEXT","8","POINT_LABELS","10",String(p.easting),"20",String(p.northing),"30",String(p.elevation),"40","0.5","1",p.id);
@@ -155,7 +155,8 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
     const boundarySvg=boundary.length>=3?"<polygon points='"+boundary.map(i=>{const q=sheetXY(stations[i]);return q.x+","+q.y;}).join(" ")+"' fill='#f97316' fill-opacity='.08' stroke='#f97316' stroke-width='3'/>":"";
     const breaklineSvg=breaklines.map(line=>{const a=stations.find(p=>p.id===line.from),b=stations.find(p=>p.id===line.to);if(!a||!b)return "";const p=sheetXY(a),q=sheetXY(b);return "<line x1='"+p.x+"' y1='"+p.y+"' x2='"+q.x+"' y2='"+q.y+"' stroke='#dc2626' stroke-width='3' stroke-dasharray='8 5'/>";}).join("");
     const pointSvg=stations.slice(0,1000).map(p=>{const q=sheetXY(p);return "<circle cx='"+q.x+"' cy='"+q.y+"' r='4' fill='#2563eb'/><text x='"+(q.x+7)+"' y='"+(q.y-7)+"' font-size='11' fill='#172033'>"+escapeHtml(p.id)+"</text>";}).join("");
-    const drawingSheet="<h2>Survey drawing sheet</h2><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 840 520' style='width:100%;border:1px solid #ccd3df;background:#fff'><rect x='0' y='0' width='840' height='520' fill='#fff'/>"+boundarySvg+breaklineSvg+pointSvg+"<text x='24' y='24' font-size='12' fill='#64748b'>CRS "+escapeHtml(crsCode)+" · "+coordinateUnit+" · Not to scale</text></svg>";
+    const contourSvg=(surface?.contours||[]).map(line=>"<line x1=\""+(40+line.x1/320*760)+"\" y1=\""+(40+line.y1/180*430)+"\" x2=\""+(40+line.x2/320*760)+"\" y2=\""+(40+line.y2/180*430)+"\" stroke=\"#0d9488\" stroke-width=\"1.2\"/>").join("");
+    const drawingSheet="<h2>Survey drawing sheet</h2><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 840 520' style='width:100%;border:1px solid #ccd3df;background:#fff'><rect x='0' y='0' width='840' height='520' fill='#fff'/>"+contourSvg+boundarySvg+breaklineSvg+pointSvg+"<text x='24' y='24' font-size='12' fill='#64748b'>CRS "+escapeHtml(crsCode)+" · "+coordinateUnit+" · Not to scale</text></svg>";
     const report="<html><head><title>CivilOS Survey Report</title><style>body{font:12px Arial;padding:28px;color:#172033}h1{font-size:22px}@page{size:A4 landscape;margin:12mm}table{border-collapse:collapse;width:100%;margin-top:16px}th,td{border:1px solid #ccd3df;padding:6px;text-align:left}th{background:#edf2f7}.meta{display:flex;gap:24px;flex-wrap:wrap}.note{margin-top:18px;color:#526071;font-size:11px}@media print{button{display:none}}</style></head><body><h1>CivilOS AI — Survey Report</h1><p>Generated: "+new Date().toLocaleString()+"</p><div class='meta'><p>Survey points: "+stations.length+"</p><p>Boundary vertices: "+boundary.length+"</p><p>TIN triangles: "+tin.length+"</p><p>Design RL: "+earth.designRL.toFixed(3)+" "+coordinateUnit+"</p><p>CRS: "+escapeHtml(crsCode)+"</p><p>Coordinate units: "+coordinateUnit+"</p><p>Breaklines: "+breaklines.length+"</p></div>"+drawingSheet+"<h2>Survey point register</h2><table><thead><tr><th>Point</th><th>Easting ("+coordinateUnit+")</th><th>Northing ("+coordinateUnit+")</th><th>RL ("+coordinateUnit+")</th><th>Code</th></tr></thead><tbody>"+rows+"</tbody></table><p class='note'>Coordinate reference system and units are taken from the supplied field data and are not independently verified. TIN/grid quantities are preliminary estimates; verify the surface, boundary and field observations before engineering or payment use.</p><button onclick='window.print()'>Print / Save as PDF</button><script>window.onload=()=>window.print()</script></body></html>";
     const win=window.open("","_blank");
     if(!win) return toast.error(T("Allow pop-ups to create the PDF report", "PDF রিপোর্টের জন্য পপ-আপ অনুমতি দিন"));
@@ -217,7 +218,7 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
     const levelCount = Math.min(40, Math.max(0, Math.floor((max - firstLevel) / interval) + 1));
     const levels = Array.from({ length: levelCount }, (_, i) => firstLevel + i * interval);
     const contours = levels.flatMap((level) => {
-      const segments: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+      const segments: Array<{ x1: number; y1: number; x2: number; y2: number; level: number }> = [];
       for (let row = 0; row < size - 1; row++) for (let col = 0; col < size - 1; col++) {
         const values = [grid[row][col], grid[row][col + 1], grid[row + 1][col + 1], grid[row + 1][col]];
         const corners = [{ x: col, y: row }, { x: col + 1, y: row }, { x: col + 1, y: row + 1 }, { x: col, y: row + 1 }];
@@ -352,7 +353,7 @@ export default function AdvancedSurveyTools({ T }: { T: (en: string, bn: string)
         <p className="text-[11px] text-muted-foreground">{T("Assumes a vertical angle from the horizontal and a correctly entered prism height. Apply instrument-specific corrections and verify field observations.", "অনুভূমিক থেকে উল্লম্ব কোণ এবং সঠিক প্রিজম উচ্চতা ধরে হিসাব করা হয়েছে। যন্ত্রভিত্তিক সংশোধন প্রয়োগ করে মাঠের রিডিং যাচাই করুন।")}</p>
       </TabsContent>
       <TabsContent value="total" className="space-y-3">
-        <p className="text-xs text-muted-foreground">{T("Import a CSV with Easting, Northing and Elevation columns. Optional columns: Point and Code. Coordinates must use one projected coordinate system and metre units.", "Easting, Northing এবং Elevation কলামসহ CSV ইমপোর্ট করুন। ঐচ্ছিক: Point ও Code। সব স্থানাঙ্ক একই projected coordinate system এবং মিটার এককে হতে হবে।")}</p>
+        <p className="text-xs text-muted-foreground">{T("Import a CSV with Easting, Northing and Elevation columns. Optional columns: Point and Code. Use one consistent projected coordinate system and one linear unit throughout; values are not converted.", "Easting, Northing এবং Elevation কলামসহ CSV ইমপোর্ট করুন। ঐচ্ছিক: Point ও Code। সব স্থানাঙ্ক একই projected coordinate system এবং মিটার এককে হতে হবে।")}</p>
         <input ref={fileRef} type="file" accept=".csv,text/csv,.txt,text/plain" className="hidden" onChange={importTotalStation} />
         <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => fileRef.current?.click()}>{T("Import total station CSV", "টোটাল স্টেশন CSV ইমপোর্ট")}</Button><Button size="sm" variant="outline" disabled={!stations.length} onClick={exportStations}>{T("Export CSV", "CSV এক্সপোর্ট")}</Button><Button size="sm" variant="outline" disabled={!stations.length} onClick={() => setStations([])}>{T("Clear data", "ডেটা মুছুন")}</Button></div>
         <p className="text-xs text-muted-foreground">{T("Rows loaded", "লোড করা রো")}: <b>{stations.length}</b></p>
