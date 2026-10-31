@@ -12,7 +12,8 @@ import {
   Link2, ShieldCheck, Sparkles, TrendingUp, Users, Wallet,
 } from "lucide-react";
 
-const COMMISSION_RATE = 0.10;
+const FIRST_PAYMENT_COMMISSION_RATE = 0.30;
+const SUBSEQUENT_COMMISSION_RATE = 0.10;
 
 const faqs = [
   {
@@ -21,11 +22,11 @@ const faqs = [
   },
   {
     q: "How much commission can I earn?",
-    a: "The current standard commission rate is 10% of the referred user's first eligible successful payment. The commission is calculated from the verified payment amount, not from clicks or sign-ups alone.",
+    a: "You earn 30% of the referred user's first eligible successful payment, then 10% on each subsequent eligible verified payment. Commission is calculated from the verified payment amount, not from clicks or sign-ups alone.",
   },
   {
     q: "Do I earn commission on every renewal?",
-    a: "No. The current program rewards one eligible first successful payment per referred user. Later payments or renewals do not create another commission for the same referral.",
+    a: "Yes. The first eligible successful payment earns 30%, and each subsequent eligible verified payment earns 10%, subject to program eligibility and payment verification.",
   },
   {
     q: "When can I request a withdrawal?",
@@ -59,11 +60,15 @@ export default function AffiliateProgramPage() {
   const { user } = useAuth();
   const [paymentAmount, setPaymentAmount] = useState("1999");
   const joinHref = user ? "/affiliate" : "/auth?mode=signup&redirect=%2Faffiliate";
-  const estimatedCommission = useMemo(() => {
-    const amount = Number(paymentAmount);
-    if (!Number.isFinite(amount) || amount <= 0) return 0;
-    return amount * COMMISSION_RATE;
-  }, [paymentAmount]);
+  const exampleAmount = Number(paymentAmount);
+  const estimatedFirstCommission = useMemo(() => {
+    if (!Number.isFinite(exampleAmount) || exampleAmount <= 0) return 0;
+    return exampleAmount * FIRST_PAYMENT_COMMISSION_RATE;
+  }, [exampleAmount]);
+  const estimatedSubsequentCommission = useMemo(() => {
+    if (!Number.isFinite(exampleAmount) || exampleAmount <= 0) return 0;
+    return exampleAmount * SUBSEQUENT_COMMISSION_RATE;
+  }, [exampleAmount]);
 
   const faqJsonLd = {
     "@context": "https://schema.org",
@@ -81,7 +86,7 @@ export default function AffiliateProgramPage() {
     <div className="min-h-screen flex flex-col overflow-hidden">
       <SEO
         title="Affiliate Program — Earn with CivilOS AI"
-        description="Join the CivilOS AI Affiliate Program. Share your referral link, help more people discover civil engineering tools, and earn 10% on an eligible first successful payment."
+        description="Join the CivilOS AI Affiliate Program. Share your referral link, help more people discover civil engineering tools, and earn 30% on the first eligible successful payment and 10% on subsequent eligible verified payments."
         path="/affiliate-program"
         jsonLd={faqJsonLd}
       />
@@ -123,17 +128,17 @@ export default function AffiliateProgramPage() {
 
             <div className="mx-auto w-full max-w-md">
               <div className="rounded-3xl border border-white/15 bg-white/[0.07] p-6 shadow-2xl shadow-cyan-950/30 backdrop-blur-xl sm:p-8">
-                <p className="text-sm font-medium text-slate-300">CURRENT STANDARD COMMISSION</p>
+                <p className="text-sm font-medium text-slate-300">FIRST PAYMENT COMMISSION</p>
                 <div className="mt-3 flex items-end gap-2">
-                  <span className="text-7xl font-bold tracking-tight text-white">10%</span>
-                  <span className="pb-2 text-sm text-cyan-200">per eligible first payment</span>
+                  <span className="text-7xl font-bold tracking-tight text-white">30%</span>
+                  <span className="pb-2 text-sm text-cyan-200">on the first eligible payment</span>
                 </div>
                 <div className="my-6 h-px bg-white/15" />
                 <div className="space-y-4">
                   <div className="flex items-center justify-between text-sm"><span className="text-slate-300">Verified first payment</span><span className="font-semibold text-white">৳10,000</span></div>
-                  <div className="flex items-center justify-between text-sm"><span className="text-slate-300">Your commission (illustration)</span><span className="text-xl font-bold text-cyan-300">৳1,000</span></div>
+                  <div className="flex items-center justify-between text-sm"><span className="text-slate-300">Your first-payment commission</span><span className="text-xl font-bold text-cyan-300">৳3,000</span></div>
                 </div>
-                <p className="mt-6 text-xs leading-5 text-slate-400">Illustrative example only. Actual commission is calculated from the eligible payment amount after successful payment verification. One commission per referred customer.</p>
+                <p className="mt-6 text-xs leading-5 text-slate-400">Illustrative example only. Actual commission is calculated from the eligible payment amount after successful payment verification. 30% on the first eligible verified payment, then 10% on each subsequent eligible verified payment.</p>
               </div>
               <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-400"><ShieldCheck className="h-4 w-4 text-cyan-300" /> Clear rules. Verified payments. Tracked rewards.</div>
             </div>
@@ -185,8 +190,8 @@ export default function AffiliateProgramPage() {
         <section className="container grid gap-12 py-16 md:grid-cols-2 md:items-center md:py-20">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Earnings calculator</p>
-            <h2 className="mt-3 font-heading text-3xl font-bold tracking-tight sm:text-4xl">See how the 10% example works</h2>
-            <p className="mt-4 leading-7 text-muted-foreground">Enter an example first-payment amount to estimate the commission. This is a calculator for illustration, not a promise of earnings.</p>
+            <h2 className="mt-3 font-heading text-3xl font-bold tracking-tight sm:text-4xl">See how your 30% + 10% rewards work</h2>
+            <p className="mt-4 leading-7 text-muted-foreground">Enter an example payment amount to compare the first-payment reward with later eligible payment rewards. This is an illustration, not a promise of earnings.</p>
             <div className="mt-7 max-w-sm space-y-2">
               <label htmlFor="affiliate-payment-amount" className="text-sm font-medium">Example eligible payment amount (BDT)</label>
               <Input id="affiliate-payment-amount" type="number" min="0" step="1" inputMode="decimal" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="h-12 text-base" />
@@ -196,11 +201,11 @@ export default function AffiliateProgramPage() {
           <Card className="overflow-hidden border-primary/20 shadow-xl">
             <CardContent className="p-7 sm:p-9">
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><Gift className="h-4 w-4 text-primary" /> Estimated commission</div>
-              <p className="mt-4 text-5xl font-bold tracking-tight text-primary">{money(estimatedCommission)}</p>
+              <p className="mt-4 text-5xl font-bold tracking-tight text-primary">{money(estimatedFirstCommission)}</p>
               <div className="mt-6 space-y-3 border-t pt-5 text-sm">
                 <div className="flex justify-between gap-4"><span className="text-muted-foreground">Example payment</span><strong>{money(Math.max(0, Number(paymentAmount) || 0))}</strong></div>
-                <div className="flex justify-between gap-4"><span className="text-muted-foreground">Commission rate</span><strong>10%</strong></div>
-                <div className="flex justify-between gap-4"><span className="text-muted-foreground">Eligible payment count</span><strong>First payment only</strong></div>
+                <div className="flex justify-between gap-4"><span className="text-muted-foreground">First eligible payment (30%)</span><strong>{money(estimatedFirstCommission)}</strong></div>
+                <div className="flex justify-between gap-4"><span className="text-muted-foreground">Each later eligible payment (10%)</span><strong>{money(estimatedSubsequentCommission)}</strong></div>
               </div>
               <p className="mt-5 text-xs leading-5 text-muted-foreground">Final commission depends on referral eligibility, successful payment verification, and the program rules in effect at the time.</p>
             </CardContent>
