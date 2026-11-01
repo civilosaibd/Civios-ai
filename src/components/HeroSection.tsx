@@ -9,30 +9,37 @@ const BRAND_ICON = "/branding/civilos-ai-icon-512.png";
 const BRAND_ICON_LARGE = "/branding/civilos-ai-icon-1024.png";
 
 const BuildingShowcase = () => (
-  <div className="hero-building-scene" aria-label="Decorative 3D architectural building model" role="img">
+  <div className="hero-building-scene" aria-label="Slowly rotating modern luxury residential building, three-dimensional architectural model" role="img">
     <div className="hero-scene-orbit hero-scene-orbit--outer" />
     <div className="hero-scene-orbit hero-scene-orbit--inner" />
     <div className="hero-building-platform"><span /><span /><span /></div>
     <div className="hero-building-model">
-      <div className="hero-building-roof"><i /><i /><i /></div>
-      <div className="hero-building-floor hero-building-floor--top">
-        <div className="hero-building-facade"><i /><i /><i /><i /><i /><i /></div>
-        <div className="hero-building-side"><i /><i /><i /></div>
+      <div className="hero-building-roof">
+        <i /><i /><i /><i />
+        <span className="hero-roof-pergola" />
+        <span className="hero-roof-garden" />
       </div>
-      <div className="hero-building-floor hero-building-floor--middle">
-        <div className="hero-building-facade"><i /><i /><i /><i /><i /><i /></div>
-        <div className="hero-building-side"><i /><i /><i /></div>
-      </div>
-      <div className="hero-building-floor hero-building-floor--bottom">
-        <div className="hero-building-facade"><i /><i /><i /><i /><i /><i /></div>
-        <div className="hero-building-side"><i /><i /><i /></div>
-      </div>
+      {["top", "middle", "bottom"].map((floor, index) => (
+        <div key={floor} className={`hero-building-floor hero-building-floor--${floor}`}>
+          <div className="hero-building-facade">
+            {Array.from({ length: 6 }, (_, i) => <i key={i} />)}
+          </div>
+          <div className="hero-building-balcony"><span /><span /><span /></div>
+          <div className="hero-building-side">
+            {Array.from({ length: 4 }, (_, i) => <i key={i} />)}
+          </div>
+          <div className="hero-building-back" />
+          <div className="hero-building-left" />
+          {index === 2 && <div className="hero-building-entry"><i /><i /></div>}
+        </div>
+      ))}
+      <div className="hero-building-columns"><i /><i /><i /><i /></div>
       <div className="hero-building-foundation" />
     </div>
     <div className="hero-blueprint-ring" />
-    <div className="hero-scene-label hero-scene-label--one"><Building2 /><span>SMART DESIGN</span></div>
-    <div className="hero-scene-label hero-scene-label--two"><Ruler /><span>PRECISION</span></div>
-    <div className="hero-scene-label hero-scene-label--three"><Layers3 /><span>3D MODEL</span></div>
+    <div className="hero-scene-label hero-scene-label--one"><Building2 /><span>MODERN ARCHITECTURE</span></div>
+    <div className="hero-scene-label hero-scene-label--two"><Ruler /><span>PRECISION DESIGN</span></div>
+    <div className="hero-scene-label hero-scene-label--three"><Layers3 /><span>3D BUILDING MODEL</span></div>
   </div>
 );
 

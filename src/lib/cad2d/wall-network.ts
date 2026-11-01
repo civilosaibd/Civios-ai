@@ -32,6 +32,7 @@ export function snapPointToWallNetwork(
   if (!walls.length) return null;
 
   const candidates: Point2D[] = [];
+  const intersectionCandidates: Point2D[] = [];
   for (const wall of walls) {
     const projected = projectToSegment(point, wall);
     if (distance(point, projected) <= tolerance) candidates.push(projected);
@@ -44,13 +45,16 @@ export function snapPointToWallNetwork(
       const first = walls[i], second = walls[j];
       const hit = lineIntersection(first.start, first.end, second.start, second.end);
       if (!hit || hit.t < -1e-8 || hit.t > 1 + 1e-8 || hit.u < -1e-8 || hit.u > 1 + 1e-8) continue;
-      if (distance(point, hit.point) <= tolerance) candidates.push(hit.point);
+      if (distance(point, hit.point) <= tolerance) intersectionCandidates.push(hit.point);
     }
   }
 
+  // A true wall-to-wall junction is the most structurally meaningful snap
+  // target, even when a nearby projection onto one wall is microscopically closer.
+  const preferredCandidates = intersectionCandidates.length ? intersectionCandidates : candidates;
   let nearest: Point2D | null = null;
   let bestDistance = tolerance + 1e-9;
-  for (const candidate of candidates) {
+  for (const candidate of preferredCandidates) {
     const candidateDistance = distance(point, candidate);
     if (candidateDistance < bestDistance) {
       nearest = candidate;

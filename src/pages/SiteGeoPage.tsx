@@ -1,4 +1,5 @@
 import { useCloudState } from "@/lib/cloudState";
+import AdvancedSurveyTools from "@/components/sitegeo/AdvancedSurveyTools";
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -9,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Map as MapIcon, Ruler, Hexagon, Home, Undo2, Trash2, LocateFixed, Download, Search, Upload } from "lucide-react";
+import { Map as MapIcon, Ruler, Hexagon, Home, Undo2, Redo2, Trash2, LocateFixed, Download, Search, Upload, Maximize2, Minimize2, Crosshair, Layers } from "lucide-react";
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useI18n } from "@/lib/i18n";
@@ -22,6 +23,7 @@ import { DEFAULT_INPUT, generatePlan, type PlanInput } from "@/lib/planGenerator
 import { bearing, distance, landUnits, offset, pathLength, polygonArea, quadArea, SFT_PER_M2, type LatLng } from "@/lib/survey";
 
 type Mode = "distance" | "area";
+type SurveyTool = "point" | "line" | "polygon";
 const FT = 0.3048;
 const DHAKA: LatLng = { lat: 23.8103, lng: 90.4125 };
 
@@ -31,29 +33,55 @@ export default function SiteGeoPage() {
   const T = (en: string, b: string) => (bn ? b : en);
   const { system } = useUnits();
   const mapEl = useRef<HTMLDivElement>(null);
+  const mapShell = useRef<HTMLDivElement>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
   const map = useRef<L.Map | null>(null);
   const drawLayer = useRef<L.LayerGroup | null>(null);
   const planLayer = useRef<L.LayerGroup | null>(null);
   const [mode, setMode] = useState<Mode>("area");
   const [pts, setPts] = useCloudState<LatLng[]>("civilos.sitePts", []);
-  const [satellite, setSatellite] = useState(false);
+  const [basemap, setBasemap] = useState<"street" | "satellite" | "terrain" | "hybrid">("street");
+  const [mapFullscreen, setMapFullscreen] = useState(false);
+  const [pointerCoords, setPointerCoords] = useState<LatLng | null>(null);
+  const [mapCenter, setMapCenter] = useState<LatLng>(DHAKA);
+  const [mapZoom, setMapZoom] = useState(17);
+  const [gpsTracking, setGpsTracking] = useState(false);
+  const [gpsPosition, setGpsPosition] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const gpsLayer = useRef<L.LayerGroup | null>(null);
+  const gpsCentered = useRef(false);
   const [query, setQuery] = useState("");
-  const tiles = useRef<{ street: L.TileLayer; sat: L.TileLayer } | null>(null);
+  const tiles = useRef<{ street: L.TileLayer; sat: L.TileLayer; terrain: L.TileLayer; labels: L.TileLayer } | null>(null);
   const modeRef = useRef(mode); modeRef.current = mode;
+  const [surveyTool, setSurveyTool] = useState<SurveyTool>("polygon");
+  const ptsRef = useRef(pts); ptsRef.current = pts;
+  const undoStack = useRef<LatLng[][]>([]);
+  const redoStack = useRef<LatLng[][]>([]);
+  const updateSurveyPoints = (next: LatLng[]) => { undoStack.current.push(ptsRef.current); if (undoStack.current.length > 100) undoStack.current.shift(); redoStack.current = []; ptsRef.current = next; setPts(next); };
+  const undoSurvey = () => { const previous = undoStack.current.pop(); if (!previous) return; redoStack.current.push(ptsRef.current); ptsRef.current = previous; setPts(previous); };
+  const redoSurvey = () => { const next = redoStack.current.pop(); if (!next) return; undoStack.current.push(ptsRef.current); ptsRef.current = next; setPts(next); };
 
   const [inp] = useCloudState<PlanInput>("civilos.plan", DEFAULT_INPUT, { merge: true });
 
   useEffect(() => {
     if (!mapEl.current || map.current) return;
     const m = L.map(mapEl.current, { zoomControl: true }).setView([DHAKA.lat, DHAKA.lng], 17);
-    const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 20, maxNativeZoom: 19, attribution: "© OpenStreetMap" });
-    const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 20, maxNativeZoom: 19, attribution: "© Esri" });
+    const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 20, maxNativeZoom: 19, attribution: "© OpenStreetMap contributors" });
+    const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 20, maxNativeZoom: 19, attribution: "Tiles © Esri" });
+    const terrain = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { maxZoom: 20, maxNativeZoom: 17, attribution: "© OpenTopoMap (CC-BY-SA)" });
+    const labels = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png", { maxZoom: 20, attribution: "© CARTO" });
     street.addTo(m);
-    tiles.current = { street, sat };
+    tiles.current = { street, sat, terrain, labels };
     drawLayer.current = L.layerGroup().addTo(m);
     planLayer.current = L.layerGroup().addTo(m);
-    m.on("click", (e: L.LeafletMouseEvent) => setPts((p) => [...p, { lat: e.latlng.lat, lng: e.latlng.lng }]));
+    gpsLayer.current = L.layerGroup().addTo(m);
+    L.control.scale({ imperial: true, metric: true, position: "bottomleft" }).addTo(m);
+    m.on("click", (e: L.LeafletMouseEvent) => { const point = { lat: e.latlng.lat, lng: e.latlng.lng }; updateSurveyPoints([...ptsRef.current, point]); });
+    m.on("mousemove", (e: L.LeafletMouseEvent) => setPointerCoords({ lat: e.latlng.lat, lng: e.latlng.lng }));
+    m.on("moveend", () => {
+      const center = m.getCenter();
+      setMapCenter({ lat: center.lat, lng: center.lng });
+      setMapZoom(m.getZoom());
+    });
     map.current = m;
     setTimeout(() => m.invalidateSize(), 200);
     return () => { m.remove(); map.current = null; };
@@ -67,17 +95,55 @@ export default function SiteGeoPage() {
   }, [pts]);
 
   useEffect(() => {
-    const m = map.current, t = tiles.current; if (!m || !t) return;
-    if (satellite) { m.removeLayer(t.street); t.sat.addTo(m); } else { m.removeLayer(t.sat); t.street.addTo(m); }
-  }, [satellite]);
+    const m = map.current, t = tiles.current;
+    if (!m || !t) return;
+    [t.street, t.sat, t.terrain, t.labels].forEach((layer) => { if (m.hasLayer(layer)) m.removeLayer(layer); });
+    if (basemap === "street") t.street.addTo(m);
+    if (basemap === "satellite") t.sat.addTo(m);
+    if (basemap === "terrain") t.terrain.addTo(m);
+    if (basemap === "hybrid") { t.sat.addTo(m); t.labels.addTo(m); }
+  }, [basemap]);
+
+  useEffect(() => {
+    const g = gpsLayer.current;
+    if (!g) return;
+    g.clearLayers();
+    if (gpsPosition) {
+      L.circle([gpsPosition.lat, gpsPosition.lng], { radius: gpsPosition.accuracy, color: "#0ea5e9", weight: 1, fillOpacity: 0.08 }).addTo(g);
+      L.circleMarker([gpsPosition.lat, gpsPosition.lng], { radius: 7, color: "#0284c7", weight: 3, fillColor: "#38bdf8", fillOpacity: 1 })
+        .bindTooltip(T("Your GPS position", "আপনার GPS অবস্থান")).addTo(g);
+    }
+  }, [gpsPosition, bn]);
+
+  useEffect(() => {
+    if (!gpsTracking) return;
+    if (!navigator.geolocation) {
+      toast.error(T("GPS is not available in this browser", "এই ব্রাউজারে GPS সুবিধা নেই"));
+      setGpsTracking(false);
+      return;
+    }
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const next = { lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy };
+        setGpsPosition(next);
+        if (!gpsCentered.current) { map.current?.setView([next.lat, next.lng], 18); gpsCentered.current = true; }
+      },
+      () => {
+        toast.error(T("Unable to access GPS. Check location permission.", "GPS ব্যবহার করা যাচ্ছে না। লোকেশন অনুমতি পরীক্ষা করুন।"));
+        setGpsTracking(false);
+      },
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 },
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [gpsTracking]);
 
   useEffect(() => {
     const g = drawLayer.current; if (!g) return;
     g.clearLayers();
     const ll = pts.map((p) => [p.lat, p.lng] as [number, number]);
     pts.forEach((p) => L.circleMarker([p.lat, p.lng], { radius: 5, color: "#f97316", fillOpacity: 1 }).addTo(g));
-    if (mode === "area" && pts.length >= 3) L.polygon(ll, { color: "#2563eb", fillOpacity: 0.2 }).addTo(g);
-    else if (pts.length >= 2) L.polyline(ll, { color: "#2563eb", weight: 3 }).addTo(g);
+    if (surveyTool === "polygon" && pts.length >= 3) L.polygon(ll, { color: "#2563eb", fillOpacity: 0.2 }).addTo(g);
+    else if (surveyTool === "line" && pts.length >= 2) L.polyline(ll, { color: "#2563eb", weight: 3 }).addTo(g);
     for (let i = 1; i < pts.length; i++) {
       const a = pts[i - 1], b = pts[i];
       L.marker([(a.lat + b.lat) / 2, (a.lng + b.lng) / 2], {
@@ -85,7 +151,7 @@ export default function SiteGeoPage() {
         interactive: false,
       }).addTo(g);
     }
-  }, [pts, mode, system]);
+  }, [pts, mode, system, surveyTool]);
 
   const placePlan = () => {
     const m = map.current, g = planLayer.current; if (!m || !g) return;
@@ -114,10 +180,36 @@ export default function SiteGeoPage() {
   const locate = () => {
     if (!navigator.geolocation) return toast.error(T("Location not available", "লোকেশন পাওয়া যায়নি"));
     navigator.geolocation.getCurrentPosition(
-      (p) => map.current?.setView([p.coords.latitude, p.coords.longitude], 19),
+      (p) => {
+        const next = { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy };
+        setGpsPosition(next);
+        map.current?.setView([next.lat, next.lng], 19);
+        gpsCentered.current = true;
+      },
       () => toast.error(T("Location permission denied", "লোকেশনের অনুমতি দেওয়া হয়নি")),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 },
     );
   };
+
+  const toggleMapFullscreen = async () => {
+    const target = mapShell.current;
+    if (!target) return;
+    try {
+      if (!document.fullscreenElement) await target.requestFullscreen();
+      else await document.exitFullscreen();
+    } catch {
+      toast.error(T("Fullscreen is not available", "ফুলস্ক্রিন চালু করা যাচ্ছে না"));
+    }
+  };
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setMapFullscreen(document.fullscreenElement === mapShell.current);
+      window.setTimeout(() => map.current?.invalidateSize(), 150);
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
   const search = async () => {
     if (!query.trim()) return;
     try {
@@ -129,9 +221,9 @@ export default function SiteGeoPage() {
   };
 
   const exportGeoJSON = () => {
-    if (pts.length < 2) return toast.error(T("Draw at least 2 points", "কমপক্ষে ২টি বিন্দু দিন"));
+    if (pts.length < (surveyTool === "point" ? 1 : surveyTool === "polygon" ? 3 : 2)) return toast.error(T("Add enough points for this survey type", "এই সার্ভে টাইপের জন্য পর্যাপ্ত পয়েন্ট যোগ করুন"));
     const coords = pts.map((p) => [p.lng, p.lat]);
-    const geometry = mode === "area" && pts.length >= 3 ? { type: "Polygon", coordinates: [[...coords, coords[0]]] } : { type: "LineString", coordinates: coords };
+    const geometry = surveyTool === "point" ? { type: "MultiPoint", coordinates: coords } : surveyTool === "polygon" ? { type: "Polygon", coordinates: [[...coords, coords[0]]] } : { type: "LineString", coordinates: coords };
     const blob = new Blob([JSON.stringify({ type: "FeatureCollection", features: [{ type: "Feature", properties: { name: "CivilOS survey" }, geometry }] }, null, 2)], { type: "application/geo+json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "civilos-survey.geojson"; a.click();
   };
@@ -195,15 +287,16 @@ export default function SiteGeoPage() {
         throw new Error(T("A polygon needs at least 3 distinct vertices.", "একটি বহুভুজে অন্তত ৩টি শীর্ষবিন্দু দরকার।"));
       }
       centered.current = false;
-      setPts(imported);
+      updateSurveyPoints(imported);
       const m = map.current;
       if (m && imported.length > 1) {
         m.fitBounds(L.latLngBounds(imported.map((p) => [p.lat, p.lng] as [number, number])), { padding: [40, 40], maxZoom: 19 });
       } else if (m && imported.length === 1) {
         m.setView([imported[0].lat, imported[0].lng], 18);
       }
-      if (geometry.type === "Polygon") setMode("area");
-      else if (geometry.type === "LineString") setMode("distance");
+      if (geometry.type === "Polygon") { setMode("area"); setSurveyTool("polygon"); }
+      else if (geometry.type === "LineString") { setMode("distance"); setSurveyTool("line"); }
+      else if (geometry.type === "MultiPoint" || geometry.type === "Point") { setSurveyTool("point"); setMode("distance"); }
       toast.success(T(`Imported ${imported.length} coordinate point(s)`, `${imported.length}টি স্থানাঙ্ক বিন্দু ইমপোর্ট হয়েছে`));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : T("Could not read this GeoJSON file.", "GeoJSON ফাইলটি পড়া যায়নি।"));
@@ -227,7 +320,27 @@ export default function SiteGeoPage() {
             </div>
             <div className="flex items-center gap-2"><UnitsSwitch /><ThemeToggle /></div>
           </header>
-          <main className="p-4 md:p-6 grid lg:grid-cols-[1fr_340px] gap-5">
+          <main className="p-4 md:p-6 space-y-4">
+            <section className="rounded-xl border bg-card p-4 md:p-5 space-y-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-medium text-primary"><span className="h-2 w-2 rounded-full bg-emerald-500" />{T("GIS WORKSPACE", "জিআইএস ওয়ার্কস্পেস")}</div>
+                  <h2 className="text-xl md:text-2xl font-semibold tracking-tight">{T("Site mapping & land survey", "সাইট ম্যাপিং ও ভূমি জরিপ")}</h2>
+                  <p className="text-sm text-muted-foreground">{T("Map your site, capture boundary points and review measurements in one workspace.", "একটি ওয়ার্কস্পেস থেকেই সাইট ম্যাপ করুন, সীমানার পয়েন্ট নিন এবং পরিমাপ দেখুন।")}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full border px-3 py-1 text-xs text-muted-foreground">{T("Project workspace", "প্রজেক্ট ওয়ার্কস্পেস")}</span>
+                  <span className="rounded-full border px-3 py-1 text-xs text-muted-foreground">{T("WGS84 · Lat/Lng", "WGS84 · অক্ষাংশ/দ্রাঘিমাংশ")}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{T("Survey points", "সার্ভে পয়েন্ট")}</p><p className="mt-1 text-xl font-semibold tabular-nums">{fmt(pts.length, 0)}</p></div>
+                <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{T("Land area", "জমির ক্ষেত্রফল")}</p><p className="mt-1 text-xl font-semibold tabular-nums">{pts.length >= 3 ? fmt(u.decimal, 2) : "—"} <span className="text-xs font-normal text-muted-foreground">{T("decimal", "শতাংশ")}</span></p></div>
+                <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{T("Boundary length", "সীমানার দৈর্ঘ্য")}</p><p className="mt-1 text-xl font-semibold tabular-nums">{pts.length >= 2 ? fmt(system === "metric" ? len : len / FT, 2) : "—"} <span className="text-xs font-normal text-muted-foreground">{system === "metric" ? "m" : "ft"}</span></p></div>
+                <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{T("Active tool", "সক্রিয় টুল")}</p><p className="mt-1 text-xl font-semibold">{mode === "area" ? T("Area", "ক্ষেত্রফল") : T("Distance", "দূরত্ব")}</p></div>
+              </div>
+            </section>
+            <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-5 items-start">
             <div className="space-y-3 min-w-0">
               <div className="flex flex-wrap gap-2">
                 <div className="flex gap-1 flex-1 min-w-[200px]">
@@ -235,20 +348,46 @@ export default function SiteGeoPage() {
                   <Button size="icon" variant="outline" onClick={search} aria-label="Search"><Search className="h-4 w-4" /></Button>
                 </div>
                 <Button size="sm" variant="outline" onClick={locate}><LocateFixed className="h-4 w-4 mr-1" />{T("My location", "আমার লোকেশন")}</Button>
-                <Button size="sm" variant={satellite ? "default" : "outline"} onClick={() => setSatellite(!satellite)}>{T("Satellite", "স্যাটেলাইট")}</Button>
+                <Button size="sm" variant={gpsTracking ? "default" : "outline"} onClick={() => setGpsTracking((v) => !v)}><Crosshair className="h-4 w-4 mr-1" />{gpsTracking ? T("Stop GPS", "GPS বন্ধ") : T("Track GPS", "GPS ট্র্যাক")}</Button>
+                <div className="flex items-center gap-2 rounded-md border bg-background px-2">
+                  <Layers className="h-4 w-4 text-muted-foreground" />
+                  <select aria-label={T("Map layer", "ম্যাপ লেয়ার")} className="h-9 bg-transparent text-sm outline-none" value={basemap} onChange={(e) => setBasemap(e.target.value as typeof basemap)}>
+                    <option value="street">{T("Street", "স্ট্রিট")}</option>
+                    <option value="satellite">{T("Satellite", "স্যাটেলাইট")}</option>
+                    <option value="terrain">{T("Terrain", "ভূপ্রকৃতি")}</option>
+                    <option value="hybrid">{T("Hybrid", "হাইব্রিড")}</option>
+                  </select>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant={mode === "area" ? "default" : "outline"} onClick={() => setMode("area")}><Hexagon className="h-4 w-4 mr-1" />{T("Measure area", "জমির মাপ")}</Button>
-                <Button size="sm" variant={mode === "distance" ? "default" : "outline"} onClick={() => setMode("distance")}><Ruler className="h-4 w-4 mr-1" />{T("Measure distance", "দূরত্ব মাপ")}</Button>
-                <Button size="sm" variant="outline" onClick={() => setPts((p) => p.slice(0, -1))}><Undo2 className="h-4 w-4 mr-1" />{T("Undo", "পিছনে")}</Button>
-                <Button size="sm" variant="outline" onClick={() => setPts([])}><Trash2 className="h-4 w-4 mr-1" />{T("Clear", "মুছুন")}</Button>
+                <Button size="sm" variant={surveyTool === "point" ? "default" : "outline"} onClick={() => { setSurveyTool("point"); setMode("distance"); }}><Crosshair className="h-4 w-4 mr-1" />{T("Point survey", "পয়েন্ট সার্ভে")}</Button>
+                <Button size="sm" variant={surveyTool === "line" ? "default" : "outline"} onClick={() => { setSurveyTool("line"); setMode("distance"); }}><Ruler className="h-4 w-4 mr-1" />{T("Line survey", "লাইন সার্ভে")}</Button>
+                <Button size="sm" variant={surveyTool === "polygon" ? "default" : "outline"} onClick={() => { setSurveyTool("polygon"); setMode("area"); }}><Hexagon className="h-4 w-4 mr-1" />{T("Polygon survey", "পলিগন সার্ভে")}</Button>
+                <Button size="sm" variant="outline" onClick={() => setMode("area")}>{T("Measure area", "জমির মাপ")}</Button>
+                <Button size="sm" variant="outline" onClick={() => setMode("distance")}>{T("Measure distance", "দূরত্ব মাপ")}</Button>
+                <Button size="sm" variant="outline" disabled={!undoStack.current.length} onClick={undoSurvey}><Undo2 className="h-4 w-4 mr-1" />{T("Undo", "পিছনে")}</Button>
+                <Button size="sm" variant="outline" disabled={!redoStack.current.length} onClick={redoSurvey}><Redo2 className="h-4 w-4 mr-1" />{T("Redo", "আবার")}</Button>
+                <Button size="sm" variant="outline" onClick={() => updateSurveyPoints([])}><Trash2 className="h-4 w-4 mr-1" />{T("Clear", "মুছুন")}</Button>
                 <Button size="sm" variant="secondary" onClick={placePlan}><Home className="h-4 w-4 mr-1" />{T("Show my plan on map", "আমার প্ল্যান ম্যাপে দেখান")}</Button>
                 <input ref={importFileRef} type="file" accept=".geojson,.json,application/geo+json,application/json" className="hidden" onChange={importGeoJSON} />
                 <Button size="sm" variant="outline" onClick={() => importFileRef.current?.click()}><Upload className="h-4 w-4 mr-1" />{T("Import GeoJSON", "GeoJSON ইমপোর্ট")}</Button>
                 <Button size="sm" variant="outline" onClick={exportGeoJSON}><Download className="h-4 w-4 mr-1" />GeoJSON</Button>
               </div>
-              <Card className="overflow-hidden">
-                <div ref={mapEl} className="h-[60vh] lg:h-[calc(100vh-14rem)] w-full z-0" />
+              <Card ref={mapShell} className={`overflow-hidden border shadow-sm ${mapFullscreen ? "fixed inset-0 z-[2000] rounded-none bg-background" : ""}`}>
+                <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2">
+                  <div className="min-w-0"><p className="text-sm font-medium">{T("Interactive site map", "ইন্টার‌্যাক্টিভ সাইট ম্যাপ")}</p><p className="text-xs text-muted-foreground">{T("Select a tool, then click the map to add survey points.", "টুল নির্বাচন করে ম্যাপে ক্লিক করে সার্ভে পয়েন্ট যোগ করুন।")}</p></div>
+                  <div className="flex items-center gap-2">
+                    <span className="shrink-0 rounded-md border bg-background px-2 py-1 text-[11px] text-muted-foreground">{({ street: T("Street", "স্ট্রিট"), satellite: T("Satellite", "স্যাটেলাইট"), terrain: T("Terrain", "ভূপ্রকৃতি"), hybrid: T("Hybrid", "হাইব্রিড") })[basemap]}</span>
+                    <Button size="icon" variant="ghost" onClick={toggleMapFullscreen} aria-label={mapFullscreen ? T("Exit fullscreen", "ফুলস্ক্রিন বন্ধ") : T("Fullscreen map", "ম্যাপ ফুলস্ক্রিন")}>{mapFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}</Button>
+                  </div>
+                </div>
+                <div ref={mapEl} className={`w-full z-0 ${mapFullscreen ? "h-[calc(100vh-6.5rem)]" : "h-[60vh] lg:h-[calc(100vh-14rem)]"}`} />
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground tabular-nums">
+                  <span>{T("Cursor", "কার্সর")}: {pointerCoords ? `${pointerCoords.lat.toFixed(6)}, ${pointerCoords.lng.toFixed(6)}` : "—"}</span>
+                  <span>{T("Center", "কেন্দ্র")}: {mapCenter.lat.toFixed(5)}, {mapCenter.lng.toFixed(5)}</span>
+                  <span>{T("Zoom", "জুম")}: {mapZoom}</span>
+                  <span>{gpsPosition ? `${T("GPS accuracy", "GPS নির্ভুলতা")}: ±${Math.round(gpsPosition.accuracy)} m` : T("GPS not active", "GPS সক্রিয় নয়")}</span>
+                </div>
               </Card>
               <p className="text-xs text-muted-foreground">{T("Tap the map to add corner points, or import a single-feature GeoJSON (Point, MultiPoint, LineString, Polygon). Imports replace the current survey points. Map measurements are approximate — confirm with a licensed surveyor.", "ম্যাপে ট্যাপ করে কোণের বিন্দু দিন, অথবা একটি ফিচারসহ GeoJSON (Point, MultiPoint, LineString, Polygon) ইমপোর্ট করুন। ইমপোর্ট করলে বর্তমান সার্ভে পয়েন্ট প্রতিস্থাপিত হবে। ম্যাপের মাপ আনুমানিক — লাইসেন্সধারী সার্ভেয়ার দিয়ে নিশ্চিত করুন।")}</p>
             </div>
@@ -266,7 +405,25 @@ export default function SiteGeoPage() {
                 <p className="text-sm">{T("Perimeter / length", "পরিসীমা / দৈর্ঘ্য")}: <b>{system === "metric" ? `${fmt(len, 2)} m` : `${fmt(len / FT, 1)} ft`}</b> ({system === "metric" ? `${fmt(len / FT, 1)} ft` : `${fmt(len, 1)} m`})</p>
                 {pts.length >= 2 && <p className="text-xs text-muted-foreground">{T("Last bearing", "শেষ দিক")}: {bearing(pts[pts.length - 2], pts[pts.length - 1]).toFixed(1)}°</p>}
               </Card>
+              <Card className="p-4 space-y-3">
+                <div><p className="font-semibold text-sm">{T("Survey point register", "সার্ভে পয়েন্ট রেজিস্টার")}</p><p className="text-xs text-muted-foreground">{T("Edit coordinates, inspect segment distance and bearing, or remove a point.", "স্থানাঙ্ক সম্পাদনা, প্রতিটি অংশের দূরত্ব ও বেয়ারিং দেখুন অথবা পয়েন্ট মুছুন।")}</p></div>
+                <div className="max-h-72 overflow-auto space-y-2">
+                  {pts.length === 0 ? <p className="text-xs text-muted-foreground">{T("No survey points yet. Choose a tool and click the map.", "এখনো কোনো সার্ভে পয়েন্ট নেই। টুল বেছে ম্যাপে ক্লিক করুন।")}</p> : pts.map((point, index) => {
+                    const previous = pts[index - 1];
+                    const segment = previous ? distance(previous, point) : 0;
+                    const azimuth = previous ? ((bearing(previous, point) % 360) + 360) % 360 : null;
+                    return <div key={index} className="rounded-md border p-2 space-y-2">
+                      <div className="flex items-center justify-between"><span className="text-xs font-semibold">{T("Point", "পয়েন্ট")} {index + 1}</span><Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={() => updateSurveyPoints(pts.filter((_, i) => i !== index))}><Trash2 className="h-3.5 w-3.5" /></Button></div>
+                      <div className="grid grid-cols-2 gap-2"><label className="text-[11px] text-muted-foreground">Latitude<Input aria-label={"Point " + (index + 1) + " latitude"} type="number" step="0.000001" value={point.lat} onChange={(e) => { const value = Number(e.target.value); if (!Number.isFinite(value) || value < -90 || value > 90) return; const next = [...pts]; next[index] = { ...point, lat: value }; updateSurveyPoints(next); }} /></label><label className="text-[11px] text-muted-foreground">Longitude<Input aria-label={"Point " + (index + 1) + " longitude"} type="number" step="0.000001" value={point.lng} onChange={(e) => { const value = Number(e.target.value); if (!Number.isFinite(value) || value < -180 || value > 180) return; const next = [...pts]; next[index] = { ...point, lng: value }; updateSurveyPoints(next); }} /></label></div>
+                      {previous && <p className="text-[11px] text-muted-foreground">{T("Segment", "অংশ")}: {fmt(segment, 2)} m · {T("Azimuth", "আজিমুথ")}: {fmt(azimuth ?? 0, 1)}°</p>}
+                    </div>;
+                  })}
+                </div>
+                {pts.length >= 2 && <div className="rounded-md bg-muted/50 p-2 text-xs space-y-1"><p>{T("Total traverse length", "মোট ট্রাভার্স দৈর্ঘ্য")}: <b>{fmt(pathLength(pts), 2)} m</b></p><p>{T("First-to-last bearing", "প্রথম থেকে শেষ বেয়ারিং")}: <b>{fmt((((bearing(pts[0], pts[pts.length - 1]) % 360) + 360) % 360), 1)}°</b></p></div>}
+              </Card>
+              <AdvancedSurveyTools T={T} />
               <SurveyCalculator T={T} fmt={fmt} />
+            </div>
             </div>
           </main>
         </div>
