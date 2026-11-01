@@ -126,13 +126,13 @@ const ExcelLibraryPage = () => {
 
   const addCandidates = (candidates: UploadCandidate[]) => {
     const invalid = candidates.filter(({ file }) => !ALLOWED_EXTENSIONS.has(getExtension(file.name)) || file.size <= 0 || file.size > MAX_FILE_BYTES);
-    if (invalid.length) toast.error(\`\${invalid.length}টি ফাইল বাদ গেছে। শুধু XLS/XLSX/XLSM এবং সর্বোচ্চ 50 MB ফাইল গ্রহণ করা হবে।\`);
+    if (invalid.length) toast.error(`${invalid.length}টি ফাইল বাদ গেছে। শুধু XLS/XLSX/XLSM এবং সর্বোচ্চ 50 MB ফাইল গ্রহণ করা হবে।`);
     const valid = candidates.filter(({ file }) => ALLOWED_EXTENSIONS.has(getExtension(file.name)) && file.size > 0 && file.size <= MAX_FILE_BYTES);
     setSelectedFiles((current) => {
       const known = new Set(current.map(({ file, relativePath }) => relativePath + ":" + file.size + ":" + file.lastModified));
       return [...current, ...valid.filter(({ file, relativePath }) => !known.has(relativePath + ":" + file.size + ":" + file.lastModified))].slice(0, MAX_BATCH_FILES);
     });
-    if (candidates.length > MAX_BATCH_FILES) toast.warning(\`একটি ব্যাচে সর্বোচ্চ \${MAX_BATCH_FILES}টি ফাইল নেওয়া হবে।\`);
+    if (candidates.length > MAX_BATCH_FILES) toast.warning(`একটি ব্যাচে সর্বোচ্চ ${MAX_BATCH_FILES}টি ফাইল নেওয়া হবে।`);
   };
 
   const chooseFiles = (list: FileList | null) => {
@@ -171,9 +171,9 @@ const ExcelLibraryPage = () => {
       }
       skipped += Math.max(0, entries.length - candidates.length - skipped);
       addCandidates(candidates);
-      setArchiveReport(\`\${candidates.length.toLocaleString()}টি Excel ফাইল Extract হয়েছে; \${skipped.toLocaleString()}টি non-Excel/unsupported/অতিরিক্ত ফাইল বাদ গেছে।\`);
+      setArchiveReport(`${candidates.length.toLocaleString()}টি Excel ফাইল Extract হয়েছে; ${skipped.toLocaleString()}টি non-Excel/unsupported/অতিরিক্ত ফাইল বাদ গেছে।`);
       if (!candidates.length) toast.warning("ZIP-এর ভেতরে কোনো গ্রহণযোগ্য Excel ফাইল পাওয়া যায়নি।");
-      else toast.success(\`\${candidates.length.toLocaleString()}টি Excel ফাইল Extract করা হয়েছে।\`);
+      else toast.success(`${candidates.length.toLocaleString()}টি Excel ফাইল Extract করা হয়েছে।`);
     } catch (error) {
       console.error("Excel ZIP extraction failed", error);
       toast.error("ZIP Extract করা যায়নি। ফাইলটি নষ্ট, encrypted অথবা unsupported হতে পারে।");
@@ -221,8 +221,8 @@ const ExcelLibraryPage = () => {
     setSelectedFiles([]);
     setDescription("");
     await loadFiles();
-    if (failed) toast.warning(\`\${done - failed}টি ফাইল আপলোড হয়েছে, \${failed}টি ব্যর্থ হয়েছে।\`);
-    else toast.success(\`\${done}টি Excel ফাইল সফলভাবে আপলোড হয়েছে।\`);
+    if (failed) toast.warning(`${done - failed}টি ফাইল আপলোড হয়েছে, ${failed}টি ব্যর্থ হয়েছে।`);
+    else toast.success(`${done}টি Excel ফাইল সফলভাবে আপলোড হয়েছে।`);
   };
 
   const downloadFile = async (file: LibraryFile) => {
