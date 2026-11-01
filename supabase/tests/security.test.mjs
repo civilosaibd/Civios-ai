@@ -90,9 +90,12 @@ test("sanity: users, profiles and admin role exist after migrations", async () =
 
 test("subscriptions: user cannot self-grant a paid plan (INSERT)", async () => {
   const [{ id: biz }] = await q("SELECT id FROM public.plans WHERE code='business'");
-  const [{ id: free }] = await q("SELECT id FROM public.plans WHERE code='free'");
   await alice(() => rejects(() => db.query("INSERT INTO public.subscriptions (user_id,plan_id,status) VALUES ($1,$2,'active')", [ALICE, biz]), /row-level security/));
-  await alice(() => db.query("INSERT INTO public.subscriptions (user_id,plan_id,status) VALUES ($1,$2,'active')", [ALICE, free]));
+  const [trial] = await q("SELECT p.code, s.status, s.billing_cycle, s.renewal_date FROM public.subscriptions s JOIN public.plans p ON p.id=s.plan_id WHERE s.user_id=$1", [ALICE]);
+  assert.equal(trial.code, "professional");
+  assert.equal(trial.status, "trialing");
+  assert.equal(trial.billing_cycle, "trial");
+  assert.ok(new Date(trial.renewal_date).getTime() > Date.now() + 2 * 24 * 60 * 60 * 1000);
 });
 
 test("subscriptions: client role has no UPDATE privilege", async () => {
@@ -102,7 +105,7 @@ test("subscriptions: client role has no UPDATE privilege", async () => {
     /permission denied/
   ));
   const [{ code }] = await q("SELECT p.code FROM public.subscriptions s JOIN public.plans p ON p.id=s.plan_id WHERE s.user_id=$1", [ALICE]);
-  assert.equal(code, "free");
+  assert.equal(code, "professional");
   const [{ update_allowed }] = await q(
     "SELECT has_table_privilege('authenticated', 'public.subscriptions', 'UPDATE') AS update_allowed"
   );
@@ -308,6 +311,7 @@ test("AI credit quota RPC is server-only", async () => {
 
 test("AI credit quota: Free plan caps monthly usage at 50", async () => {
   await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'ai-free@example.com')", [AI_FREE]);
+  await db.query("UPDATE public.subscriptions SET plan_id=(SELECT id FROM public.plans WHERE code='free'), status='active', billing_cycle='yearly', renewal_date=NULL WHERE user_id=$1", [AI_FREE]);
   const allowed = await as("service_role", AI_FREE, "ai-free@example.com", async () => {
     const out = [];
     for (let i = 0; i < 50; i++) {
@@ -330,8 +334,8 @@ test("AI credit quota: active subscription uses plan quota and expires back to F
   await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'ai-starter@example.com')", [AI_STARTER]);
   const [{ id: starter }] = await q("SELECT id FROM public.plans WHERE code='starter'");
   await db.query(
-    "INSERT INTO public.subscriptions (user_id,plan_id,status,billing_cycle,renewal_date) VALUES ($1,$2,'active','yearly',now() + interval '1 year')",
-    [AI_STARTER, starter]
+    "UPDATE public.subscriptions SET plan_id=$1,status='active',billing_cycle='yearly',renewal_date=now() + interval '1 year' WHERE user_id=$2",
+    [starter, AI_STARTER]
   );
   const [starterResult] = await as("service_role", AI_STARTER, "ai-starter@example.com", () =>
     q("SELECT * FROM public.consume_ai_credit($1)", [AI_STARTER]));
@@ -350,6 +354,7 @@ test("AI credit quota: active subscription uses plan quota and expires back to F
 test("BOQ generation quota is enforced atomically with AI credits", async () => {
   const AI_BOQ_FREE = "00000000-0000-4000-8000-0000000000c8";
   await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'ai-boq-free@example.com')", [AI_BOQ_FREE]);
+  await db.query("UPDATE public.subscriptions SET plan_id=(SELECT id FROM public.plans WHERE code='free'), status='active', billing_cycle='yearly', renewal_date=NULL WHERE user_id=$1", [AI_BOQ_FREE]);
   const allowed = await as("service_role", AI_BOQ_FREE, "ai-boq-free@example.com", async () => {
     const results = [];
     for (let i = 0; i < 5; i++) {
@@ -383,6 +388,7 @@ test("premium plan feature checks are server-only and follow current, unexpired 
   const AI_FEATURE_STARTER = "00000000-0000-4000-8000-0000000000c7";
   const AI_PRO = "00000000-0000-4000-8000-0000000000c5";
   await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'ai-feature-free@example.com'),($2,'ai-feature-starter@example.com'),($3,'ai-feature-pro@example.com')", [AI_FEATURE_FREE, AI_FEATURE_STARTER, AI_PRO]);
+  await db.query("UPDATE public.subscriptions SET plan_id=(SELECT id FROM public.plans WHERE code='free'), status='active', billing_cycle='yearly', renewal_date=NULL WHERE user_id=$1", [AI_FEATURE_FREE]);
 
   await alice(() => rejects(
     () => db.query("SELECT public.user_has_plan_feature($1, 'ai_writer')", [ALICE]),
@@ -399,8 +405,8 @@ test("premium plan feature checks are server-only and follow current, unexpired 
 
   const [{ id: starter }] = await q("SELECT id FROM public.plans WHERE code='starter'");
   await db.query(
-    "INSERT INTO public.subscriptions (user_id,plan_id,status,billing_cycle,renewal_date) VALUES ($1,$2,'active','yearly',now() + interval '1 year')",
-    [AI_FEATURE_STARTER, starter]
+    "UPDATE public.subscriptions SET plan_id=$1,status='active',billing_cycle='yearly',renewal_date=now() + interval '1 year' WHERE user_id=$2",
+    [starter, AI_FEATURE_STARTER]
   );
   const [starterTender] = await as("service_role", AI_FEATURE_STARTER, "ai-feature-starter@example.com", () =>
     q("SELECT public.user_has_plan_feature($1, 'tender') AS allowed", [AI_FEATURE_STARTER]));
@@ -411,8 +417,8 @@ test("premium plan feature checks are server-only and follow current, unexpired 
 
   const [{ id: professional }] = await q("SELECT id FROM public.plans WHERE code='professional'");
   await db.query(
-    "INSERT INTO public.subscriptions (user_id,plan_id,status,billing_cycle,renewal_date) VALUES ($1,$2,'active','yearly',now() + interval '1 year')",
-    [AI_PRO, professional]
+    "UPDATE public.subscriptions SET plan_id=$1,status='active',billing_cycle='yearly',renewal_date=now() + interval '1 year' WHERE user_id=$2",
+    [professional, AI_PRO]
   );
   const [proWriter] = await as("service_role", AI_PRO, "ai-feature-pro@example.com", () =>
     q("SELECT public.user_has_plan_feature($1, 'ai_writer') AS allowed", [AI_PRO]));
@@ -595,4 +601,60 @@ test("SECURITY DEFINER authorization helpers pin their search_path", async () =>
       `${row.proname} search_path was not pinned: ${JSON.stringify(row.proconfig)}`
     );
   }
+});
+
+test("signup: every new user receives a three-day Professional trial", async () => {
+  const userId = "00000000-0000-4000-8000-0000000000d1";
+  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'trial-user@example.com')", [userId]);
+  const [row] = await q(
+    "SELECT p.code, s.status, s.billing_cycle, s.payment_provider, s.start_date, s.renewal_date FROM public.subscriptions s JOIN public.plans p ON p.id=s.plan_id WHERE s.user_id=$1",
+    [userId]
+  );
+  assert.equal(row.code, "professional");
+  assert.equal(row.status, "trialing");
+  assert.equal(row.billing_cycle, "trial");
+  assert.equal(row.payment_provider, "trial");
+  assert.ok(new Date(row.renewal_date).getTime() - new Date(row.start_date).getTime() >= 3 * 24 * 60 * 60 * 1000 - 1000);
+  assert.ok(new Date(row.renewal_date).getTime() - new Date(row.start_date).getTime() <= 3 * 24 * 60 * 60 * 1000 + 1000);
+});
+
+test("projects: Free plan permits exactly one owned project", async () => {
+  const userId = "00000000-0000-4000-8000-0000000000d2";
+  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'free-project-user@example.com')", [userId]);
+  await db.query(
+    "UPDATE public.subscriptions SET plan_id=(SELECT id FROM public.plans WHERE code='free'), status='active', billing_cycle='yearly', renewal_date=NULL WHERE user_id=$1",
+    [userId]
+  );
+  await as("authenticated", userId, "free-project-user@example.com", () =>
+    db.query("INSERT INTO public.projects (user_id,name) VALUES ($1,'First project')", [userId])
+  );
+  await as("authenticated", userId, "free-project-user@example.com", () =>
+    rejects(() => db.query("INSERT INTO public.projects (user_id,name) VALUES ($1,'Second project')", [userId]), /Project limit reached/)
+  );
+});
+
+test("projects: expired Professional trial falls back to one-project Free quota", async () => {
+  const userId = "00000000-0000-4000-8000-0000000000d3";
+  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'expired-trial-project-user@example.com')", [userId]);
+  await db.query("UPDATE public.subscriptions SET renewal_date=now() - interval '1 second' WHERE user_id=$1", [userId]);
+  const [plan] = await q(
+    "SELECT p.code FROM public.subscriptions s JOIN public.plans p ON p.id=s.plan_id WHERE s.user_id=$1 AND s.status IN ('active','trialing') AND s.renewal_date > now()",
+    [userId]
+  );
+  assert.equal(plan, undefined);
+  await as("authenticated", userId, "expired-trial-project-user@example.com", () =>
+    db.query("INSERT INTO public.projects (user_id,name) VALUES ($1,'Free fallback project')", [userId])
+  );
+  await as("authenticated", userId, "expired-trial-project-user@example.com", () =>
+    rejects(() => db.query("INSERT INTO public.projects (user_id,name) VALUES ($1,'Blocked second project')", [userId]), /Project limit reached/)
+  );
+});
+
+test("projects: Professional trial permits multiple projects", async () => {
+  const userId = "00000000-0000-4000-8000-0000000000d4";
+  await db.query("INSERT INTO auth.users (id,email) VALUES ($1,'professional-trial-project-user@example.com')", [userId]);
+  await as("authenticated", userId, "professional-trial-project-user@example.com", async () => {
+    await db.query("INSERT INTO public.projects (user_id,name) VALUES ($1,'Trial project one')", [userId]);
+    await db.query("INSERT INTO public.projects (user_id,name) VALUES ($1,'Trial project two')", [userId]);
+  });
 });

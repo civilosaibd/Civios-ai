@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { useSubscription, formatLimit } from "@/lib/subscription";
 import { Building2, Plus, Loader2, MapPin, User2, Calendar, Search, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,6 +43,8 @@ const ProjectsPage = () => {
     start_date: "", end_date: "", budget: "",
   });
   const [saving, setSaving] = useState(false);
+  const { plan, limitOf } = useSubscription();
+  const projectLimit = limitOf("projects");
 
   useEffect(() => { if (!authLoading && !user) navigate("/auth"); }, [user, authLoading, navigate]);
 
@@ -124,7 +127,11 @@ const ProjectsPage = () => {
       const { data, error } = await supabase.from("projects").insert(payload).select("id").single();
       if (error) {
         console.error("Project creation failed", error);
-        toast.error("প্রজেক্ট তৈরি করা যায়নি। তথ্য যাচাই করে আবার চেষ্টা করুন।");
+        if (error.message?.includes("Project limit reached")) {
+          toast.error("আপনার " + (plan?.name || "Free") + " প্ল্যানের প্রজেক্ট সীমা শেষ। আরও প্রজেক্ট তৈরি করতে প্ল্যান আপগ্রেড করুন।");
+        } else {
+          toast.error("প্রজেক্ট তৈরি করা যায়নি। তথ্য যাচাই করে আবার চেষ্টা করুন।");
+        }
         return;
       }
       if (!data?.id) {
@@ -156,6 +163,9 @@ const ProjectsPage = () => {
             <div>
               <h1 className="font-heading text-2xl md:text-3xl font-bold">My Projects</h1>
               <p className="text-sm text-muted-foreground">সব প্রজেক্ট এক জায়গায় — BOQ, BBS, estimate, documents.</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {plan?.name || "Current plan"} · {items.length} / {formatLimit(projectLimit)} projects used
+              </p>
             </div>
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
               <div className="relative w-full sm:w-64">
