@@ -313,6 +313,7 @@ export type Database = {
           original_filename: string
           size_bytes: number
           storage_path: string
+          folder_path: string | null
           title: string
           uploaded_by: string
         }
@@ -325,6 +326,7 @@ export type Database = {
           original_filename: string
           size_bytes: number
           storage_path: string
+          folder_path?: string | null
           title: string
           uploaded_by: string
         }
