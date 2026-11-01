@@ -15,7 +15,7 @@ RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, public, pg_temp
-AS $
+AS $$
 DECLARE
   pay public.payments%ROWTYPE;
   ref public.referrals%ROWTYPE;

@@ -25,7 +25,7 @@ DO $$ BEGIN
   CREATE ROLE service_role NOLOGIN; CREATE ROLE supabase_auth_admin NOLOGIN;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 CREATE SCHEMA IF NOT EXISTS auth;
-CREATE TABLE auth.users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text, raw_user_meta_data jsonb DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE auth.users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text, email_confirmed_at timestamptz, raw_user_meta_data jsonb DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now());
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
 CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$ SELECT current_user::text $$;
@@ -69,11 +69,15 @@ before(async () => {
   db = new PGlite({ extensions: { pgcrypto } });
   await db.exec(STUBS);
   for (const f of readdirSync(migDir).filter((f) => f.endsWith(".sql")).sort()) {
+    if (f === "20261030130000_super_admin_rbac_foundation.sql") {
+      await db.exec(`INSERT INTO auth.users (id,email,email_confirmed_at)
+        VALUES ('${ADMIN}','zobaerio24@gmail.com',now());`);
+    }
     try { await db.exec(readFileSync(join(migDir, f), "utf8")); }
     catch (e) { throw new Error(`migration ${f} failed: ${e.message}`); }
   }
-  await db.exec(`INSERT INTO auth.users (id,email) VALUES
-    ('${ADMIN}','zobaerio24@gmail.com'),('${ALICE}','alice@example.com'),('${BOB}','bob@example.com');`);
+  await db.exec(`INSERT INTO auth.users (id,email,email_confirmed_at) VALUES
+    ('${ALICE}','alice@example.com',null),('${BOB}','bob@example.com',null);`);
   // Bootstrap the test owner explicitly; public signup must never auto-grant admin.
   await db.query("INSERT INTO public.user_roles (user_id, role) VALUES ($1, 'admin') ON CONFLICT (user_id, role) DO NOTHING", [ADMIN]);
 });
