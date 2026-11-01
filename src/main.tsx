@@ -17,14 +17,6 @@ createRoot(rootElement).render(
   </HelmetProvider>
 );
 
-const finishBoot = () => window.dispatchEvent(new Event("civilos:ready"));
-if (document.documentElement.classList.contains("civilos-seen")) {
-  requestAnimationFrame(() => requestAnimationFrame(finishBoot));
-} else {
-  // Let the one-time 360° brand intro finish while React mounts behind it.
-  window.setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(finishBoot)), 1750);
-}
-
 void registerCivilOsPwa();
 
 // Firebase Analytics (production only)
