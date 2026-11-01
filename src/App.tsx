@@ -84,6 +84,7 @@ const TrainingCornerPage = lazy(
 const MaterialCalculatorPage = lazy(
   () => import("./pages/MaterialCalculatorPage.tsx")
 );
+const CalculationCenterPage = lazy(() => import("./pages/CalculationCenterPage.tsx"));
 const VisualizationsPage = lazy(
   () => import("./pages/VisualizationsPage.tsx")
 );
@@ -137,6 +138,7 @@ const App = () => (
                       />
                       <Route path="/modules" element={<ModulesPage />} />
                       <Route path="/dashboard" element={<DashboardPage />} />
+                      <Route path="/calculation" element={<CalculationCenterPage />} />
 
                       <Route path="/ai-assistant" element={<Navigate to="/ai-engineer" replace />} />
                       <Route path="/ai-writer" element={<PlanFeatureGate feature="ai_writer"><AIWriterPage /></PlanFeatureGate>} />
