@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import JSZip from "jszip";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import SEO from "@/components/SEO";
@@ -12,18 +13,23 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   AlertCircle, BookOpen, Download, FileSpreadsheet, Loader2,
-  Search, ShieldCheck, Trash2, UploadCloud, X,
+  Search, ShieldCheck, Trash2, UploadCloud, X, Archive, FolderOpen,
 } from "lucide-react";
 
 const BUCKET = "excel-library";
 const PAGE_SIZE = 40;
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
+const MAX_ARCHIVE_BYTES = 500 * 1024 * 1024;
+const MAX_EXTRACTED_BYTES = 2 * 1024 * 1024 * 1024;
+const MAX_BATCH_FILES = 2000;
 const ALLOWED_EXTENSIONS = new Set(["xlsx", "xls", "xlsm"]);
 const MIME_BY_EXTENSION: Record<string, string> = {
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   xls: "application/vnd.ms-excel",
   xlsm: "application/vnd.ms-excel.sheet.macroEnabled.12",
 };
+
+type UploadCandidate = { file: File; relativePath: string };
 
 type LibraryFile = {
   id: string;
@@ -32,6 +38,7 @@ type LibraryFile = {
   category: string | null;
   original_filename: string;
   storage_path: string;
+  folder_path: string | null;
   size_bytes: number;
   mime_type: string;
   created_at: string;
@@ -52,6 +59,8 @@ const ExcelLibraryPage = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
+  const zipInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [permissionLoading, setPermissionLoading] = useState(true);
   const [files, setFiles] = useState<LibraryFile[]>([]);
@@ -62,7 +71,9 @@ const ExcelLibraryPage = () => {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<UploadCandidate[]>([]);
+  const [extracting, setExtracting] = useState(false);
+  const [archiveReport, setArchiveReport] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0, failed: 0 });
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -113,61 +124,94 @@ const ExcelLibraryPage = () => {
     [files],
   );
 
+  const addCandidates = (candidates: UploadCandidate[]) => {
+    const invalid = candidates.filter(({ file }) => !ALLOWED_EXTENSIONS.has(getExtension(file.name)) || file.size <= 0 || file.size > MAX_FILE_BYTES);
+    if (invalid.length) toast.error(\`\${invalid.length}টি ফাইল বাদ গেছে। শুধু XLS/XLSX/XLSM এবং সর্বোচ্চ 50 MB ফাইল গ্রহণ করা হবে।\`);
+    const valid = candidates.filter(({ file }) => ALLOWED_EXTENSIONS.has(getExtension(file.name)) && file.size > 0 && file.size <= MAX_FILE_BYTES);
+    setSelectedFiles((current) => {
+      const known = new Set(current.map(({ file, relativePath }) => relativePath + ":" + file.size + ":" + file.lastModified));
+      return [...current, ...valid.filter(({ file, relativePath }) => !known.has(relativePath + ":" + file.size + ":" + file.lastModified))].slice(0, MAX_BATCH_FILES);
+    });
+    if (candidates.length > MAX_BATCH_FILES) toast.warning(\`একটি ব্যাচে সর্বোচ্চ \${MAX_BATCH_FILES}টি ফাইল নেওয়া হবে।\`);
+  };
+
   const chooseFiles = (list: FileList | null) => {
     if (!list) return;
-    const next = Array.from(list);
-    const invalid = next.filter((file) => !ALLOWED_EXTENSIONS.has(getExtension(file.name)) || file.size > MAX_FILE_BYTES || file.size === 0);
-    if (invalid.length) {
-      toast.error(invalid.length + "টি ফাইল বাদ দেওয়া হয়েছে। শুধু XLS/XLSX/XLSM এবং সর্বোচ্চ 50 MB ফাইল গ্রহণ করা হবে।");
-    }
-    const valid = next.filter((file) => ALLOWED_EXTENSIONS.has(getExtension(file.name)) && file.size > 0 && file.size <= MAX_FILE_BYTES);
-    setSelectedFiles((current) => {
-      const known = new Set(current.map((file) => file.name + ":" + file.size + ":" + file.lastModified));
-      return [...current, ...valid.filter((file) => !known.has(file.name + ":" + file.size + ":" + file.lastModified))];
-    });
+    addCandidates(Array.from(list).map((file) => ({
+      file,
+      relativePath: (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
+    })));
     if (inputRef.current) inputRef.current.value = "";
+    if (folderInputRef.current) folderInputRef.current.value = "";
+  };
+
+  const extractZip = async (archive: File) => {
+    if (!archive.name.toLowerCase().endsWith(".zip")) return toast.error("ZIP ফাইল নির্বাচন করুন।");
+    if (archive.size <= 0 || archive.size > MAX_ARCHIVE_BYTES) return toast.error("ZIP ফাইলটি খালি অথবা 500 MB-এর বেশি।");
+    setExtracting(true);
+    setArchiveReport(null);
+    try {
+      const zip = await JSZip.loadAsync(archive, { checkCRC32: false });
+      const entries = Object.values(zip.files).filter((entry) => !entry.dir);
+      const candidates: UploadCandidate[] = [];
+      let totalBytes = 0;
+      let skipped = 0;
+      for (const entry of entries) {
+        const normalized = entry.name.replace(/\\/g, "/");
+        if (normalized.startsWith("/") || normalized.split("/").some((part) => part === ".." || part === "__MACOSX" || part === ".DS_Store")) { skipped++; continue; }
+        const filename = normalized.split("/").pop() || "";
+        if (!ALLOWED_EXTENSIONS.has(getExtension(filename))) { skipped++; continue; }
+        const blob = await entry.async("blob");
+        totalBytes += blob.size;
+        if (blob.size <= 0 || blob.size > MAX_FILE_BYTES || totalBytes > MAX_EXTRACTED_BYTES) { skipped++; continue; }
+        const file = new File([blob], filename, { type: MIME_BY_EXTENSION[getExtension(filename)] });
+        const folderPath = normalized.includes("/") ? normalized.slice(0, normalized.lastIndexOf("/")) : "";
+        candidates.push({ file, relativePath: folderPath ? folderPath + "/" + filename : filename });
+        if (candidates.length >= MAX_BATCH_FILES) break;
+      }
+      skipped += Math.max(0, entries.length - candidates.length - skipped);
+      addCandidates(candidates);
+      setArchiveReport(\`\${candidates.length.toLocaleString()}টি Excel ফাইল Extract হয়েছে; \${skipped.toLocaleString()}টি non-Excel/unsupported/অতিরিক্ত ফাইল বাদ গেছে।\`);
+      if (!candidates.length) toast.warning("ZIP-এর ভেতরে কোনো গ্রহণযোগ্য Excel ফাইল পাওয়া যায়নি।");
+      else toast.success(\`\${candidates.length.toLocaleString()}টি Excel ফাইল Extract করা হয়েছে।\`);
+    } catch (error) {
+      console.error("Excel ZIP extraction failed", error);
+      toast.error("ZIP Extract করা যায়নি। ফাইলটি নষ্ট, encrypted অথবা unsupported হতে পারে।");
+    } finally {
+      setExtracting(false);
+      if (zipInputRef.current) zipInputRef.current.value = "";
+    }
   };
 
   const uploadFiles = async () => {
     if (!user || !isAdmin || !selectedFiles.length || uploading) return;
     setUploading(true);
     setUploadProgress({ done: 0, total: selectedFiles.length, failed: 0 });
-    let done = 0;
-    let failed = 0;
-    let cursor = 0;
+    let done = 0, failed = 0, cursor = 0;
     const queue = [...selectedFiles];
     const worker = async () => {
       while (cursor < queue.length) {
-        const file = queue[cursor++];
-        const extension = getExtension(file.name);
+        const { file, relativePath } = queue[cursor++];
         const path = "library/" + crypto.randomUUID() + "/" + safeFileName(file.name);
-        const mimeType = file.type || MIME_BY_EXTENSION[extension];
+        const mimeType = file.type || MIME_BY_EXTENSION[getExtension(file.name)];
         let uploaded = false;
         try {
-          const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, {
-            contentType: mimeType,
-            cacheControl: "3600",
-            upsert: false,
-          });
+          const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: mimeType, cacheControl: "3600", upsert: false });
           if (uploadError) throw uploadError;
           uploaded = true;
+          const folderPath = relativePath.includes("/") ? relativePath.slice(0, relativePath.lastIndexOf("/")) : null;
           const { error: insertError } = await supabase.from("excel_library_files").insert({
-            title: file.name.replace(/\.[^.]+$/, ""),
-            description: description.trim() || null,
-            category: category.trim() || null,
-            original_filename: file.name,
-            storage_path: path,
-            size_bytes: file.size,
-            mime_type: mimeType,
-            uploaded_by: user.id,
+            title: file.name.replace(/\.[^.]+$/, ""), description: description.trim() || null,
+            category: category.trim() || null, original_filename: file.name, folder_path: folderPath,
+            storage_path: path, size_bytes: file.size, mime_type: mimeType, uploaded_by: user.id,
           });
           if (insertError) throw insertError;
         } catch (error) {
-          failed += 1;
+          failed++;
           if (uploaded) await supabase.storage.from(BUCKET).remove([path]);
-          console.error("Excel library upload failed for", file.name, error);
+          console.error("Excel library upload failed for", relativePath, error);
         } finally {
-          done += 1;
+          done++;
           setUploadProgress({ done, total: queue.length, failed });
         }
       }
@@ -177,8 +221,8 @@ const ExcelLibraryPage = () => {
     setSelectedFiles([]);
     setDescription("");
     await loadFiles();
-    if (failed) toast.warning(done - failed + "টি ফাইল আপলোড হয়েছে, " + failed + "টি ব্যর্থ হয়েছে।");
-    else toast.success(done + "টি Excel ফাইল সফলভাবে আপলোড হয়েছে।");
+    if (failed) toast.warning(\`\${done - failed}টি ফাইল আপলোড হয়েছে, \${failed}টি ব্যর্থ হয়েছে।\`);
+    else toast.success(\`\${done}টি Excel ফাইল সফলভাবে আপলোড হয়েছে।\`);
   };
 
   const downloadFile = async (file: LibraryFile) => {
@@ -232,22 +276,28 @@ const ExcelLibraryPage = () => {
         {isAdmin && (
           <section className="space-y-4 rounded-2xl border bg-card p-4 shadow-sm md:p-6">
             <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /><h2 className="text-lg font-semibold">Admin · Bulk upload</h2></div>
-            <p className="text-sm text-muted-foreground">একসঙ্গে অনেকগুলো XLS, XLSX বা XLSM ফাইল নির্বাচন করে আপলোড করুন। প্রতিটি ফাইল আলাদাভাবে সংরক্ষিত হবে। প্রতি ফাইল সর্বোচ্চ 50 MB।</p>
+            <p className="text-sm text-muted-foreground">একটি ZIP ফাইল অথবা সরাসরি Unzipped Folder আপলোড করুন। ZIP-এর ভেতরের Excel ফাইলগুলো স্বয়ংক্রিয়ভাবে আলাদা হবে। প্রতিটি ফাইল আলাদাভাবে সংরক্ষিত হবে; প্রতি ফাইল সর্বোচ্চ 50 MB।</p>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1 text-sm"><span className="font-medium">Category (optional)</span><Input value={category} onChange={(event) => setCategory(event.target.value)} placeholder="যেমন: BOQ, BBS, Estimation, AutoCAD" maxLength={80} /></label>
               <label className="space-y-1 text-sm"><span className="font-medium">Shared description (optional)</span><Textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="এই ব্যাচের ফাইলগুলোর সংক্ষিপ্ত বিবরণ" rows={2} maxLength={500} /></label>
             </div>
             <input ref={inputRef} type="file" multiple accept=".xls,.xlsx,.xlsm" className="hidden" onChange={(event) => chooseFiles(event.target.files)} />
+            <input ref={zipInputRef} type="file" accept=".zip,application/zip" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void extractZip(file); }} />
+            <input ref={folderInputRef} type="file" multiple className="hidden" {...({ webkitdirectory: "", directory: "" } as Record<string, string>)} onChange={(event) => chooseFiles(event.target.files)} />
             <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={uploading}><UploadCloud className="mr-2 h-4 w-4" />Select Excel files</Button>
-              <span className="text-sm text-muted-foreground">{selectedFiles.length.toLocaleString()} selected</span>
-              <Button type="button" onClick={() => void uploadFiles()} disabled={!selectedFiles.length || uploading}>
+              <Button type="button" variant="outline" onClick={() => zipInputRef.current?.click()} disabled={uploading || extracting}><Archive className="mr-2 h-4 w-4" />Upload ZIP</Button>
+              <Button type="button" variant="outline" onClick={() => folderInputRef.current?.click()} disabled={uploading || extracting}><FolderOpen className="mr-2 h-4 w-4" />Upload Folder</Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => inputRef.current?.click()} disabled={uploading || extracting}><FileSpreadsheet className="mr-2 h-4 w-4" />Select Excel files</Button>
+              <span className="text-sm text-muted-foreground">{selectedFiles.length.toLocaleString()} Excel files selected</span>
+              <Button type="button" onClick={() => void uploadFiles()} disabled={!selectedFiles.length || uploading || extracting}>
                 {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
-                {uploading ? "Uploading…" : "Upload selected"}
+                {uploading ? "Uploading…" : "Upload extracted files"}
               </Button>
               {selectedFiles.length > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedFiles([])} disabled={uploading}><X className="mr-1 h-4 w-4" />Clear</Button>}
             </div>
-            {selectedFiles.length > 0 && <div className="max-h-36 overflow-auto rounded-lg border p-2 text-xs text-muted-foreground">{selectedFiles.slice(0, 20).map((file) => <div key={file.name + file.lastModified} className="flex justify-between gap-3 py-1"><span className="truncate">{file.name}</span><span className="shrink-0">{formatBytes(file.size)}</span></div>)}{selectedFiles.length > 20 && <p className="pt-1">আরও {selectedFiles.length - 20}টি ফাইল…</p>}</div>}
+            {selectedFiles.length > 0 && <div className="max-h-36 overflow-auto rounded-lg border p-2 text-xs text-muted-foreground">{selectedFiles.slice(0, 20).map(({ file, relativePath }) => <div key={relativePath + file.lastModified} className="flex justify-between gap-3 py-1"><span className="truncate">{relativePath}</span><span className="shrink-0">{formatBytes(file.size)}</span></div>)}{selectedFiles.length > 20 && <p className="pt-1">আরও {selectedFiles.length - 20}টি ফাইল…</p>}</div>}
+            {extracting && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />ZIP Extract হচ্ছে…</div>}
+            {archiveReport && <p className="rounded-md bg-muted p-2 text-xs text-muted-foreground">{archiveReport}</p>}
             {uploadProgress.total > 0 && (
               <div className="space-y-1">
                 <div className="flex justify-between text-xs"><span>Upload progress · {uploadProgress.done}/{uploadProgress.total}</span><span>{progressPercent}% · {uploadProgress.failed} failed</span></div>
@@ -272,7 +322,7 @@ const ExcelLibraryPage = () => {
                 <article key={file.id} className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm">
                   <div className="flex items-start gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600"><FileSpreadsheet className="h-5 w-5" /></div>
-                    <div className="min-w-0 flex-1"><h3 className="break-words font-semibold">{file.title}</h3><p className="mt-1 break-all text-xs text-muted-foreground">{file.original_filename}</p></div>
+                    <div className="min-w-0 flex-1"><h3 className="break-words font-semibold">{file.title}</h3><p className="mt-1 break-all text-xs text-muted-foreground">{file.original_filename}</p>{file.folder_path && <p className="mt-1 truncate text-xs text-muted-foreground">📁 {file.folder_path}</p>}</div>
                   </div>
                   {file.description && <p className="line-clamp-2 text-sm text-muted-foreground">{file.description}</p>}
                   <div className="mt-auto flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -294,7 +344,7 @@ const ExcelLibraryPage = () => {
             <div className="flex gap-2"><Button size="sm" variant="outline" disabled={page === 0 || loading} onClick={() => setPage((value) => Math.max(0, value - 1))}>Previous</Button><Button size="sm" variant="outline" disabled={(page + 1) * PAGE_SIZE >= total || loading} onClick={() => setPage((value) => value + 1)}>Next</Button></div>
           </div>
         </section>
-        <div className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><p>ফাইলগুলো private storage-এ থাকে। ডাউনলোডের সময় স্বল্পমেয়াদি secure link তৈরি হয়; সরাসরি public file URL প্রকাশ করা হয় না।</p></div>
+        <div className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><p>ZIP Extract এবং Folder selection ব্রাউজারেই হয়। ফাইলগুলো private storage-এ থাকে; প্রতিটি ডাউনলোডে স্বল্পমেয়াদি secure link তৈরি হয়।</p></div>
       </main>
       <Footer />
     </div>
