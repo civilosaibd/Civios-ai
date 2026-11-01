@@ -48,7 +48,8 @@ export function resolveFeature(q: string) {
 
 async function planFor(ctx: Ctx) {
   const { data: sub } = await ctx.db.from("subscriptions").select("status, plan_id, billing_cycle, renewal_date").eq("user_id", ctx.userId).maybeSingle();
-  const active = sub && ["active", "trialing"].includes(sub.status);
+  const active = sub && ["active", "trialing"].includes(sub.status)
+    && (!sub.renewal_date || new Date(sub.renewal_date).getTime() > Date.now());
   const { data: plans } = await ctx.db.from("plans").select("id, code, name, price_yearly, limits, sort_order").eq("is_active", true).order("sort_order");
   const plan = (active ? plans?.find((p) => p.id === sub!.plan_id) : null) || plans?.find((p) => p.code === "free") || null;
   return { sub: active ? sub : null, plan, plans: plans || [] };
