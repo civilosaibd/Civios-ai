@@ -1,46 +1,26 @@
+import { lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { Upload, Play, ArrowRight, Sparkles, Zap, ShieldCheck, Building2, Ruler, Layers3 } from "lucide-react";
+import { Upload, Play, ArrowRight, Sparkles, Zap, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useI18n } from "@/lib/i18n";
 import LiveUsers from "@/components/LiveUsers";
 
+const HeroBuilding3D = lazy(() => import("@/components/HeroBuilding3D"));
+
 const BRAND_ICON = "/branding/civilos-ai-icon-512.png";
 const BRAND_ICON_LARGE = "/branding/civilos-ai-icon-1024.png";
 
 const BuildingShowcase = () => (
-  <div className="hero-building-scene" aria-label="Slowly rotating modern luxury residential building, three-dimensional architectural model" role="img">
-    <div className="hero-scene-orbit hero-scene-orbit--outer" />
-    <div className="hero-scene-orbit hero-scene-orbit--inner" />
-    <div className="hero-building-platform"><span /><span /><span /></div>
-    <div className="hero-building-model">
-      <div className="hero-building-roof">
-        <i /><i /><i /><i />
-        <span className="hero-roof-pergola" />
-        <span className="hero-roof-garden" />
+  <Suspense
+    fallback={
+      <div className="flex h-[310px] w-full items-center justify-center rounded-[28px] border border-white/10 bg-slate-950/30 text-sm text-white/70 sm:h-[390px] lg:h-[500px]">
+        Preparing architectural 3D preview…
       </div>
-      {["top", "middle", "bottom"].map((floor, index) => (
-        <div key={floor} className={`hero-building-floor hero-building-floor--${floor}`}>
-          <div className="hero-building-facade">
-            {Array.from({ length: 6 }, (_, i) => <i key={i} />)}
-          </div>
-          <div className="hero-building-balcony"><span /><span /><span /></div>
-          <div className="hero-building-side">
-            {Array.from({ length: 4 }, (_, i) => <i key={i} />)}
-          </div>
-          <div className="hero-building-back" />
-          <div className="hero-building-left" />
-          {index === 2 && <div className="hero-building-entry"><i /><i /></div>}
-        </div>
-      ))}
-      <div className="hero-building-columns"><i /><i /><i /><i /></div>
-      <div className="hero-building-foundation" />
-    </div>
-    <div className="hero-blueprint-ring" />
-    <div className="hero-scene-label hero-scene-label--one"><Building2 /><span>MODERN ARCHITECTURE</span></div>
-    <div className="hero-scene-label hero-scene-label--two"><Ruler /><span>PRECISION DESIGN</span></div>
-    <div className="hero-scene-label hero-scene-label--three"><Layers3 /><span>3D BUILDING MODEL</span></div>
-  </div>
+    }
+  >
+    <HeroBuilding3D />
+  </Suspense>
 );
 
 const HeroSection = () => {
