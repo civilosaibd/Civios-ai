@@ -51,7 +51,7 @@ export default defineConfig(({ mode }) => {
     }),
   ].filter(Boolean),
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
+    alias: { "@": path.resolve(process.cwd(), "./src") },
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
   },
   define: {
