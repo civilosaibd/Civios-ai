@@ -527,6 +527,63 @@ export type Database = {
           },
         ]
       }
+      knowledge_resources: {
+        Row: {
+          category: string
+          content: string | null
+          content_bn: string | null
+          created_at: string
+          id: string
+          is_published: boolean
+          language: string | null
+          resource_type: string
+          slug: string
+          source_name: string | null
+          source_url: string | null
+          summary: string | null
+          summary_bn: string | null
+          tags: string[] | null
+          title: string
+          title_bn: string | null
+        }
+        Insert: {
+          category?: string
+          content?: string | null
+          content_bn?: string | null
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          language?: string | null
+          resource_type?: string
+          slug: string
+          source_name?: string | null
+          source_url?: string | null
+          summary?: string | null
+          summary_bn?: string | null
+          tags?: string[] | null
+          title: string
+          title_bn?: string | null
+        }
+        Update: {
+          category?: string
+          content?: string | null
+          content_bn?: string | null
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          language?: string | null
+          resource_type?: string
+          slug?: string
+          source_name?: string | null
+          source_url?: string | null
+          summary?: string | null
+          summary_bn?: string | null
+          tags?: string[] | null
+          title?: string
+          title_bn?: string | null
+        }
+        Relationships: []
+      }
       notification_settings: {
         Row: {
           boq_updates: boolean
@@ -1255,6 +1312,139 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      training_courses: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          description_bn: string | null
+          difficulty: string
+          duration_minutes: number
+          id: string
+          is_published: boolean
+          slug: string
+          sort_order: number
+          title: string
+          title_bn: string | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          description_bn?: string | null
+          difficulty?: string
+          duration_minutes?: number
+          id?: string
+          is_published?: boolean
+          slug: string
+          sort_order?: number
+          title: string
+          title_bn?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          description_bn?: string | null
+          difficulty?: string
+          duration_minutes?: number
+          id?: string
+          is_published?: boolean
+          slug?: string
+          sort_order?: number
+          title?: string
+          title_bn?: string | null
+        }
+        Relationships: []
+      }
+      training_lessons: {
+        Row: {
+          content: string | null
+          content_bn: string | null
+          course_id: string
+          created_at: string
+          duration_minutes: number
+          id: string
+          is_published: boolean
+          slug: string
+          sort_order: number
+          title: string
+          title_bn: string | null
+        }
+        Insert: {
+          content?: string | null
+          content_bn?: string | null
+          course_id: string
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          is_published?: boolean
+          slug: string
+          sort_order?: number
+          title: string
+          title_bn?: string | null
+        }
+        Update: {
+          content?: string | null
+          content_bn?: string | null
+          course_id?: string
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          is_published?: boolean
+          slug?: string
+          sort_order?: number
+          title?: string
+          title_bn?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_lessons_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "training_courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_progress: {
+        Row: {
+          completed_at: string | null
+          id: string
+          lesson_id: string
+          progress_percent: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          id?: string
+          lesson_id: string
+          progress_percent?: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          id?: string
+          lesson_id?: string
+          progress_percent?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_progress_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "training_lessons"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       usage_records: {
         Row: {
