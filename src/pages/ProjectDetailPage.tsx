@@ -40,6 +40,7 @@ export default function ProjectDetailPage() {
   const [artifactsError, setArtifactsError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [importingBackup, setImportingBackup] = useState(false);
+  const [exportingBackup, setExportingBackup] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Role>("viewer");
 
@@ -164,9 +165,52 @@ export default function ProjectDetailPage() {
   };
 
   const exportWorkspaceZip = async () => {
-    if (!project || !id) return;
+    if (!project || !id || exportingBackup) return;
+    setExportingBackup(true);
     try {
-      const backup = createProjectWorkspaceBackup(project, artifacts);
+      const binaryFiles: { path: string; bytes: Uint8Array; sourceName: string }[] = [];
+      const omittedFiles: string[] = [];
+      const MAX_FILE_BYTES = 25 * 1024 * 1024;
+      const MAX_TOTAL_BYTES = 60 * 1024 * 1024;
+      let totalBytes = 0;
+      const safeName = (name: string) => name.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/\.\./g, "_").slice(0, 180) || "file";
+
+      for (const document of docs) {
+        const path = typeof document.file_url === "string" ? document.file_url : "";
+        if (!path) { omittedFiles.push(`Document ${document.file_name || document.id}: missing storage path`); continue; }
+        try {
+          const { data, error } = await supabase.storage.from("project-documents").download(path);
+          if (error || !data) throw error || new Error("File unavailable");
+          if (data.size > MAX_FILE_BYTES || totalBytes + data.size > MAX_TOTAL_BYTES) {
+            omittedFiles.push(`Document ${document.file_name}: export size limit reached`);
+            continue;
+          }
+          const bytes = new Uint8Array(await data.arrayBuffer());
+          binaryFiles.push({ path: `uploaded-files/project-documents/${String(binaryFiles.length + 1).padStart(3, "0")}-${safeName(document.file_name || "document")}`, bytes, sourceName: document.file_name || "document" });
+          totalBytes += bytes.byteLength;
+        } catch (error) {
+          omittedFiles.push(`Document ${document.file_name}: ${error instanceof Error ? error.message : "download failed"}`);
+        }
+      }
+
+      for (const artifact of artifacts) {
+        if (!artifact.storage_path) continue;
+        try {
+          const { data, error } = await supabase.storage.from("project-artifacts").download(artifact.storage_path);
+          if (error || !data) throw error || new Error("File unavailable");
+          if (data.size > MAX_FILE_BYTES || totalBytes + data.size > MAX_TOTAL_BYTES) {
+            omittedFiles.push(`Artifact file ${artifact.file_name || artifact.title}: export size limit reached`);
+            continue;
+          }
+          const bytes = new Uint8Array(await data.arrayBuffer());
+          binaryFiles.push({ path: `uploaded-files/project-artifacts/${String(binaryFiles.length + 1).padStart(3, "0")}-${safeName(artifact.file_name || artifact.title || "artifact-file")}`, bytes, sourceName: artifact.file_name || artifact.title });
+          totalBytes += bytes.byteLength;
+        } catch (error) {
+          omittedFiles.push(`Artifact file ${artifact.file_name || artifact.title}: ${error instanceof Error ? error.message : "download failed"}`);
+        }
+      }
+
+      const backup = createProjectWorkspaceBackup(project, artifacts, docs, binaryFiles, omittedFiles);
       const url = URL.createObjectURL(backup.blob);
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -174,11 +218,14 @@ export default function ProjectDetailPage() {
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      toast.success(`Workspace backup created with ${backup.artifactCount} artifact(s).`);
-      await logActivity("workspace_backup_exported", { artifact_count: backup.artifactCount, format_version: 1 });
+      window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast.success(`Workspace ZIP ready: ${backup.artifactCount} artifacts, ${docs.length} document records, ${binaryFiles.length} files included.`);
+      if (omittedFiles.length) toast.warning(`${omittedFiles.length} file(s) could not be included. See manifest.json inside the ZIP.`);
+      await logActivity("workspace_backup_exported", { artifact_count: backup.artifactCount, document_count: docs.length, binary_file_count: binaryFiles.length, omitted_file_count: omittedFiles.length, format_version: 2 });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not export workspace backup.");
+    } finally {
+      setExportingBackup(false);
     }
   };
 
@@ -406,11 +453,11 @@ export default function ProjectDetailPage() {
             <TabsContent value="artifacts" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><CardTitle>Unified Project Workspace</CardTitle><div className="flex flex-wrap gap-2"><input type="file" accept=".zip,application/zip" className="hidden" id="workspace-backup-import" onChange={importWorkspaceZip} /><Button variant="outline" size="sm" onClick={() => document.getElementById("workspace-backup-import")?.click()} disabled={importingBackup || !canEdit}><Upload className="mr-2 h-4 w-4" /> {importingBackup ? "Restoring…" : "Import ZIP"}</Button><Button variant="outline" size="sm" onClick={exportWorkspaceZip} disabled={artifactsLoading || !project}><Archive className="mr-2 h-4 w-4" /> Export ZIP Backup</Button></div></div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><CardTitle>Unified Project Workspace</CardTitle><div className="flex flex-wrap gap-2"><input type="file" accept=".zip,application/zip" className="hidden" id="workspace-backup-import" onChange={importWorkspaceZip} /><Button variant="outline" size="sm" onClick={() => document.getElementById("workspace-backup-import")?.click()} disabled={importingBackup || !canEdit}><Upload className="mr-2 h-4 w-4" /> {importingBackup ? "Restoring…" : "Import ZIP"}</Button><Button variant="outline" size="sm" onClick={exportWorkspaceZip} disabled={artifactsLoading || exportingBackup || !project}><Archive className="mr-2 h-4 w-4" /> {exportingBackup ? "Preparing ZIP…" : "Download Complete Workspace"}</Button></div></div>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <p className="text-sm text-muted-foreground">
-                    Saved outputs from connected engineering modules will appear here. Export creates a ZIP containing project metadata and structured artifacts; private uploaded documents are not embedded.
+                    Saved outputs from connected engineering modules appear here. Complete Workspace ZIP includes project data, structured artifacts, uploaded project documents and saved artifact files when storage access allows.
                   </p>
                   <div className="flex flex-wrap gap-2 text-xs">
                     <Badge variant="outline">Saved artifacts: {artifacts.length}</Badge>
