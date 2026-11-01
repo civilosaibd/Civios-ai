@@ -1,4 +1,7 @@
 import { useCloudState } from "@/lib/cloudState";
+import { useActiveProjectId } from "@/lib/projectSelection";
+import { listProjectArtifacts } from "@/lib/projectArtifacts";
+import { useProjectArtifactAutosave } from "@/hooks/useProjectArtifactAutosave";
 import AdvancedSurveyTools from "@/components/sitegeo/AdvancedSurveyTools";
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
@@ -32,6 +35,7 @@ export default function SiteGeoPage() {
   const bn = lang === "bn";
   const T = (en: string, b: string) => (bn ? b : en);
   const { system } = useUnits();
+  const projectId = useActiveProjectId();
   const mapEl = useRef<HTMLDivElement>(null);
   const mapShell = useRef<HTMLDivElement>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
@@ -61,6 +65,41 @@ export default function SiteGeoPage() {
   const redoSurvey = () => { const next = redoStack.current.pop(); if (!next) return; undoStack.current.push(ptsRef.current); ptsRef.current = next; setPts(next); };
 
   const [inp] = useCloudState<PlanInput>("civilos.plan", DEFAULT_INPUT, { merge: true });
+  const [projectArtifactId, setProjectArtifactId] = useState<string | undefined>();
+  const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null);
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadedProjectId(null);
+    setProjectArtifactId(undefined);
+    setProjectLoadError(null);
+    if (!projectId) return;
+    void listProjectArtifacts(projectId).then((items) => {
+      if (cancelled) return;
+      const saved = items.find((item) => item.artifact_type === "site-geo-survey");
+      const data = saved?.data ?? {};
+      const savedPoints = Array.isArray(data.points) ? data.points as LatLng[] : [];
+      if (savedPoints.every((point) => Number.isFinite(point?.lat) && Number.isFinite(point?.lng) && point.lat >= -90 && point.lat <= 90 && point.lng >= -180 && point.lng <= 180)) {
+        ptsRef.current = savedPoints; setPts(savedPoints);
+      } else { ptsRef.current = []; setPts([]); }
+      setMode(data.mode === "distance" ? "distance" : "area");
+      setSurveyTool(data.surveyTool === "point" || data.surveyTool === "line" ? data.surveyTool : "polygon");
+      setProjectArtifactId(saved?.id);
+      setLoadedProjectId(projectId);
+    }).catch((error) => {
+      if (!cancelled) { setProjectLoadError(error instanceof Error ? error.message : "Could not load this project survey."); setLoadedProjectId(projectId); }
+    });
+    return () => { cancelled = true; };
+  }, [projectId, setPts]);
+
+  const projectSave = useProjectArtifactAutosave({
+    projectId: projectId ?? "", artifactId: projectArtifactId, artifactType: "site-geo-survey",
+    title: "Site GEO & Survey", description: "Project-scoped WGS84 map survey points and measurement mode",
+    data: { points: pts, mode, surveyTool }, enabled: !!projectId && loadedProjectId === projectId && !projectLoadError,
+    debounceMs: 1500,
+  });
+  useEffect(() => { if (projectSave.artifactId && projectSave.artifactId !== projectArtifactId) setProjectArtifactId(projectSave.artifactId); }, [projectSave.artifactId, projectArtifactId]);
 
   useEffect(() => {
     if (!mapEl.current || map.current) return;
@@ -318,9 +357,11 @@ export default function SiteGeoPage() {
             <div className="flex items-center gap-2"><SidebarTrigger />
               <h1 className="font-heading font-semibold flex items-center gap-2"><MapIcon className="h-4 w-4 text-accent" /> {T("Site Geo & Survey", "সাইট ম্যাপ ও সার্ভে")}</h1>
             </div>
-            <div className="flex items-center gap-2"><UnitsSwitch /><ThemeToggle /></div>
+            <div className="flex items-center gap-2"><span className="hidden sm:inline text-xs text-muted-foreground">{projectId ? (projectSave.status === "saving" ? T("Saving…", "সেভ হচ্ছে…") : projectSave.status === "saved" ? T("Saved to project", "প্রজেক্টে সেভ হয়েছে") : projectSave.status === "error" ? T("Save failed", "সেভ হয়নি") : T("Project linked", "প্রজেক্ট সংযুক্ত")) : T("Personal workspace", "ব্যক্তিগত ওয়ার্কস্পেস")}</span><UnitsSwitch /><ThemeToggle /></div>
           </header>
           <main className="p-4 md:p-6 space-y-4">
+            {projectLoadError && <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{T("Could not load this project survey: ", "প্রজেক্টের সার্ভে লোড করা যায়নি: ")}{projectLoadError}</div>}
+            {projectSave.error && <div className="rounded-md border border-destructive/40 p-3 text-xs text-destructive">{projectSave.error}</div>}
             <section className="rounded-xl border bg-card p-4 md:p-5 space-y-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="space-y-1">
