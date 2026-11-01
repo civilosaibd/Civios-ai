@@ -20,7 +20,7 @@ const BUCKET = "excel-library";
 const PAGE_SIZE = 40;
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const MAX_ARCHIVE_BYTES = 500 * 1024 * 1024;
-const MAX_EXTRACTED_BYTES = 2 * 1024 * 1024 * 1024;
+const MAX_EXTRACTED_BYTES = 500 * 1024 * 1024;
 const MAX_BATCH_FILES = 2000;
 const ALLOWED_EXTENSIONS = new Set(["xlsx", "xls", "xlsm"]);
 const MIME_BY_EXTENSION: Record<string, string> = {
@@ -105,7 +105,7 @@ const ExcelLibraryPage = () => {
     let query = supabase.from("excel_library_files").select("*", { count: "exact" })
       .order("created_at", { ascending: false });
     const term = search.trim().replace(/[,%()]/g, " ");
-    if (term) query = query.or("title.ilike.%"+term+"%,original_filename.ilike.%"+term+"%,category.ilike.%"+term+"%");
+    if (term) query = query.or("title.ilike.%"+term+"%,original_filename.ilike.%"+term+"%,category.ilike.%"+term+"%,folder_path.ilike.%"+term+"%");
     if (categoryFilter) query = query.eq("category", categoryFilter);
     const from = page * PAGE_SIZE;
     const { data, count, error } = await query.range(from, from + PAGE_SIZE - 1);
