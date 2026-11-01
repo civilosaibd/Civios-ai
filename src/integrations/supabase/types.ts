@@ -261,6 +261,130 @@ export type Database = {
         }
         Relationships: []
       }
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
+      construction_stages: {
+        Row: {
+          id: string
+          render_url: string | null
+          stage_data: Json
+          stage_name: string
+          stage_number: number
+          status: string
+          visualization_id: string
+        }
+        Insert: {
+          id?: string
+          render_url?: string | null
+          stage_data?: Json
+          stage_name: string
+          stage_number: number
+          status?: string
+          visualization_id: string
+        }
+        Update: {
+          id?: string
+          render_url?: string | null
+          stage_data?: Json
+          stage_name?: string
+          stage_number?: number
+          status?: string
+          visualization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "construction_stages_visualization_id_fkey"
+            columns: ["visualization_id"]
+            isOneToOne: false
+            referencedRelation: "construction_visualizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      construction_visualizations: {
+        Row: {
+          analysis: Json | null
+          approx_area_sqft: number | null
+          building_type: string | null
+          created_at: string
+          floor_count: number | null
+          id: string
+          location: string | null
+          model: Json | null
+          name: string
+          project_id: string | null
+          settings: Json
+          source_type: string | null
+          status: string
+          unit_system: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          analysis?: Json | null
+          approx_area_sqft?: number | null
+          building_type?: string | null
+          created_at?: string
+          floor_count?: number | null
+          id?: string
+          location?: string | null
+          model?: Json | null
+          name: string
+          project_id?: string | null
+          settings?: Json
+          source_type?: string | null
+          status?: string
+          unit_system?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          analysis?: Json | null
+          approx_area_sqft?: number | null
+          building_type?: string | null
+          created_at?: string
+          floor_count?: number | null
+          id?: string
+          location?: string | null
+          model?: Json | null
+          name?: string
+          project_id?: string | null
+          settings?: Json
+          source_type?: string | null
+          status?: string
+          unit_system?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "construction_visualizations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_messages: {
         Row: {
           admin_reply: string | null
@@ -302,6 +426,50 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      detected_elements: {
+        Row: {
+          confidence: number
+          created_at: string
+          element_type: string
+          floor: number | null
+          geometry_data: Json
+          id: string
+          source: string
+          user_verified: boolean
+          visualization_id: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          element_type: string
+          floor?: number | null
+          geometry_data: Json
+          id?: string
+          source: string
+          user_verified?: boolean
+          visualization_id: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          element_type?: string
+          floor?: number | null
+          geometry_data?: Json
+          id?: string
+          source?: string
+          user_verified?: boolean
+          visualization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "detected_elements_visualization_id_fkey"
+            columns: ["visualization_id"]
+            isOneToOne: false
+            referencedRelation: "construction_visualizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       invitations: {
         Row: {
@@ -359,6 +527,63 @@ export type Database = {
           },
         ]
       }
+      knowledge_resources: {
+        Row: {
+          category: string
+          content: string | null
+          content_bn: string | null
+          created_at: string
+          id: string
+          is_published: boolean
+          language: string | null
+          resource_type: string
+          slug: string
+          source_name: string | null
+          source_url: string | null
+          summary: string | null
+          summary_bn: string | null
+          tags: string[] | null
+          title: string
+          title_bn: string | null
+        }
+        Insert: {
+          category?: string
+          content?: string | null
+          content_bn?: string | null
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          language?: string | null
+          resource_type?: string
+          slug: string
+          source_name?: string | null
+          source_url?: string | null
+          summary?: string | null
+          summary_bn?: string | null
+          tags?: string[] | null
+          title: string
+          title_bn?: string | null
+        }
+        Update: {
+          category?: string
+          content?: string | null
+          content_bn?: string | null
+          created_at?: string
+          id?: string
+          is_published?: boolean
+          language?: string | null
+          resource_type?: string
+          slug?: string
+          source_name?: string | null
+          source_url?: string | null
+          summary?: string | null
+          summary_bn?: string | null
+          tags?: string[] | null
+          title?: string
+          title_bn?: string | null
+        }
+        Relationships: []
+      }
       notification_settings: {
         Row: {
           boq_updates: boolean
@@ -401,6 +626,7 @@ export type Database = {
       notifications: {
         Row: {
           created_at: string
+          dedupe_key: string | null
           id: string
           link: string | null
           message: string | null
@@ -412,6 +638,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          dedupe_key?: string | null
           id?: string
           link?: string | null
           message?: string | null
@@ -423,6 +650,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          dedupe_key?: string | null
           id?: string
           link?: string | null
           message?: string | null
@@ -805,6 +1033,69 @@ export type Database = {
         }
         Relationships: []
       }
+      referral_commissions: {
+        Row: {
+          base_amount: number
+          commission_amount: number
+          created_at: string
+          flag_reason: string | null
+          id: string
+          payment_id: string | null
+          rate: number
+          referral_id: string
+          referred_user_id: string
+          referrer_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          base_amount: number
+          commission_amount: number
+          created_at?: string
+          flag_reason?: string | null
+          id?: string
+          payment_id?: string | null
+          rate: number
+          referral_id: string
+          referred_user_id: string
+          referrer_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          base_amount?: number
+          commission_amount?: number
+          created_at?: string
+          flag_reason?: string | null
+          id?: string
+          payment_id?: string | null
+          rate?: number
+          referral_id?: string
+          referred_user_id?: string
+          referrer_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_commissions_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: true
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_commissions_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "referrals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       referrals: {
         Row: {
           commission_amount: number
@@ -833,26 +1124,6 @@ export type Database = {
           referrer_id?: string
           status?: string
         }
-        Relationships: []
-      }
-      referral_commissions: {
-        Row: {
-          base_amount: number
-          commission_amount: number
-          created_at: string
-          flag_reason: string | null
-          id: string
-          payment_id: string | null
-          rate: number
-          referral_id: string
-          referred_user_id: string
-          referrer_id: string
-          reviewed_at: string | null
-          reviewed_by: string | null
-          status: string
-        }
-        Insert: never // written only by SECURITY DEFINER functions (approve_payment / review_commission)
-        Update: never
         Relationships: []
       }
       site_logs: {
@@ -1042,6 +1313,139 @@ export type Database = {
         }
         Relationships: []
       }
+      training_courses: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          description_bn: string | null
+          difficulty: string
+          duration_minutes: number
+          id: string
+          is_published: boolean
+          slug: string
+          sort_order: number
+          title: string
+          title_bn: string | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          description_bn?: string | null
+          difficulty?: string
+          duration_minutes?: number
+          id?: string
+          is_published?: boolean
+          slug: string
+          sort_order?: number
+          title: string
+          title_bn?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          description_bn?: string | null
+          difficulty?: string
+          duration_minutes?: number
+          id?: string
+          is_published?: boolean
+          slug?: string
+          sort_order?: number
+          title?: string
+          title_bn?: string | null
+        }
+        Relationships: []
+      }
+      training_lessons: {
+        Row: {
+          content: string | null
+          content_bn: string | null
+          course_id: string
+          created_at: string
+          duration_minutes: number
+          id: string
+          is_published: boolean
+          slug: string
+          sort_order: number
+          title: string
+          title_bn: string | null
+        }
+        Insert: {
+          content?: string | null
+          content_bn?: string | null
+          course_id: string
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          is_published?: boolean
+          slug: string
+          sort_order?: number
+          title: string
+          title_bn?: string | null
+        }
+        Update: {
+          content?: string | null
+          content_bn?: string | null
+          course_id?: string
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          is_published?: boolean
+          slug?: string
+          sort_order?: number
+          title?: string
+          title_bn?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_lessons_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "training_courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_progress: {
+        Row: {
+          completed_at: string | null
+          id: string
+          lesson_id: string
+          progress_percent: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          id?: string
+          lesson_id: string
+          progress_percent?: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          id?: string
+          lesson_id?: string
+          progress_percent?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_progress_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "training_lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       usage_records: {
         Row: {
           ai_credits: number
@@ -1150,11 +1554,163 @@ export type Database = {
         }
         Relationships: []
       }
+      visualization_exports: {
+        Row: {
+          created_at: string
+          export_type: string
+          file_url: string | null
+          id: string
+          status: string
+          visualization_id: string
+        }
+        Insert: {
+          created_at?: string
+          export_type: string
+          file_url?: string | null
+          id?: string
+          status?: string
+          visualization_id: string
+        }
+        Update: {
+          created_at?: string
+          export_type?: string
+          file_url?: string | null
+          id?: string
+          status?: string
+          visualization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visualization_exports_visualization_id_fkey"
+            columns: ["visualization_id"]
+            isOneToOne: false
+            referencedRelation: "construction_visualizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visualization_files: {
+        Row: {
+          created_at: string
+          derived_from: string | null
+          error: string | null
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          height: number | null
+          id: string
+          processing_status: string
+          role: string
+          user_id: string
+          visualization_id: string
+          width: number | null
+        }
+        Insert: {
+          created_at?: string
+          derived_from?: string | null
+          error?: string | null
+          file_name: string
+          file_size: number
+          file_type: string
+          file_url: string
+          height?: number | null
+          id?: string
+          processing_status?: string
+          role?: string
+          user_id: string
+          visualization_id: string
+          width?: number | null
+        }
+        Update: {
+          created_at?: string
+          derived_from?: string | null
+          error?: string | null
+          file_name?: string
+          file_size?: number
+          file_type?: string
+          file_url?: string
+          height?: number | null
+          id?: string
+          processing_status?: string
+          role?: string
+          user_id?: string
+          visualization_id?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visualization_files_derived_from_fkey"
+            columns: ["derived_from"]
+            isOneToOne: false
+            referencedRelation: "visualization_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visualization_files_visualization_id_fkey"
+            columns: ["visualization_id"]
+            isOneToOne: false
+            referencedRelation: "construction_visualizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visualization_jobs: {
+        Row: {
+          attempt: number
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          kind: string
+          status: string
+          steps: Json
+          updated_at: string
+          user_id: string
+          visualization_id: string
+        }
+        Insert: {
+          attempt?: number
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          kind?: string
+          status?: string
+          steps?: Json
+          updated_at?: string
+          user_id: string
+          visualization_id: string
+        }
+        Update: {
+          attempt?: number
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          kind?: string
+          status?: string
+          steps?: Json
+          updated_at?: string
+          user_id?: string
+          visualization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visualization_jobs_visualization_id_fkey"
+            columns: ["visualization_id"]
+            isOneToOne: false
+            referencedRelation: "construction_visualizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       withdrawals: {
         Row: {
           account_number: string
           admin_note: string | null
           amount: number
+          approved_at: string | null
           id: string
           method: string
           paid_at: string | null
@@ -1166,6 +1722,7 @@ export type Database = {
           account_number: string
           admin_note?: string | null
           amount: number
+          approved_at?: string | null
           id?: string
           method: string
           paid_at?: string | null
@@ -1177,6 +1734,7 @@ export type Database = {
           account_number?: string
           admin_note?: string | null
           amount?: number
+          approved_at?: string | null
           id?: string
           method?: string
           paid_at?: string | null
@@ -1191,22 +1749,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      approve_payment: { Args: { _payment_id: string }; Returns: string }
-      cancel_my_subscription: { Args: Record<PropertyKey, never>; Returns: undefined }
-      claim_referral: { Args: { _code: string }; Returns: string }
-      generate_my_deadline_notifications: { Args: Record<PropertyKey, never>; Returns: number }
-      my_affiliate_stats: { Args: Record<PropertyKey, never>; Returns: Json }
-      review_commission: {
-        Args: { _commission_id: string; _approve: boolean; _note?: string }
-        Returns: undefined
-      }
-      reject_payment: { Args: { _payment_id: string; _note?: string }; Returns: undefined }
-      request_withdrawal: {
-        Args: { _amount: number; _method: string; _account_number: string }
-        Returns: string
-      }
       accept_project_invitation: { Args: { _token: string }; Returns: string }
+      approve_payment: { Args: { _payment_id: string }; Returns: string }
+      available_commission_balance: {
+        Args: { _user_id: string }
+        Returns: number
+      }
+      cancel_my_subscription: { Args: never; Returns: undefined }
+      cancel_viz_job: { Args: { _job: string }; Returns: undefined }
+      claim_referral: { Args: { _code: string }; Returns: string }
       decline_project_invitation: { Args: { _token: string }; Returns: boolean }
+      generate_deadline_notifications: {
+        Args: { _today?: string; _user?: string }
+        Returns: number
+      }
+      generate_my_deadline_notifications: { Args: never; Returns: number }
       get_project_role: {
         Args: { _project_id: string; _user_id: string }
         Returns: Database["public"]["Enums"]["project_role"]
@@ -1222,6 +1779,31 @@ export type Database = {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
       }
+      my_affiliate_stats: { Args: never; Returns: Json }
+      record_referral_commission: {
+        Args: { _payment_id: string }
+        Returns: undefined
+      }
+      refresh_referral_totals: {
+        Args: { _referral: string }
+        Returns: undefined
+      }
+      reject_payment: {
+        Args: { _note?: string; _payment_id: string }
+        Returns: undefined
+      }
+      request_withdrawal: {
+        Args: { _account_number: string; _amount: number; _method: string }
+        Returns: string
+      }
+      review_commission: {
+        Args: { _approve: boolean; _commission_id: string; _note?: string }
+        Returns: undefined
+      }
+      try_uuid: { Args: { _t: string }; Returns: string }
+      viz_can_read: { Args: { _user: string; _viz: string }; Returns: boolean }
+      viz_can_write: { Args: { _user: string; _viz: string }; Returns: boolean }
+      viz_role: { Args: { _user: string; _viz: string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "user"
