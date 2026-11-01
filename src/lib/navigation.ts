@@ -138,6 +138,7 @@ export const settingsNav: NavCategory = {
     { title: "Affiliate Program", url: "/affiliate", icon: Sparkles },
     { title: "All Modules", url: "/modules", icon: Wrench },
     { title: "Admin Dashboard", url: "/admin", icon: Shield, adminOnly: true },
+    { title: "Admin · Excel Library", url: "/admin/excel-library", icon: FileSpreadsheet, adminOnly: true },
     { title: "Admin · Payments", url: "/admin/billing", icon: CreditCard, adminOnly: true },
     { title: "Admin · AI Agent", url: "/admin/ai-agent", icon: Cpu, adminOnly: true },
   ],
