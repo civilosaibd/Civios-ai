@@ -69,11 +69,15 @@ before(async () => {
   db = new PGlite({ extensions: { pgcrypto } });
   await db.exec(STUBS);
   for (const f of readdirSync(migDir).filter((f) => f.endsWith(".sql")).sort()) {
+    if (f === "20261030130000_super_admin_rbac_foundation.sql") {
+      await db.exec(`INSERT INTO auth.users (id,email,email_confirmed_at)
+        VALUES ('${ADMIN}','zobaerio24@gmail.com',now());`);
+    }
     try { await db.exec(readFileSync(join(migDir, f), "utf8")); }
     catch (e) { throw new Error(`migration ${f} failed: ${e.message}`); }
   }
   await db.exec(`INSERT INTO auth.users (id,email,email_confirmed_at) VALUES
-    ('${ADMIN}','zobaerio24@gmail.com',now()),('${ALICE}','alice@example.com',null),('${BOB}','bob@example.com',null);`);
+    ('${ALICE}','alice@example.com',null),('${BOB}','bob@example.com',null);`);
   // Bootstrap the test owner explicitly; public signup must never auto-grant admin.
   await db.query("INSERT INTO public.user_roles (user_id, role) VALUES ($1, 'admin') ON CONFLICT (user_id, role) DO NOTHING", [ADMIN]);
 });
