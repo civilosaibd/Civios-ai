@@ -39,11 +39,11 @@ const palette: { id: CadToolId; label: string; group: string }[] = [
 
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `cad-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-export default function ProfessionalCadWorkspace() {
+export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-document-v2" }: { storageKey?: string }) {
   const [doc, setDoc] = useState<CadDocument>(() => {
     if (typeof window === "undefined") return createEmptyDocument("ft");
     try {
-      const saved = window.localStorage.getItem("civilos-cad-document-v2") ?? window.localStorage.getItem("civilos-cad-document-v1");
+      const saved = window.localStorage.getItem(storageKey) ?? (storageKey === "civilos-cad-document-v2" ? window.localStorage.getItem("civilos-cad-document-v1") : null);
       if (!saved) return createEmptyDocument("ft");
       const parsed = deserializeCadDocument(saved);
       if (Array.isArray(parsed.entities) && Array.isArray(parsed.layers) && parsed.layers.length > 0) return parsed;
@@ -77,11 +77,11 @@ export default function ProfessionalCadWorkspace() {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem("civilos-cad-document-v2", JSON.stringify({ ...doc, version: 2 }));
+      window.localStorage.setItem(storageKey, JSON.stringify({ ...doc, version: 2 }));
     } catch {
       toast.error("Could not auto-save this drawing locally. Please export a JSON backup.");
     }
-  }, [doc]);
+  }, [doc, storageKey]);
 
   const commit = useCallback((next: CadDocument) => {
     setHistory((h) => [...h.slice(-99), doc]);
