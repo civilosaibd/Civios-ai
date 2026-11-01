@@ -22,9 +22,9 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription, formatBDT, formatLimit, planPrice, type Plan } from "@/lib/subscription";
 import { useI18n } from "@/lib/i18n";
-import { paymentService, subscriptionService, totalFor, MANUAL_PAYMENT_NUMBER } from "@/lib/billing";
+import { paymentService, subscriptionService, totalFor, MANUAL_PAYMENT_NUMBER, BANK_ACCOUNT_NUMBER } from "@/lib/billing";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Crown, Loader2, CreditCard, Download, AlertTriangle, Receipt } from "lucide-react";
+import { Check, Crown, Loader2, CreditCard, Download, AlertTriangle, Receipt, Copy } from "lucide-react";
 
 interface PaymentRow {
   id: string; amount: number; currency: string; billing_cycle: string;
@@ -78,6 +78,15 @@ export default function BillingPage() {
     setPayLoading(false);
   };
   useEffect(() => { loadPayments(); /* eslint-disable-next-line */ }, [user]);
+
+  const copyPaymentDetail = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast({ title: "Copied", description: label + " copied to clipboard." });
+    } catch {
+      toast({ title: "Copy failed", description: "Please select and copy the number manually.", variant: "destructive" });
+    }
+  };
 
   const planName = (id: string | null) => plans.find((p) => p.id === id)?.name || "—";
 
@@ -371,10 +380,30 @@ export default function BillingPage() {
                   <div className="flex justify-between border-t pt-1.5 font-semibold"><span>Total</span><span>{formatBDT(total)}</span></div>
                 </div>
 
-                <div className="rounded-lg bg-muted/50 border p-3 text-xs space-y-1">
-                  <p className="font-semibold">How to pay</p>
-                  <p>Send <strong>{formatBDT(total)}</strong> to <strong>{MANUAL_PAYMENT_NUMBER}</strong> (bKash / Nagad — Send Money), then enter the Transaction ID below.</p>
-                  <p className="text-muted-foreground">Your plan activates right after our team verifies the payment.</p>
+                <div className="rounded-lg bg-muted/50 border p-3 text-xs space-y-3">
+                  <div>
+                    <p className="font-semibold">How to pay</p>
+                    <p className="text-muted-foreground">Send <strong>{formatBDT(total)}</strong> using your selected payment method. Copy the correct destination below.</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 rounded-md border bg-background p-2">
+                    <div className="min-w-0">
+                      <p className="font-medium">bKash / Nagad number</p>
+                      <p className="font-mono text-sm break-all">{MANUAL_PAYMENT_NUMBER}</p>
+                    </div>
+                    <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => copyPaymentDetail(MANUAL_PAYMENT_NUMBER, "Mobile payment number")}>
+                      <Copy className="h-3.5 w-3.5 mr-1" /> Copy
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 rounded-md border bg-background p-2">
+                    <div className="min-w-0">
+                      <p className="font-medium">Bank account number</p>
+                      <p className="font-mono text-sm break-all">{BANK_ACCOUNT_NUMBER}</p>
+                    </div>
+                    <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => copyPaymentDetail(BANK_ACCOUNT_NUMBER, "Bank account number")}>
+                      <Copy className="h-3.5 w-3.5 mr-1" /> Copy
+                    </Button>
+                  </div>
+                  <p className="text-muted-foreground">Your plan activates right after our team verifies the payment. Enter the transaction/reference ID below.</p>
                 </div>
 
                 <div className="space-y-3">

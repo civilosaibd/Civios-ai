@@ -1,9 +1,10 @@
 import Navbar from "@/components/Navbar";
+import { ProjectWorkspaceSelector } from "@/components/DashboardSidebar";
 import Footer from "@/components/Footer";
 import SEO from "@/components/SEO";
 import Building3D from "@/components/Building3D";
 import { useLocation } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { generateEstimate } from "@/lib/estimateEngine";
 import {
   computeBNBCLoads,
@@ -37,6 +38,7 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { saveProjectArtifact } from "@/lib/projectArtifacts";
+import { useActiveProjectId } from "@/lib/projectSelection";
 import DistrictRates from "@/components/DistrictRates";
 import MaterialAnalysisDashboard from "@/components/estimate/MaterialAnalysisDashboard";
 import BOQReconciliation from "@/components/estimate/BOQReconciliation";
@@ -49,6 +51,7 @@ const EstimatePage = () => {
   const location = useLocation();
   const { t, lang, currency, fmt } = useI18n();
   const { user } = useAuth();
+  const activeProjectId = useActiveProjectId();
 
   const params = location.state || {
     plotLength: 40, plotWidth: 30, unit: "feet", floors: 1,
@@ -63,6 +66,7 @@ const EstimatePage = () => {
   const [saving, setSaving] = useState(false);
   const [savingWorkspace, setSavingWorkspace] = useState(false);
   const [workspaceArtifactId, setWorkspaceArtifactId] = useState<string | null>(null);
+  useEffect(() => { setWorkspaceArtifactId(null); }, [activeProjectId]);
   const [projectName, setProjectName] = useState<string>(params._projectName || params.fileName || "House Project");
   const [district, setDistrict] = useState<string>(params.district || "Dhaka");
   const [rates, setRates] = useState(params.rates || undefined);
@@ -162,7 +166,7 @@ const EstimatePage = () => {
 
   const saveEstimateToWorkspace = async () => {
     if (!user) { toast.info("Please sign in to save this estimate."); return; }
-    const targetProjectId = (params as any)._projectId || new URLSearchParams(window.location.search).get("project");
+    const targetProjectId = (params as any)._projectId || activeProjectId;
     if (!targetProjectId) {
       toast.info("Save this project first to create a Project Workspace, then open the estimate from that project.");
       return;
@@ -415,6 +419,7 @@ const EstimatePage = () => {
         type="article"
       />
       <Navbar />
+      <div className="container max-w-6xl pt-4"><ProjectWorkspaceSelector /></div>
       <main className="flex-1 py-8">
         <div className="container space-y-6">
           {/* Premium SaaS demo-estimate overview */}

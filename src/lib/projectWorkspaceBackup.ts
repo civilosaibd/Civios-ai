@@ -3,12 +3,23 @@ import type { ProjectArtifact } from "@/lib/projectArtifacts";
 type BackupProject = {
   id: string;
   name: string;
+  client_name?: string | null;
   location?: string | null;
   project_type?: string | null;
   status?: string | null;
   budget?: number | null;
   start_date?: string | null;
   end_date?: string | null;
+  file_name?: string | null;
+  inputs?: unknown;
+  estimate?: unknown;
+  bnbc_loads?: unknown;
+};
+
+export type WorkspaceBinaryFile = { path: string; bytes: Uint8Array; sourceName: string };
+export type WorkspaceDocumentRecord = {
+  id: string; file_name: string; file_type?: string | null; file_size?: number | null;
+  created_at?: string | null; file_url?: string | null;
 };
 
 const encoder = new TextEncoder();
@@ -83,10 +94,16 @@ function createZip(entries: ZipEntry[]) {
 }
 
 /**
- * Creates a ZIP-compatible, uncompressed workspace backup. It includes project metadata
- * and structured artifacts; it deliberately does not include private uploaded binary files.
+ * Creates a ZIP-compatible, uncompressed workspace backup with project metadata,
+ * structured artifacts, and any private binary files supplied by the authenticated page.
  */
-export function createProjectWorkspaceBackup(project: BackupProject, artifacts: ProjectArtifact[]) {
+export function createProjectWorkspaceBackup(
+  project: BackupProject,
+  artifacts: ProjectArtifact[],
+  documents: WorkspaceDocumentRecord[] = [],
+  binaryFiles: WorkspaceBinaryFile[] = [],
+  omittedFiles: string[] = [],
+) {
   const safeName = (project.name || "project").replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 70) || "project";
   const exportedAt = new Date().toISOString();
   const manifest = {
@@ -96,34 +113,51 @@ export function createProjectWorkspaceBackup(project: BackupProject, artifacts: 
     project: {
       id: project.id,
       name: project.name,
+      client_name: project.client_name ?? null,
       location: project.location ?? null,
       project_type: project.project_type ?? null,
       status: project.status ?? null,
       budget: project.budget ?? null,
       start_date: project.start_date ?? null,
       end_date: project.end_date ?? null,
+      file_name: project.file_name ?? null,
+      inputs: project.inputs ?? null,
+      estimate: project.estimate ?? null,
+      bnbc_loads: project.bnbc_loads ?? null,
     },
     artifactCount: artifacts.length,
+    documentCount: documents.length,
+    includedBinaryFileCount: binaryFiles.length,
+    omittedFiles,
+    documents: documents.map(({ id, file_name, file_type, file_size, created_at }) => ({
+      id, file_name, file_type: file_type ?? null, file_size: file_size ?? null, created_at: created_at ?? null,
+    })),
     artifacts: artifacts.map(({ id, artifact_type, title, description, file_name, mime_type, storage_path, created_at, updated_at }) => ({
       id, artifact_type, title, description, file_name, mime_type,
       hasPrivateStorageFile: Boolean(storage_path), created_at, updated_at,
     })),
     limitations: [
       "This backup contains project metadata and structured workspace artifact data.",
-      "Private uploaded binary files and legacy project documents are not embedded; download them separately from the Project Documents tab.",
+      "Uploaded project documents and saved artifact binary files are embedded when their private storage objects can be downloaded.",
+      "Files listed in omittedFiles could not be included; check storage permissions and retry the export.",
       "Restoring a backup must respect the destination project's membership and row-level security policies.",
     ],
   };
   const entries: ZipEntry[] = [
     { name: "manifest.json", bytes: encoder.encode(JSON.stringify(manifest, null, 2)) },
     { name: "project/project.json", bytes: encoder.encode(JSON.stringify(manifest.project, null, 2)) },
+    { name: "project/documents.json", bytes: encoder.encode(JSON.stringify(manifest.documents, null, 2)) },
     { name: "README.txt", bytes: encoder.encode(
       "CivilOS AI — Project Workspace Backup\n\n" +
-      "This ZIP contains a JSON manifest and structured workspace artifacts.\n" +
+      "This ZIP contains project metadata, structured workspace artifacts, and downloaded project files.\n" +
       "Artifacts are separated into artifacts/ by artifact type and safe title.\n" +
-      "Private binary files and legacy project documents are not included.\n" +
-      "Treat this archive as project data and store it securely.\n"
+      "Uploaded files are stored under uploaded-files/. See manifest.json for any files that could not be included.\n" +
+      "Treat this archive as confidential project data and store it securely.\n"
     ) },
+    ...binaryFiles.map((file) => ({
+      name: file.path.split("/").map((part) => part.replace(/\.\./g, "_")).join("/"),
+      bytes: file.bytes,
+    })),
     ...artifacts.map((artifact, index) => {
       const base = (artifact.title || artifact.artifact_type || "artifact")
         .replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 65) || "artifact";
@@ -163,9 +197,9 @@ export type ParsedWorkspaceBackup = {
 
 /** Reads only the uncompressed ZIP format generated by createProjectWorkspaceBackup. */
 export async function readProjectWorkspaceBackup(file: File): Promise<ParsedWorkspaceBackup> {
-  const MAX_BYTES = 50 * 1024 * 1024;
+  const MAX_BYTES = 200 * 1024 * 1024;
   const MAX_ENTRIES = 1000;
-  if (file.size <= 0 || file.size > MAX_BYTES) throw new Error("Backup ZIP must be between 1 byte and 50 MB.");
+  if (file.size <= 0 || file.size > MAX_BYTES) throw new Error("Backup ZIP must be between 1 byte and 200 MB.");
   const bytes = new Uint8Array(await file.arrayBuffer());
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const read16 = (offset: number) => view.getUint16(offset, true);
@@ -235,7 +269,7 @@ export async function readProjectWorkspaceBackup(file: File): Promise<ParsedWork
     if (method !== 0) throw new Error("This ZIP uses compression not supported by the CivilOS workspace importer.");
     totalUncompressed += uncompressedSize;
     if (totalUncompressed > MAX_BYTES || compressedSize !== uncompressedSize) {
-      throw new Error("The backup contents exceed the supported size.");
+      throw new Error("The backup contents exceed the supported 200 MB size.");
     }
     if (localOffset + 30 > bytes.length || read32(localOffset) !== 0x04034b50) {
       throw new Error("The backup ZIP contains an invalid file header.");

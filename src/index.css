@@ -587,3 +587,144 @@
 @media (prefers-reduced-motion: reduce) {
   .pricing-depth-card, .social-proof-card, .faq-depth-card { transition: none !important; transform: none !important; }
 }
+
+
+/* Refined architectural hero: detailed modern residence with a continuous, very slow 3D turn. */
+.hero-building-model {
+  width: 246px;
+  height: 350px;
+  transform: translate(-50%, -50%);
+  animation: hero-building-slow-turn 54s linear infinite;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.hero-building-floor {
+  left: 0;
+  width: 190px;
+  height: 82px;
+  background: linear-gradient(155deg, hsl(210 24% 82% / .98), hsl(215 28% 48% / .98) 55%, hsl(222 34% 24%));
+  border: 1px solid hsl(190 75% 90% / .6);
+  box-shadow: inset 0 0 18px hsl(0 0% 100% / .12), 0 7px 16px hsl(220 80% 3% / .2);
+}
+.hero-building-floor--top { top: 40px; }
+.hero-building-floor--middle { top: 123px; }
+.hero-building-floor--bottom { top: 206px; }
+.hero-building-facade {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 11px 12px 15px;
+}
+.hero-building-facade i {
+  border: 2px solid hsl(210 25% 78% / .85);
+  background: linear-gradient(145deg, hsl(190 90% 88% / .92), hsl(202 80% 55% / .58) 48%, hsl(225 55% 25% / .92));
+  box-shadow: inset 0 0 12px hsl(0 0% 100% / .28), 0 0 9px hsl(190 95% 75% / .18);
+}
+.hero-building-side {
+  width: 58px;
+  height: 82px;
+  background: linear-gradient(150deg, hsl(218 30% 53%), hsl(225 42% 17%));
+}
+.hero-building-side i {
+  border: 1px solid hsl(190 80% 85% / .55);
+  background: linear-gradient(145deg, hsl(190 85% 75% / .55), hsl(225 55% 28% / .65));
+}
+.hero-building-back, .hero-building-left {
+  position: absolute;
+  top: -1px;
+  height: 82px;
+  border: 1px solid hsl(190 75% 82% / .35);
+  background: linear-gradient(145deg, hsl(218 28% 45%), hsl(225 42% 17%));
+  backface-visibility: hidden;
+}
+.hero-building-back { left: 0; width: 190px; transform: translateZ(-58px) rotateY(180deg); }
+.hero-building-left { left: -58px; width: 58px; transform-origin: right center; transform: rotateY(-55deg); }
+.hero-building-balcony {
+  position: absolute;
+  z-index: 3;
+  left: 8px;
+  right: 8px;
+  bottom: -7px;
+  height: 14px;
+  transform: translateZ(7px);
+  border: 1px solid hsl(190 70% 90% / .8);
+  border-top: 3px solid hsl(0 0% 96% / .9);
+  background: linear-gradient(180deg, hsl(210 20% 75% / .7), hsl(220 30% 25% / .6));
+  box-shadow: 0 4px 8px hsl(220 80% 3% / .22);
+}
+.hero-building-balcony span {
+  display: inline-block;
+  height: 8px;
+  width: 1px;
+  margin: 0 17px;
+  background: hsl(0 0% 100% / .8);
+}
+.hero-building-columns {
+  position: absolute;
+  top: 287px;
+  left: 9px;
+  width: 172px;
+  height: 32px;
+  display: flex;
+  justify-content: space-between;
+  transform: translateZ(5px);
+}
+.hero-building-columns i {
+  width: 9px;
+  height: 32px;
+  background: linear-gradient(90deg, hsl(0 0% 95%), hsl(210 18% 55%), hsl(0 0% 96%));
+  box-shadow: 2px 0 5px hsl(220 80% 3% / .25);
+}
+.hero-building-entry {
+  position: absolute;
+  left: 70px;
+  bottom: 0;
+  width: 48px;
+  height: 31px;
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  transform: translateZ(3px);
+  background: hsl(215 30% 15%);
+  border: 2px solid hsl(0 0% 92% / .8);
+}
+.hero-building-entry i { flex: 1; background: linear-gradient(145deg, hsl(190 85% 78% / .8), hsl(220 50% 30%)); }
+.hero-building-roof {
+  top: 4px;
+  height: 34px;
+  background: linear-gradient(90deg, hsl(215 20% 82%), hsl(210 24% 55%) 55%, hsl(225 45% 22%));
+  border: 1px solid hsl(0 0% 100% / .8);
+  box-shadow: 0 5px 14px hsl(220 80% 3% / .25);
+}
+.hero-building-roof i { width: 22px; height: 10px; border-color: hsl(0 0% 100% / .65); background: hsl(190 85% 75% / .28); }
+.hero-roof-pergola, .hero-roof-garden {
+  position: absolute;
+  top: -19px;
+  width: 38px;
+  height: 13px;
+  border: 2px solid hsl(0 0% 95% / .8);
+  background: repeating-linear-gradient(90deg, transparent 0 7px, hsl(0 0% 100% / .6) 8px 9px);
+}
+.hero-roof-pergola { left: 18px; }
+.hero-roof-garden { right: 18px; background: linear-gradient(90deg, hsl(130 40% 32%), hsl(95 45% 45%)); border: 0; border-radius: 4px; }
+.hero-building-foundation {
+  top: 326px;
+  left: -25px;
+  width: 240px;
+  height: 40px;
+  background: linear-gradient(90deg, hsl(220 28% 35%), hsl(190 35% 55%), hsl(220 30% 26%));
+  border: 1px solid hsl(0 0% 100% / .6);
+  box-shadow: 0 12px 24px hsl(220 90% 3% / .28);
+}
+@keyframes hero-building-slow-turn {
+  0% { transform: translate(-50%, -50%) rotateY(-24deg) rotateX(3deg); }
+  100% { transform: translate(-50%, -50%) rotateY(336deg) rotateX(3deg); }
+}
+@media (max-width: 1023px) {
+  .hero-building-model { animation-name: hero-building-slow-turn; }
+}
+@media (max-width: 640px) {
+  .hero-building-model { animation-name: hero-building-slow-turn; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-building-model { animation: none !important; transform: translate(-50%, -50%) rotateY(-24deg) rotateX(3deg); }
+}

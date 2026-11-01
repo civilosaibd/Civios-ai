@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import { ChevronRight, Lock, Wrench, Sparkles, CreditCard } from "lucide-react";
+import { NavLink, useLocation, useSearchParams } from "react-router-dom";
+import { ChevronRight, Lock, Wrench, Sparkles, CreditCard, FolderKanban } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -8,8 +8,10 @@ import {
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/lib/auth";
+import { ACTIVE_PROJECT_STORAGE_KEY, ACTIVE_PROJECT_CHANGE_EVENT } from "@/lib/projectSelection";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/lib/subscription";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   topNav, bottomNav, constructionTools, learningNav, analyticsNav, settingsNav,
   findActiveCategory, type NavCategory,
@@ -59,6 +61,68 @@ function CategoryGroup({
         )}
       </SidebarMenuItem>
     </Collapsible>
+  );
+}
+
+
+type WorkspaceProject = { id: string; name: string; created_at?: string };
+
+export function ProjectWorkspaceSelector({ collapsed = false }: { collapsed?: boolean }) {
+  const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [projects, setProjects] = useState<WorkspaceProject[]>([]);
+  const [selected, setSelected] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) { setProjects([]); setSelected(""); setLoading(false); return; }
+    let active = true;
+    setLoading(true);
+    supabase.from("projects").select("id,name,created_at").order("created_at", { ascending: true })
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) console.error("Could not load workspace projects", error);
+        const rows = (data || []) as WorkspaceProject[];
+        setProjects(rows);
+        const urlProject = searchParams.get("project");
+        const storedProject = window.localStorage.getItem(ACTIVE_PROJECT_STORAGE_KEY);
+        const candidate = urlProject || storedProject || "";
+        const valid = rows.some((project) => project.id === candidate) ? candidate : "";
+        setSelected(valid);
+        if (valid) window.localStorage.setItem(ACTIVE_PROJECT_STORAGE_KEY, valid);
+        else window.localStorage.removeItem(ACTIVE_PROJECT_STORAGE_KEY);
+        setLoading(false);
+      });
+    return () => { active = false; };
+  }, [user, searchParams]);
+
+  const changeProject = (value: string) => {
+    const next = value === "__none__" ? "" : value;
+    setSelected(next);
+    if (next) window.localStorage.setItem(ACTIVE_PROJECT_STORAGE_KEY, next);
+    else window.localStorage.removeItem(ACTIVE_PROJECT_STORAGE_KEY);
+    const params = new URLSearchParams(searchParams);
+    if (next) params.set("project", next);
+    else params.delete("project");
+    setSearchParams(params, { replace: true });
+    window.dispatchEvent(new CustomEvent(ACTIVE_PROJECT_CHANGE_EVENT, { detail: next || null }));
+  };
+
+  if (!user) return null;
+  return (
+    <div className={collapsed ? "px-1 py-2" : "px-3 py-3"}>
+      {!collapsed && <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"><FolderKanban className="h-3.5 w-3.5" /> Active Project</div>}
+      <Select value={selected || "__none__"} onValueChange={changeProject} disabled={loading}>
+        <SelectTrigger className={collapsed ? "h-9 w-full justify-center px-1" : "h-9 w-full text-xs"} aria-label="Choose active project" title="Choose active project">
+          {collapsed ? <FolderKanban className="h-4 w-4" /> : <SelectValue placeholder={loading ? "Loading projects…" : "Select project"} />}
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">Personal / No project</SelectItem>
+          {projects.map((project, index) => <SelectItem key={project.id} value={project.id}>Project #{index + 1} · {project.name}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      {!collapsed && <p className="mt-1 text-[10px] text-muted-foreground">নতুন কাজ এই প্রজেক্টে সংরক্ষণের জন্য এটি নির্বাচন করুন।</p>}
+    </div>
   );
 }
 
@@ -113,6 +177,7 @@ export function DashboardSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
+        <ProjectWorkspaceSelector collapsed={collapsed} />
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
