@@ -16,6 +16,7 @@ import { Loader2, Upload, Trash2, UserPlus, Lock, FileText, ArrowLeft, Users, Ac
 import { toast } from "sonner";
 import { listProjectArtifacts, createProjectArtifactDownloadUrl, saveProjectArtifact, type ProjectArtifact } from "@/lib/projectArtifacts";
 import { createProjectWorkspaceBackup, readProjectWorkspaceBackup } from "@/lib/projectWorkspaceBackup";
+import { exportProjectWorkspaceExcel, exportProjectWorkspacePdf, exportProjectWorkspaceWord } from "@/lib/projectWorkspaceExports";
 
 type Role = "admin" | "engineer" | "viewer";
 const roleColor: Record<Role, string> = {
@@ -360,6 +361,33 @@ export default function ProjectDetailPage() {
     toast.success("Member removed"); load();
   };
 
+  const updateMemberRole = async (memberId: string, nextRole: Role) => {
+    if (!isAdmin) return;
+    const { error } = await (supabase as any).from("project_members").update({ role: nextRole }).eq("id", memberId).eq("project_id", id);
+    if (error) {
+      console.error("Member role update failed", error);
+      toast.error("Permission could not be updated. Check project membership policies.");
+      return;
+    }
+    await logActivity("member_role_updated", { member_id: memberId, role: nextRole });
+    toast.success(`${nextRole.toUpperCase()} permission applied`);
+    await load();
+  };
+
+  const exportWorkspaceAs = async (format: "pdf" | "xlsx" | "docx") => {
+    if (!project) return;
+    try {
+      if (format === "pdf") exportProjectWorkspacePdf(project, artifacts, docs);
+      else if (format === "xlsx") exportProjectWorkspaceExcel(project, artifacts, docs);
+      else await exportProjectWorkspaceWord(project, artifacts, docs);
+      await logActivity("workspace_exported", { format, artifact_count: artifacts.length, document_count: docs.length });
+      toast.success(`Workspace exported as ${format.toUpperCase()}.`);
+    } catch (error) {
+      console.error("Workspace format export failed", error);
+      toast.error(error instanceof Error ? error.message : "Workspace export failed.");
+    }
+  };
+
   const updateStatus = async (status: string) => {
     if (!id || !project || !isAdmin || !["planning", "active", "completed"].includes(status)) return;
     const previousStatus = project.status;
@@ -444,7 +472,7 @@ export default function ProjectDetailPage() {
                     <Button asChild variant="outline"><Link to={`/boq?project=${id}`}>BOQ Generator</Link></Button>
                     <Button asChild variant="outline"><Link to={`/rate-analysis?project=${id}`}>Rate Analysis</Link></Button>
                     <Button asChild variant="outline"><Link to={`/visualizations?project=${id}`}>3D Visualization</Link></Button>
-                    <Button asChild variant="outline"><Link to={`/estimate/demo`}>Estimator</Link></Button>
+                    <Button asChild variant="outline"><Link to={`/estimate/demo?project=${id}`}>Estimator</Link></Button>
                   </div>
                 </CardContent></Card>
               </TabsContent>
@@ -453,7 +481,10 @@ export default function ProjectDetailPage() {
             <TabsContent value="artifacts" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><CardTitle>Unified Project Workspace</CardTitle><div className="flex flex-wrap gap-2"><input type="file" accept=".zip,application/zip" className="hidden" id="workspace-backup-import" onChange={importWorkspaceZip} /><Button variant="outline" size="sm" onClick={() => document.getElementById("workspace-backup-import")?.click()} disabled={importingBackup || !canEdit}><Upload className="mr-2 h-4 w-4" /> {importingBackup ? "Restoring…" : "Import ZIP"}</Button><Button variant="outline" size="sm" onClick={exportWorkspaceZip} disabled={artifactsLoading || exportingBackup || !project}><Archive className="mr-2 h-4 w-4" /> {exportingBackup ? "Preparing ZIP…" : "Download Complete Workspace"}</Button></div></div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><CardTitle>Unified Project Workspace</CardTitle><div className="flex flex-wrap gap-2"><input type="file" accept=".zip,application/zip" className="hidden" id="workspace-backup-import" onChange={importWorkspaceZip} /><Button variant="outline" size="sm" onClick={() => document.getElementById("workspace-backup-import")?.click()} disabled={importingBackup || !canEdit}><Upload className="mr-2 h-4 w-4" /> {importingBackup ? "Restoring…" : "Import ZIP"}</Button><Button variant="outline" size="sm" onClick={exportWorkspaceZip} disabled={artifactsLoading || exportingBackup || !project}><Archive className="mr-2 h-4 w-4" /> {exportingBackup ? "Preparing ZIP…" : "Download Complete Workspace"}</Button>
+                    <Button variant="outline" size="sm" onClick={() => exportWorkspaceAs("pdf")} disabled={!project || artifactsLoading}>PDF</Button>
+                    <Button variant="outline" size="sm" onClick={() => exportWorkspaceAs("xlsx")} disabled={!project || artifactsLoading}>Excel</Button>
+                    <Button variant="outline" size="sm" onClick={() => exportWorkspaceAs("docx")} disabled={!project || artifactsLoading}>Word</Button></div></div>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <p className="text-sm text-muted-foreground">
@@ -533,7 +564,7 @@ export default function ProjectDetailPage() {
                         <p className="text-sm font-medium truncate">{d.file_name}</p>
                         <p className="text-xs text-muted-foreground">{new Date(d.created_at).toLocaleString()}</p>
                       </button>
-                      {(isAdmin || d.uploaded_by === user?.id) &&
+                      {(isAdmin || (canEdit && d.uploaded_by === user?.id)) &&
                         <Button size="icon" variant="ghost" onClick={()=>deleteDoc(d)}><Trash2 className="h-4 w-4"/></Button>}
                     </div>
                   ))}
@@ -548,7 +579,7 @@ export default function ProjectDetailPage() {
                     <SelectTrigger className="w-36"><SelectValue/></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="engineer">Engineer</SelectItem>
+                      <SelectItem value="engineer">Engineer · Editor access</SelectItem>
                       <SelectItem value="viewer">Viewer</SelectItem>
                     </SelectContent>
                   </Select>
@@ -570,8 +601,17 @@ export default function ProjectDetailPage() {
                         <p className="text-xs text-muted-foreground">Joined {new Date(m.joined_at).toLocaleDateString()}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge className={roleColor[m.role as Role]} variant="outline">{m.role?.toUpperCase()}</Badge>
-                        {isAdmin && <Button size="icon" variant="ghost" onClick={()=>removeMember(m.id)}><Trash2 className="h-4 w-4"/></Button>}
+                        {isAdmin ? (
+                          <Select value={m.role} onValueChange={(value: Role) => updateMemberRole(m.id, value)}>
+                            <SelectTrigger className="w-32 h-8"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin · Manage project</SelectItem>
+                              <SelectItem value="viewer">Viewer · Read only</SelectItem>
+                              <SelectItem value="engineer">Engineer · Can edit</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : <Badge className={roleColor[m.role as Role]} variant="outline">{m.role?.toUpperCase()}</Badge>}
+                        {isAdmin && <Button size="icon" variant="ghost" onClick={()=>removeMember(m.id)} aria-label="Remove member"><Trash2 className="h-4 w-4"/></Button>}
                       </div>
                     </div>
                   ))}

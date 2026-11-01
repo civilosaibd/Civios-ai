@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
 import { ExportButtons } from "@/components/ExportButtons";
 import { saveProjectArtifact } from "@/lib/projectArtifacts";
+import { useActiveProjectId } from "@/lib/projectSelection";
 
 interface BOQItem { item: string; unit: string; qty: number; rate_bdt: number; amount_bdt: number; notes?: string }
 interface BOQResult { summary: string; boq_items: BOQItem[]; total_bdt: number; assumptions: string[] }
@@ -21,7 +22,8 @@ export default function BOQGeneratorPage() {
   const [result, setResult] = useState<BOQResult | null>(null);
   const [savingToProject, setSavingToProject] = useState(false);
   const [savedArtifactId, setSavedArtifactId] = useState<string | null>(null);
-  const projectId = new URLSearchParams(window.location.search).get("project");
+  const projectId = useActiveProjectId();
+  useEffect(() => { setSavedArtifactId(null); }, [projectId]);
 
   const generate = async () => {
     if (!input.trim()) return toast.error("Project description দিন");

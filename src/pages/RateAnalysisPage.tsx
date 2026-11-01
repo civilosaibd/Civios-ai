@@ -24,6 +24,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { ExportButtons } from "@/components/ExportButtons";
 import { saveProjectArtifact } from "@/lib/projectArtifacts";
+import { useActiveProjectId } from "@/lib/projectSelection";
 
 
 type Row = { name: string; qty: number; unit: string; rate: number };
@@ -248,8 +249,9 @@ const newAnalysis = (key: string): Analysis => ({ id: uid(), ...structuredClone(
 export default function RateAnalysisPage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const activeProjectId = useActiveProjectId();
   const [projects, setProjects] = useState<any[]>([]);
-  const [projectId, setProjectId] = useState<string>(() => new URLSearchParams(window.location.search).get("project") || "local");
+  const [projectId, setProjectId] = useState<string>(() => activeProjectId || "local");
   const [savingArtifact, setSavingArtifact] = useState(false);
   const [savedArtifactId, setSavedArtifactId] = useState<string | null>(null);
   const [setName, setSetName] = useState("My rate set");
@@ -258,6 +260,7 @@ export default function RateAnalysisPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { if (!authLoading && !user) navigate("/auth"); }, [user, authLoading, navigate]);
+  useEffect(() => { setProjectId(activeProjectId || "local"); setSavedArtifactId(null); }, [activeProjectId]);
   useEffect(() => { setActiveId(analyses[0]?.id ?? ""); }, [analyses.length === 0]);
 
   useEffect(() => {
