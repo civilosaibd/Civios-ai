@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { CSSProperties, SyntheticEvent } from "react";
 import "./AnimatedLogo.css";
 
 export interface AnimatedLogoProps {
@@ -34,7 +35,7 @@ const AnimatedLogo = ({
     return () => window.clearTimeout(timer);
   }, [mode, onComplete]);
 
-  const handleLogoError = (event: React.SyntheticEvent<HTMLImageElement>) => {
+  const handleLogoError = (event: SyntheticEvent<HTMLImageElement>) => {
     const image = event.currentTarget;
     if (image.src.endsWith(FALLBACK_LOGO)) return;
     image.onerror = null;
@@ -44,7 +45,7 @@ const AnimatedLogo = ({
   return (
     <div
       className={`animated-logo-scene animated-logo-scene--${mode}`}
-      style={{ width: size, height: size, "--logo-size": `${size}px` } as React.CSSProperties}
+      style={{ width: size, height: size, "--logo-size": `${size}px` } as CSSProperties}
       role="img"
       aria-label="CivilOS AI animated logo"
     >
