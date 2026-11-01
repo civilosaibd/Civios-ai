@@ -75,13 +75,9 @@ const ExcelLibraryPage = () => {
     if (!user) { setIsAdmin(false); setPermissionLoading(false); return; }
     let active = true;
     setPermissionLoading(true);
-    void Promise.all([
-      supabase.rpc("has_role", { _user_id: user.id, _role: "admin" }),
-      supabase.rpc("has_admin_permission", { _feature_key: "excel_library", _action: "manage" }),
-      supabase.rpc("is_super_admin"),
-    ]).then(([legacy, permission, superAdmin]) => {
+    void supabase.rpc("has_role", { _user_id: user.id, _role: "admin" }).then(({ data, error }) => {
       if (!active) return;
-      setIsAdmin(legacy.data === true || permission.data === true || superAdmin.data === true);
+      setIsAdmin(!error && data === true);
       setPermissionLoading(false);
     }).catch(() => {
       if (active) {
