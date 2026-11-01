@@ -66,11 +66,7 @@ create policy "Admins upload Excel library objects"
   on storage.objects for insert to authenticated
   with check (
     bucket_id = 'excel-library'
-    and (
-      public.is_super_admin()
-      or public.has_admin_permission('excel_library', 'manage')
-      or public.has_role((select auth.uid()), 'admin')
-    )
+    and public.has_role((select auth.uid()), 'admin')
   );
 
 create policy "Authenticated users read Excel library objects"
@@ -81,9 +77,5 @@ create policy "Admins delete Excel library objects"
   on storage.objects for delete to authenticated
   using (
     bucket_id = 'excel-library'
-    and (
-      public.is_super_admin()
-      or public.has_admin_permission('excel_library', 'manage')
-      or public.has_role((select auth.uid()), 'admin')
-    )
+    and public.has_role((select auth.uid()), 'admin')
   );
