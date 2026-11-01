@@ -303,6 +303,45 @@ export type Database = {
         }
         Relationships: []
       }
+      excel_library_files: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          mime_type: string
+          original_filename: string
+          size_bytes: number
+          storage_path: string
+          title: string
+          uploaded_by: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          mime_type: string
+          original_filename: string
+          size_bytes: number
+          storage_path: string
+          title: string
+          uploaded_by: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          mime_type?: string
+          original_filename?: string
+          size_bytes?: number
+          storage_path?: string
+          title?: string
+          uploaded_by?: string
+        }
+        Relationships: []
+      }
       invitations: {
         Row: {
           accepted_at: string | null
@@ -1211,6 +1250,8 @@ export type Database = {
         Args: { _project_id: string; _user_id: string }
         Returns: Database["public"]["Enums"]["project_role"]
       }
+      has_admin_permission: { Args: { _action: string; _feature_key: string }; Returns: boolean }
+      is_super_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
