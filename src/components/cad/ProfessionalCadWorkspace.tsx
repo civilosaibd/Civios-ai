@@ -18,6 +18,7 @@ import CadSelectionInspector from "@/components/cad/CadSelectionInspector";
 import CadRoomSchedule from "@/components/cad/CadRoomSchedule";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { createIndoCadTemplate, type IndoCadTemplateId } from "@/lib/cad2d/templates";
 
 type DraftEntity = CadEntity & { id: string; layerId: string };
 type View = { x: number; y: number; scale: number };
@@ -38,11 +39,11 @@ const palette: { id: CadToolId; label: string; group: string }[] = [
 
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `cad-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-export default function ProfessionalCadWorkspace() {
+export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-document-v2" }: { storageKey?: string }) {
   const [doc, setDoc] = useState<CadDocument>(() => {
     if (typeof window === "undefined") return createEmptyDocument("ft");
     try {
-      const saved = window.localStorage.getItem("civilos-cad-document-v2") ?? window.localStorage.getItem("civilos-cad-document-v1");
+      const saved = window.localStorage.getItem(storageKey) ?? (storageKey === "civilos-cad-document-v2" ? window.localStorage.getItem("civilos-cad-document-v1") : null);
       if (!saved) return createEmptyDocument("ft");
       const parsed = deserializeCadDocument(saved);
       if (Array.isArray(parsed.entities) && Array.isArray(parsed.layers) && parsed.layers.length > 0) return parsed;
@@ -76,11 +77,11 @@ export default function ProfessionalCadWorkspace() {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem("civilos-cad-document-v2", JSON.stringify({ ...doc, version: 2 }));
+      window.localStorage.setItem(storageKey, JSON.stringify({ ...doc, version: 2 }));
     } catch {
       toast.error("Could not auto-save this drawing locally. Please export a JSON backup.");
     }
-  }, [doc]);
+  }, [doc, storageKey]);
 
   const commit = useCallback((next: CadDocument) => {
     setHistory((h) => [...h.slice(-99), doc]);
@@ -754,6 +755,19 @@ export default function ProfessionalCadWorkspace() {
     };
     input.click();
   };
+  const loadTemplate = (templateId: IndoCadTemplateId) => {
+    if (doc.entities.length > 0 && !window.confirm("Load this starter plan? It will replace the current drawing. Export a JSON backup first if you need to keep it.")) return;
+    const next = createIndoCadTemplate(templateId);
+    commit(next);
+    setLayerName(next.layers[0].name);
+    setSelected([]);
+    setStart(null);
+    setPolylinePoints([]);
+    setFuture([]);
+    setView({ x: 210, y: 105, scale: 14 });
+    setGrid((current) => ({ ...current, enabled: true, gridSpacing: 1, snapSpacing: 0.5, snapEnabled: true }));
+    toast.success(templateId === "two-bedroom-home" ? "2-bedroom home template loaded." : "Compact office template loaded.");
+  };
   const groups=useMemo(()=>Array.from(new Set(palette.map((p)=>p.group))),[]);
   const selectTool = (id: CadToolId) => { setTool(id); setStart(null); setPolylinePoints([]); setModifyTargetId(null); setCursor(null); setToolsOpen(false); };
   const finishPolyline = () => {
@@ -811,6 +825,22 @@ export default function ProfessionalCadWorkspace() {
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
       <div className="flex items-center gap-2 px-1"><div className="rounded-lg bg-orange-50 p-2 text-orange-600"><Wrench className="h-4 w-4"/></div><div><p className="text-xs font-semibold text-slate-800">Quick controls</p><p className="text-[10px] text-slate-500">Manage your drawing</p></div></div>
       <div className="flex flex-wrap items-center gap-1">
+        <label className="sr-only" htmlFor="indocad-template">Load a starter drawing template</label>
+        <select
+          id="indocad-template"
+          defaultValue=""
+          onChange={(event) => {
+            const value = event.target.value as IndoCadTemplateId | "";
+            if (value) loadTemplate(value);
+            event.target.value = "";
+          }}
+          className="h-9 max-w-[190px] rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700"
+          title="Start a drawing from an architectural template"
+        >
+          <option value="" disabled>Starter templates…</option>
+          <option value="two-bedroom-home">2-bedroom home · 40 × 30 ft</option>
+          <option value="compact-office">Compact office · 36 × 24 ft</option>
+        </select>
         {tool === "polyline" && polylinePoints.length >= 2 && <Button size="sm" onClick={finishPolyline}>Finish Polyline</Button>}
         {isMobile && <Sheet open={toolsOpen} onOpenChange={setToolsOpen}><SheetTrigger asChild><Button size="sm" variant="default"><Wrench className="mr-1 h-4 w-4"/>Tools</Button></SheetTrigger><SheetContent side="bottom" className="max-h-[82dvh] overflow-y-auto"><SheetHeader><SheetTitle>2D Drafting Tools</SheetTitle></SheetHeader><div className="mt-4">{ToolPalette}</div></SheetContent></Sheet>}
         <Button size="sm" variant="outline" className="rounded-lg" onClick={undo} disabled={!history.length} title="Undo (Ctrl+Z)"><Undo2 className="mr-1.5 h-4 w-4"/>Undo</Button>
