@@ -2,6 +2,8 @@ import type { CadDocument, CadEntity } from "@/lib/cad2d/geometry";
 
 export type IndoCadTemplateId = "two-bedroom-home" | "compact-office";
 
+type NewCadEntity = CadEntity extends infer Entity ? Entity extends CadEntity ? Omit<Entity, "id" | "layerId"> : never : never;
+
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `indocad-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 function buildDocument(
@@ -14,7 +16,7 @@ function buildDocument(
 ): CadDocument {
   const layerId = "indocad-architecture";
   const entities: CadEntity[] = [];
-  const add = (entity: Omit<CadEntity, "id" | "layerId">) => {
+  const add = (entity: NewCadEntity) => {
     entities.push({ ...entity, id: makeId(), layerId } as CadEntity);
   };
   walls.forEach(([x1, y1, x2, y2]) => add({ type: "wall", start: { x: x1, y: y1 }, end: { x: x2, y: y2 }, thickness: 0.35 }));
