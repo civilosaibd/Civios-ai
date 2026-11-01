@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import SEO from "@/components/SEO";
@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import {
   Loader2, Trash2, Star, Check, X, Crown, Users, FolderKanban, Building, MessageSquare,
-  Mail, Phone, Send, ExternalLink, Reply, Search, Eye, ShieldCheck,
+  Mail, Phone, Send, ExternalLink, Reply, Search, Eye, ShieldCheck, FileSpreadsheet,
 } from "lucide-react";
 
 const WHATSAPP_NUMBER = "8801832313998";
@@ -206,6 +206,7 @@ ${replyText}
               <h1 className="font-heading text-2xl md:text-3xl font-bold">Admin Panel</h1>
               <p className="text-sm text-muted-foreground">Sponsors • Ratings • Users • Projects • Messages</p>
             </div>
+            <Button asChild variant="outline" size="sm"><Link to="/admin/excel-library"><FileSpreadsheet className="mr-2 h-4 w-4" />Excel Library</Link></Button>
             {(newMsgCount > 0 || pendingSponsors > 0) && (
               <div className="flex gap-2">
                 {newMsgCount > 0 && <Badge className="bg-red-500">{newMsgCount} new msg</Badge>}

@@ -32,6 +32,7 @@ const ProjectsPage = lazy(() => import("./pages/ProjectsPage.tsx"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage.tsx"));
 const SponsorPage = lazy(() => import("./pages/SponsorPage.tsx"));
 const AdminPage = lazy(() => import("./pages/AdminPage.tsx"));
+const ExcelLibraryPage = lazy(() => import("./pages/ExcelLibraryPage.tsx"));
 const SharedEstimatePage = lazy(() => import("./pages/SharedEstimatePage.tsx"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage.tsx"));
 const AIWriterPage = lazy(() => import("./pages/AIWriterPage.tsx"));
@@ -231,6 +232,8 @@ const App = () => (
                       <Route path="/profile" element={<ProfilePage />} />
                       <Route path="/sponsor" element={<SponsorPage />} />
                       <Route path="/admin" element={<AdminPage />} />
+                      <Route path="/admin/excel-library" element={<ExcelLibraryPage />} />
+                      <Route path="/excel-library" element={<ExcelLibraryPage />} />
 
                       <Route
                         path="/notifications"
