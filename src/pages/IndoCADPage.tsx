@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { DraftingCompass, ShieldCheck } from "lucide-react";
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
+import { useActiveProjectId } from "@/lib/projectSelection";
 import ProfessionalCadWorkspace from "@/components/cad/ProfessionalCadWorkspace";
 
 /**
@@ -12,6 +13,9 @@ import ProfessionalCadWorkspace from "@/components/cad/ProfessionalCadWorkspace"
  * surrounding application navigation/authentication intact.
  */
 export default function IndoCADPage() {
+  const activeProjectId = useActiveProjectId();
+  const storageKey = `civilos-indocad:v1:${activeProjectId ?? "personal"}`;
+
   return (
     <SidebarProvider>
       <SEO
@@ -29,7 +33,7 @@ export default function IndoCADPage() {
             <div className="min-w-0">
               <h1 className="truncate text-sm font-semibold md:text-base">IndoCAD Workspace</h1>
               <p className="hidden text-[10px] text-muted-foreground sm:block">
-                Professional 2D drafting · Architectural tools · Precision editing
+                Professional 2D drafting · {activeProjectId ? "Project drawing" : "Personal drawing"} · Auto-saved locally
               </p>
             </div>
             <div className="ml-auto flex items-center gap-2">
@@ -42,7 +46,7 @@ export default function IndoCADPage() {
 
           <main className="min-h-0 flex-1 overflow-y-auto p-2 md:p-4">
             <div className="mx-auto w-full max-w-[1800px]">
-              <ProfessionalCadWorkspace />
+              <ProfessionalCadWorkspace key={storageKey} storageKey={storageKey} />
             </div>
           </main>
         </div>
