@@ -35,18 +35,14 @@ create policy "Admins upload Excel library metadata"
   with check (
     uploaded_by = (select auth.uid())
     and (
-      public.is_super_admin()
-      or public.has_admin_permission('excel_library', 'manage')
-      or public.has_role((select auth.uid()), 'admin')
+      public.has_role((select auth.uid()), 'admin')
     )
   );
 
 create policy "Admins delete Excel library metadata"
   on public.excel_library_files for delete to authenticated
   using (
-    public.is_super_admin()
-    or public.has_admin_permission('excel_library', 'manage')
-    or public.has_role((select auth.uid()), 'admin')
+    public.has_role((select auth.uid()), 'admin')
   );
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
