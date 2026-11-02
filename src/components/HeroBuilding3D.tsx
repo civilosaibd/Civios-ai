@@ -77,7 +77,7 @@ function Planter({ position, width = 0.9, height = 0.42 }: { position: Vec3; wid
   return (
     <group position={position}>
       <Solid position={[0, height / 2, 0]} size={[width, height, 0.55]} color="#aaa69c" roughness={0.92} />
-      <Solid position={[0, height + 0.018, 0]} size={[width - 0.1, 0.045, 0.45]} color="#3f493e"} roughness={1} />
+      <Solid position={[0, height + 0.018, 0]} size={[width - 0.1, 0.045, 0.45]} color="#3f493e" roughness={1} />
       {Array.from({ length: 5 }, (_, i) => (
         <mesh key={i} position={[-width * 0.34 + i * width * 0.17, height + 0.2 + (i % 2) * 0.07, (i % 2) * 0.08]} castShadow>
           <dodecahedronGeometry args={[0.17 + (i % 3) * 0.025, 1]} />
