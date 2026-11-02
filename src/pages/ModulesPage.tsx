@@ -34,7 +34,6 @@ const GROUPS: Group[] = [
   { label: "Floor Plan & Design", bn: "ফ্লোর প্ল্যান ও ডিজাইন", items: [
     { title: "Floor Plan & 3D Design Studio", bn: "ফ্লোর প্ল্যান ও 3D ডিজাইন", url: "/floor-plan-studio", icon: Box, live: true },
     { title: "Create Your Own Plan", bn: "নিজের প্ল্যান তৈরি", url: "/plan-generator", icon: Building2, live: true },
-    { title: "BIM Studio 3D", bn: "বিআইএম স্টুডিও 3D", url: "/bim-studio", icon: Box, live: true },
   ]},
   { label: "Quantity Surveying", bn: "কোয়ান্টিটি সার্ভে", items: [
     { title: "BOQ Hub", bn: "বিওকিউ হাব", url: "/boq-hub", icon: Calculator, live: true },
