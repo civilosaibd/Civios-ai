@@ -15,15 +15,24 @@ Deno.serve(async (req) => {
   const { data: auth, error: authError } = await caller.auth.getUser();
   if (authError || !auth.user) return reply({ error: "Invalid session" }, 401, origin);
   const db = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: allowed, error: roleError } = await db.rpc("has_role", { _user_id: auth.user.id, _role: "admin" });
-  if (roleError || allowed !== true) return reply({ error: "Admin access required" }, 403, origin);
+  const [{data: legacyAdmin},{data: superAdmin},{data: canViewProjects},{data: canManageProjects}] = await Promise.all([
+    caller.rpc("has_role",{_user_id:auth.user.id,_role:"admin"}),
+    caller.rpc("is_super_admin"),
+    caller.rpc("has_admin_permission",{_feature_key:"projects",_action:"view"}),
+    caller.rpc("has_admin_permission",{_feature_key:"projects",_action:"manage"}),
+  ]);
   let body: { action?: string; projectId?: string; page?: number; search?: string; status?: string };
   try { body = await req.json(); } catch { return reply({ error: "Invalid JSON body" }, 400, origin); }
+  const mayView = legacyAdmin===true || superAdmin===true || canViewProjects===true;
+  const mayManage = legacyAdmin===true || superAdmin===true || canManageProjects===true;
+  if(body.action==="update-status" ? !mayManage : !mayView) {
+    return reply({error:body.action==="update-status"?"Projects: Manage permission required":"Projects: View permission required"},403,origin);
+  }
 
   if (body.action === "list") {
     const page = Math.max(1, Math.min(10000, Number(body.page) || 1)), pageSize = 25;
     const term = String(body.search || "").replace(/[,%()]/g, " ").trim().slice(0, 100);
-    let query = db.from("projects").select("id,user_id,name,file_name,is_public,share_token,created_at,updated_at,status,client_name,location,project_type,budget,start_date,end_date", { count: "exact" });
+    let query = db.from("projects").select("id,user_id,name,file_name,is_public,created_at,updated_at,status,client_name,location,project_type,budget,start_date,end_date", { count: "exact" });
     if (term) query = query.or(`name.ilike.%${term}%,file_name.ilike.%${term}%,client_name.ilike.%${term}%,location.ilike.%${term}%`);
     const { data: projects, error, count } = await query.order("updated_at", { ascending: false }).range((page - 1) * pageSize, page * pageSize - 1);
     if (error) return reply({ error: "Unable to load project directory" }, 500, origin);
@@ -43,7 +52,7 @@ Deno.serve(async (req) => {
   if (body.action === "details") {
     const id = body.projectId || "";
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return reply({ error: "A valid project ID is required" }, 400, origin);
-    const { data: project, error } = await db.from("projects").select("id,user_id,name,inputs,estimate,bnbc_loads,file_name,created_at,updated_at,is_public,share_token,client_name,location,project_type,status,budget,start_date,end_date").eq("id", id).maybeSingle();
+    const { data: project, error } = await db.from("projects").select("id,user_id,name,inputs,estimate,bnbc_loads,file_name,created_at,updated_at,is_public,client_name,location,project_type,status,budget,start_date,end_date").eq("id", id).maybeSingle();
     if (error || !project) return reply({ error: "Project not found" }, 404, origin);
     const [{ data: profile }, { data: owner }, docs, activity, members] = await Promise.all([
       db.from("profiles").select("id,display_name").eq("id", project.user_id).maybeSingle(),
