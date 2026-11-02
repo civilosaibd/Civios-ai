@@ -17,9 +17,10 @@ function toCadDocument(plan: GeneratedPlan, units: CadDocument["units"]): CadDoc
   const openingLayer = { id: "ai-openings", name: "AI Doors & Windows", visible: true, color: "#0284c7", lineWeight: 1 };
   const labelLayer = { id: "ai-labels", name: "AI Room Labels & Dimensions", visible: true, color: "#64748b", lineWeight: 1 };
   const entities: CadEntity[] = [];
+  const wallSegments: Array<[number,number,number,number]> = [];
   const wall = (x1: number, y1: number, x2: number, y2: number) => {
     if (Math.hypot(x2-x1,y2-y1)<0.05) return;
-    entities.push({id:makeId(),layerId:wallLayer.id,type:"wall",start:{x:x1*f,y:y1*f},end:{x:x2*f,y:y2*f},thickness:0.5*f});
+    wallSegments.push([x1,y1,x2,y2]);
   };
   const label = (x:number,y:number,value:string,height=0.75) => entities.push({id:makeId(),layerId:labelLayer.id,type:"text",at:{x:x*f,y:y*f},text:value,height:height*f,rotation:0});
   wall(0,0,plan.footprint.width,0); wall(plan.footprint.width,0,plan.footprint.width,plan.footprint.depth);
@@ -30,6 +31,35 @@ function toCadDocument(plan: GeneratedPlan, units: CadDocument["units"]): CadDoc
     label(room.x+room.width/2-Math.min(2.2,room.name.length*0.18),room.y+room.depth/2,room.name,0.8);
     label(room.x+room.width/2-1.3,room.y+room.depth/2+1.05,`${room.width.toFixed(1)}' × ${room.depth.toFixed(1)}'`,0.5);
   }
+  // Cut true door/window gaps from the wall solids so the 3D preview shows real openings.
+  const allOpenings = [...plan.doors, ...plan.windows];
+  for (const [x1,y1,x2,y2] of wallSegments) {
+    const horizontal = Math.abs(y2-y1) < 0.05;
+    const fixed = horizontal ? y1 : x1;
+    const low = horizontal ? Math.min(x1,x2) : Math.min(y1,y2);
+    const high = horizontal ? Math.max(x1,x2) : Math.max(y1,y2);
+    const cuts = allOpenings
+      .filter(item => (horizontal ? (item.wall === "north" || item.wall === "south") && Math.abs(item.y-fixed)<0.15 : (item.wall === "east" || item.wall === "west") && Math.abs(item.x-fixed)<0.15))
+      .map(item => ({ start: (horizontal ? item.x : item.y)-item.width/2, end: (horizontal ? item.x : item.y)+item.width/2 }))
+      .filter(item => item.end > low+0.03 && item.start < high-0.03)
+      .sort((a,b)=>a.start-b.start);
+    let cursor = low;
+    for (const cut of cuts) {
+      const cutStart = Math.max(low,cut.start), cutEnd = Math.min(high,cut.end);
+      if (cutStart > cursor+0.03) {
+        const start = horizontal ? {x:cursor,y:fixed} : {x:fixed,y:cursor};
+        const end = horizontal ? {x:cutStart,y:fixed} : {x:fixed,y:cutStart};
+        entities.push({id:makeId(),layerId:wallLayer.id,type:"wall",start:{x:start.x*f,y:start.y*f},end:{x:end.x*f,y:end.y*f},thickness:0.5*f});
+      }
+      cursor = Math.max(cursor,cutEnd);
+    }
+    if (cursor < high-0.03) {
+      const start = horizontal ? {x:cursor,y:fixed} : {x:fixed,y:cursor};
+      const end = horizontal ? {x:high,y:fixed} : {x:fixed,y:high};
+      entities.push({id:makeId(),layerId:wallLayer.id,type:"wall",start:{x:start.x*f,y:start.y*f},end:{x:end.x*f,y:end.y*f},thickness:0.5*f});
+    }
+  }
+
   const addOpening=(item:Opening,type:"door"|"window")=>entities.push({id:makeId(),layerId:openingLayer.id,type,at:{x:item.x*f,y:item.y*f},width:item.width*f,rotation:item.wall==="north"||item.wall==="south"?0:Math.PI/2,...(type==="door"?{swing:"left" as const}:{})} as CadEntity);
   plan.doors.forEach(item=>addOpening(item,"door")); plan.windows.forEach(item=>addOpening(item,"window"));
   entities.push({id:makeId(),layerId:labelLayer.id,type:"dimension",a:{x:0,y:-2*f},b:{x:plan.footprint.width*f,y:-2*f},offset:0.6*f});
