@@ -21,13 +21,21 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return reply({ error: "Invalid JSON body" }, 400, origin); }
 
   if (body.action === "list") {
-    const [rr, cr, wr] = await Promise.all([
+    const [rr, cr, wr, er] = await Promise.all([
       db.from("referrals").select("id,referrer_id,referred_user_id,plan,commission_amount,status,created_at").order("created_at", { ascending: false }).limit(2000),
       db.from("referral_commissions").select("id,referral_id,referrer_id,referred_user_id,payment_id,base_amount,rate,commission_amount,status,flag_reason,reviewed_at,created_at").order("created_at", { ascending: false }).limit(5000),
       db.from("withdrawals").select("id,user_id,amount,method,account_number,status,requested_at,approved_at,paid_at,admin_note,transaction_reference,reviewed_at").order("requested_at", { ascending: false }).limit(2000),
+      db.from("referral_events").select("referrer_id,event_type").limit(100000),
     ]);
-    if (rr.error || cr.error || wr.error) return reply({ error: "Unable to load complete affiliate records" }, 500, origin);
-    const referrals = rr.data || [], commissions = cr.data || [], withdrawals = wr.data || [];
+    if (rr.error || cr.error || wr.error || er.error) return reply({ error: "Unable to load complete affiliate records and engagement analytics" }, 500, origin);
+    const referrals = rr.data || [], commissions = cr.data || [], withdrawals = wr.data || [], events = er.data || [];
+    const eventCounts = new Map<string, { share_actions: number; link_clicks: number }>();
+    for (const event of events) {
+      const count = eventCounts.get(event.referrer_id) || { share_actions: 0, link_clicks: 0 };
+      if (event.event_type === "share_action") count.share_actions += 1;
+      if (event.event_type === "link_click") count.link_clicks += 1;
+      eventCounts.set(event.referrer_id, count);
+    }
     const ids = [...new Set([...referrals.flatMap((r) => [r.referrer_id, r.referred_user_id]), ...withdrawals.map((w) => w.user_id)])].filter(Boolean);
     const { data: profiles, error: profileError } = ids.length ? await db.from("profiles").select("id,display_name,avatar_url,referral_code").in("id", ids) : { data: [], error: null };
     if (profileError) return reply({ error: "Unable to load affiliate profiles" }, 500, origin);
@@ -44,12 +52,13 @@ Deno.serve(async (req) => {
       const total = (rows: any[], statuses: string[], field: string) => rows.filter((x) => statuses.includes(x.status)).reduce((s, x) => s + Number(x[field] || 0), 0);
       return { user_id: id, name: profileMap.get(id)?.display_name || null, ...(contacts.get(id) || { email: null, phone: null }), referral_code: profileMap.get(id)?.referral_code || null,
         referrals: ownRefs.length, conversions: ownRefs.filter((r) => r.status === "converted").length,
+        share_actions: eventCounts.get(id)?.share_actions || 0, link_clicks: eventCounts.get(id)?.link_clicks || 0,
         first_tier_commissions: ownComms.filter((c) => Number(c.rate) === 0.3).length, subsequent_tier_commissions: ownComms.filter((c) => Number(c.rate) === 0.1).length,
         earned: total(ownComms, ["approved"], "commission_amount"), under_review: total(ownComms, ["flagged"], "commission_amount"),
         available: total(ownComms, ["approved"], "commission_amount") - total(ownWithdrawals, ["pending", "approved", "paid"], "amount"),
         referrals_detail: ownRefs.map((r) => ({ ...r, referred_name: profileMap.get(r.referred_user_id)?.display_name || null, referred_email: contacts.get(r.referred_user_id)?.email || null })) };
     });
-    const audit = await db.from("admin_action_audit").insert({ admin_user_id: auth.user.id, action: "view_affiliate_control_center", target_type: "affiliate_directory", details: { affiliate_count: affiliates.length, referral_count: referrals.length } });
+    const audit = await db.from("admin_action_audit").insert({ admin_user_id: auth.user.id, action: "view_affiliate_control_center", target_type: "affiliate_directory", details: { affiliate_count: affiliates.length, referral_count: referrals.length, engagement_event_count: events.length } });
     if (audit.error) return reply({ error: "Unable to record privileged access; records were not returned" }, 500, origin);
     return reply({ affiliates, commissions, withdrawals, totals: { affiliates: affiliates.length, referrals: referrals.length, conversions: referrals.filter((r) => r.status === "converted").length,
       commission_approved: totalAll(commissions, ["approved"]), commission_flagged: totalAll(commissions, ["flagged"]), withdrawals_paid: totalAll(withdrawals, ["paid"]) } }, 200, origin);
