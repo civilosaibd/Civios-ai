@@ -616,9 +616,21 @@ test("admin_ai_usage_summary: only admins can read monthly aggregate counters", 
   assert.equal(summary.drawings, 5);
   assert.equal(summary.reports, 7);
   assert.equal(Number(summary.storage_mb), 10);
+  const [membership] = await q(
+    "INSERT INTO public.admin_memberships(user_id,role,status,assigned_by) VALUES ($1,'sub_admin','active',$2) RETURNING id",
+    [BOB, ADMIN]
+  );
+  await db.query(
+    "INSERT INTO public.admin_feature_permissions(membership_id,feature_key,action,granted_by) VALUES ($1,'ai_usage','view',$2)",
+    [membership.id, ADMIN]
+  );
+  await bob(async () => {
+    const [{ summary: subSummary }] = await q("SELECT public.admin_ai_usage_summary($1) AS summary", [period]);
+    assert.equal(subSummary.ai_credits, 20);
+  });
   await alice(() => rejects(
     () => db.query("SELECT public.admin_ai_usage_summary($1)", [period]),
-    /Admin access required/
+    /AI Usage: View permission required/
   ));
 });
 
