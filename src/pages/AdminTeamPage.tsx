@@ -113,7 +113,7 @@ export default function AdminTeamPage() {
           {loading?<div className="p-4 space-y-3"><Skeleton className="h-24 w-full"/><Skeleton className="h-24 w-full"/></div>:members.length===0?<p className="p-8 text-sm text-muted-foreground text-center">No memberships found.</p>:<div className="divide-y">{members.map(member=><article key={member.id} className="p-4 space-y-3">
             <div className="flex flex-col md:flex-row md:items-center gap-2"><div className="flex-1 min-w-0"><p className="font-semibold text-sm">{member.display_name || member.email || "Admin account"}</p><p className="text-xs text-muted-foreground break-all">{member.email || member.user_id}</p></div><Badge variant={member.role==="super_admin"?"default":"secondary"}>{member.role.replace("_"," ")}</Badge><Badge variant={member.status==="active"?"outline":"destructive"}>{member.status}</Badge></div>
             {member.role==="sub_admin" && <><div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              {<div className="rounded-lg border p-3 space-y-2">
+              <div className="rounded-lg border p-3 space-y-2">
                 <p className="text-xs font-semibold">Users workspace permissions</p>
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={(permissionDraft[member.id]?.users||[]).includes("view")} onChange={e=>setFeatureDraft(member.id,"view",e.target.checked)}/>View user directory and account details</label>
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={(permissionDraft[member.id]?.users||[]).includes("manage")} onChange={e=>setFeatureDraft(member.id,"manage",e.target.checked)}/>Manage user accounts (suspend / reactivate)</label>
