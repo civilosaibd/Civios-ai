@@ -42,14 +42,14 @@ before(async()=>{
 });
 
 test("Super Admin invitation acceptance creates only a sub-admin membership for the invited email",async()=>{
-  await db.query("INSERT INTO public.admin_invitations(invited_email,invited_by,role,status,token_hash,expires_at) VALUES ('subadmin@example.com',$1,'sub_admin','pending','test-token-hash',now()+interval '7 days')",[ADMIN]);
+  await db.query("INSERT INTO public.admin_invitations(invited_email,invited_by,role,status,token_hash,expires_at) VALUES ('subadmin@example.com',$1,'sub_admin','pending','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',now()+interval '7 days')",[ADMIN]);
   await sub(async()=>{
-    const result=await db.query("SELECT public.admin_accept_invitation('test-token-hash') AS value");
+    const result=await db.query("SELECT public.admin_accept_invitation('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') AS value");
     assert.equal(result.rows[0].value.status,"active");
   });
   const [membership]=await q("SELECT role,status FROM public.admin_memberships WHERE user_id=$1",[SUB]);
   assert.deepEqual(membership,{role:"sub_admin",status:"active"});
-  assert.equal((await q("SELECT status FROM public.admin_invitations WHERE token_hash='test-token-hash'"))[0].status,"accepted");
+  assert.equal((await q("SELECT status FROM public.admin_invitations WHERE token_hash='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'"))[0].status,"accepted");
 });
 
 test("Super Admin can grant Users permissions and manage automatically implies view",async()=>{
@@ -93,8 +93,8 @@ test("Sub-admin removal deletes permissions and access",async()=>{
 });
 
 test("Expired, mismatched and replayed invitations cannot activate access",async()=>{
-  await db.query("INSERT INTO public.admin_invitations(invited_email,invited_by,role,status,token_hash,expires_at) VALUES ('someoneelse@example.com',$1,'sub_admin','pending','wrong-email-hash',now()+interval '7 days'),('other@example.com',$1,'sub_admin','pending','expired-hash',now()-interval '1 day')",[ADMIN]);
-  await other(()=>rejects(()=>db.query("SELECT public.admin_accept_invitation('wrong-email-hash')"),/belongs to another email/));
-  await other(()=>rejects(()=>db.query("SELECT public.admin_accept_invitation('expired-hash')"),/invalid, revoked, or expired/));
-  await other(()=>rejects(()=>db.query("SELECT public.admin_accept_invitation('test-token-hash')"),/invalid, revoked, or expired/));
+  await db.query("INSERT INTO public.admin_invitations(invited_email,invited_by,role,status,token_hash,expires_at) VALUES ('someoneelse@example.com',$1,'sub_admin','pending','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',now()+interval '7 days'),('other@example.com',$1,'sub_admin','pending','cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',now()-interval '1 day')",[ADMIN]);
+  await other(()=>rejects(()=>db.query("SELECT public.admin_accept_invitation('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')"),/belongs to another email/));
+  await other(()=>rejects(()=>db.query("SELECT public.admin_accept_invitation('cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc')"),/invalid, revoked, or expired/));
+  await other(()=>rejects(()=>db.query("SELECT public.admin_accept_invitation('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')"),/invalid, revoked, or expired/));
 });
