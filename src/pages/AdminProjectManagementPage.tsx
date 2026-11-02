@@ -35,7 +35,7 @@ export default function AdminProjectManagementPage() {
       setRows(data.projects||[]); setPage(data.page||targetPage); setTotal(data.total||0); setHasMore(!!data.has_more);
     } catch(e:any) { toast.error(e?.message||"Could not load project directory."); }
     finally { setLoading(false); }
-  },[page,search]);
+  },[]);
 
   useEffect(()=>{let active=true;(async()=>{
     if(!user){nav("/auth?redirect=/admin/projects");return;}
