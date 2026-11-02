@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import {
-  Loader2, Trash2, Star, Check, X, Crown, Users, FolderKanban, Building, MessageSquare,
+  Loader2, Trash2, Star, Check, X, Crown, Users, FolderKanban, Building, MessageSquare, CreditCard, Activity, TrendingUp,
   Mail, Phone, Send, ExternalLink, Reply, Search, Eye, ShieldCheck, UserCog, UsersRound,
 } from "lucide-react";
 
@@ -217,6 +217,14 @@ ${replyText}
               </div>
             )}
           </div>
+
+          <section aria-label="Admin workspaces" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            <Button variant="outline" className="justify-start gap-2" onClick={() => navigate("/admin/projects")}><FolderKanban className="h-4 w-4"/>Projects</Button>
+            <Button variant="outline" className="justify-start gap-2" onClick={() => navigate("/admin/affiliate")}><TrendingUp className="h-4 w-4"/>Affiliate</Button>
+            <Button variant="outline" className="justify-start gap-2" onClick={() => navigate("/admin/billing")}><CreditCard className="h-4 w-4"/>Billing</Button>
+            <Button variant="outline" className="justify-start gap-2" onClick={() => navigate("/admin/ai-usage")}><Activity className="h-4 w-4"/>AI Usage</Button>
+            <Button variant="outline" className="justify-start gap-2" onClick={() => navigate("/admin/team")}><UserCog className="h-4 w-4"/>Team & RBAC</Button>
+          </section>
 
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
