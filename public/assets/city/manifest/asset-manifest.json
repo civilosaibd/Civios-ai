@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "project": "CivilOS AI realistic aerial city",
-  "status": "residential-architecture-candidates-added-acquisition-pending",
+  "status": "road-and-surface-candidates-added-acquisition-pending",
   "coordinateSystem": {
     "unit": "meter",
     "verticalAxis": "Y",
@@ -358,6 +358,46 @@
         "verify-scale-axis-origin",
         "generate-lods",
         "compress-textures"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "ROAD-TWO-LANE-MARKED-12M-01",
+      "name": "Two-lane straight road with markings",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/two-lane-straight-road-with-markings-8d2ba089",
+      "creator": "Innerscene original model",
+      "license": "CC0",
+      "sourceStatus": "license-format-description-dimensions-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 6700000,
+      "notes": "12 x 12 m modular road piece; 1.85 m sidewalk + 0.15 m curb + 8.00 m carriageway + 0.15 m curb + 1.85 m sidewalk; two 3.50 m lanes with painted edge/centre markings; right-hand traffic; unbranded. Dimensions and source description verified, but geometry/material appearance not visually inspected.",
+      "optimizationRequired": [
+        "download-and-inspect-glb",
+        "verify-road-marking-texture-resolution",
+        "check-repeat-seams-and-module-alignment",
+        "verify-scale-axis-origin",
+        "optimize-mesh-and-textures",
+        "generate-lods"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "MAT-ASPHALT-FRESH-CC0-2K-01",
+      "name": "Fresh asphalt seamless PBR texture",
+      "source": "https://www.meshy.ai/textures/concrete/fresh-asphalt",
+      "creator": "Meshy AI generated texture",
+      "license": "CC0",
+      "sourceStatus": "license-and-pbr-map-description-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "PBR texture pack (download format to verify)",
+      "notes": "Fresh dark asphalt with fine aggregate; seamless tileable; CC0 commercial use; 2K PBR pack reported as 4.6 MB. Verify actual archive contents, map color spaces, scale and visual quality before runtime use.",
+      "optimizationRequired": [
+        "download-and-verify-archive",
+        "inspect-basecolor-normal-roughness-maps",
+        "verify-color-space-and-real-world-scale",
+        "compress-to-webp-or-ktx2",
+        "test-tiling-under-daylight"
       ],
       "runtimePath": null
     }
