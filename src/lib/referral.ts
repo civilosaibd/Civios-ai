@@ -71,3 +71,21 @@ export function shouldRunDaily(key: string, store: Store | null = safeStore(), n
     return true;
   } catch { return false; }
 }
+
+
+const REFERRAL_EVENT_SESSION_KEY = "civilos_referral_event_session";
+
+/** Stable per-tab identifier used only to deduplicate referral analytics events. */
+export function referralEventSessionId(): string | null {
+  try {
+    if (typeof sessionStorage === "undefined" || typeof crypto === "undefined" || !crypto.randomUUID) return null;
+    let value = sessionStorage.getItem(REFERRAL_EVENT_SESSION_KEY);
+    if (!value) {
+      value = crypto.randomUUID();
+      sessionStorage.setItem(REFERRAL_EVENT_SESSION_KEY, value);
+    }
+    return value;
+  } catch {
+    return null;
+  }
+}
