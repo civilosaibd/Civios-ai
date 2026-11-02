@@ -72,8 +72,12 @@ Deno.serve(async (req) => {
     const users = await admin.auth.admin.listUsers({page:1,perPage:1000});
     const existing = (users.data?.users || []).find((u:any)=>u.email?.toLowerCase()===email);
     if (existing) {
-      const {data: membership} = await admin.from("admin_memberships").select("id,role,status").eq("user_id",existing.id).maybeSingle();
+      const [{data: membership},{data: legacyRole}] = await Promise.all([
+        admin.from("admin_memberships").select("id,role,status").eq("user_id",existing.id).maybeSingle(),
+        admin.from("user_roles").select("role").eq("user_id",existing.id).maybeSingle(),
+      ]);
       if (membership?.role === "super_admin") return reply({error:"This account is already a Super Admin"},409,origin);
+      if (legacyRole?.role === "admin") return reply({error:"Legacy full-admin accounts cannot be converted into sub-admin invitations. Use a separate standard user account."},409,origin);
       if (membership?.status === "active") return reply({error:"This account already has active admin access"},409,origin);
     }
     await admin.from("admin_invitations").update({status:"revoked"}).eq("status","pending").ilike("invited_email",email);
