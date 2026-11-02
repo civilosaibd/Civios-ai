@@ -22,6 +22,61 @@ ALTER TABLE public.admin_billing_audit ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.admin_billing_audit FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT ON public.admin_billing_audit TO service_role;
 
+-- Permission-aware payment RPCs preserve the existing yearly-only and affiliate rules.
+CREATE OR REPLACE FUNCTION public.approve_payment(_payment_id uuid)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $
+DECLARE
+  pay public.payments%ROWTYPE;
+  sub_id uuid;
+BEGIN
+  IF auth.uid() IS NULL OR NOT (
+    public.has_role(auth.uid(), 'admin'::public.app_role)
+    OR public.has_admin_permission('billing','manage')
+  ) THEN
+    RAISE EXCEPTION 'Billing: Manage permission required' USING ERRCODE = '42501';
+  END IF;
+  SELECT * INTO pay FROM public.payments WHERE id = _payment_id FOR UPDATE;
+  IF pay.id IS NULL THEN RAISE EXCEPTION 'Payment not found'; END IF;
+  IF pay.status <> 'pending' THEN RAISE EXCEPTION 'Payment is already %', pay.status; END IF;
+  IF pay.plan_id IS NULL THEN RAISE EXCEPTION 'Payment has no plan'; END IF;
+  IF pay.billing_cycle <> 'yearly' THEN
+    RAISE EXCEPTION 'Legacy monthly payment: monthly billing was removed. Reject it and ask the user to resubmit a yearly payment.';
+  END IF;
+  INSERT INTO public.subscriptions (user_id,plan_id,status,billing_cycle,start_date,renewal_date,cancelled_at,payment_provider)
+  VALUES (pay.user_id,pay.plan_id,'active','yearly',now(),now()+interval '1 year',NULL,'manual')
+  ON CONFLICT (user_id) DO UPDATE
+    SET plan_id=EXCLUDED.plan_id,status='active',billing_cycle='yearly',
+        start_date=EXCLUDED.start_date,renewal_date=EXCLUDED.renewal_date,cancelled_at=NULL,payment_provider='manual'
+  RETURNING id INTO sub_id;
+  UPDATE public.payments SET status='verified',verified_at=now(),subscription_id=sub_id WHERE id=pay.id;
+  PERFORM public.record_referral_commission(pay.id);
+  RETURN sub_id;
+END;
+$;
+
+CREATE OR REPLACE FUNCTION public.reject_payment(_payment_id uuid, _note text DEFAULT NULL)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $
+BEGIN
+  IF auth.uid() IS NULL OR NOT (
+    public.has_role(auth.uid(), 'admin'::public.app_role)
+    OR public.has_admin_permission('billing','manage')
+  ) THEN
+    RAISE EXCEPTION 'Billing: Manage permission required' USING ERRCODE = '42501';
+  END IF;
+  UPDATE public.payments SET status='failed',admin_note=_note
+   WHERE id=_payment_id AND status='pending';
+  IF NOT FOUND THEN RAISE EXCEPTION 'Payment not found or not pending'; END IF;
+END;
+$;
+
 CREATE OR REPLACE FUNCTION public.admin_process_payment(
   _payment_id uuid,
   _decision text,
@@ -39,8 +94,11 @@ DECLARE
   granted_subscription uuid;
   clean_note text := left(trim(coalesce(_note, '')), 500);
 BEGIN
-  IF actor IS NULL OR NOT public.has_role(actor, 'admin') THEN
-    RAISE EXCEPTION 'Admin access required' USING ERRCODE = '42501';
+  IF actor IS NULL OR NOT (
+    public.has_role(actor, 'admin'::public.app_role)
+    OR public.has_admin_permission('billing','manage')
+  ) THEN
+    RAISE EXCEPTION 'Billing: Manage permission required' USING ERRCODE = '42501';
   END IF;
   IF _decision IS NULL OR _decision NOT IN ('verify','reject') THEN
     RAISE EXCEPTION 'Decision must be verify or reject' USING ERRCODE = '22023';
