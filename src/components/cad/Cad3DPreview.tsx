@@ -59,7 +59,7 @@ function Entity3D({ entity, color, factor, theme, entities }: { entity: CadEntit
     </group>;
   }
   if (entity.type === "stair") {
-    const count=Math.max(3,Math.min(30,Math.round(entity.steps))), run=(entity.direction==="x"?entity.width:entity.depth)*factor, cross=(entity.direction==="x"?entity.depth:entity.width)*factor, tread=run/count, riser=entity.floorHeight/count;
+    const count=Math.max(3,Math.min(30,Math.round(entity.steps))), run=(entity.direction==="x"?entity.width:entity.depth)*factor, cross=(entity.direction==="x"?entity.depth:entity.width)*factor, tread=run/count, riser=entity.floorHeight*factor/count;
     return <group position={point3(entity.at,factor)} rotation={[0,-entity.rotation,0]}>{Array.from({length:count},(_,i)=>{const along=-run/2+(i+0.5)*tread, position:[number,number,number]=entity.direction==="x"?[along,(i+1)*riser/2,0]:[0,(i+1)*riser/2,-along], size:[number,number,number]=entity.direction==="x"?[tread,(i+1)*riser,cross]:[cross,(i+1)*riser,tread];return <mesh key={i} position={position} castShadow receiveShadow><boxGeometry args={size}/><meshStandardMaterial color={theme.column} roughness={0.78}/></mesh>;})}</group>;
   }
   if (entity.type === "balcony") {
