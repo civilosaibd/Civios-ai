@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
   const {data: authData,error: authError} = await caller.auth.getUser();
   if (authError || !authData.user) return reply({error:"Invalid session"},401,origin);
   const admin = createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
-  let body: { action?: string; email?: string; token?: string; invitationId?: string; membershipId?: string; permissions?: string[]; status?: string };
+  let body: { action?: string; email?: string; token?: string; invitationId?: string; membershipId?: string; permissions?: string[]; featureKey?: string; status?: string };
   try { body = await req.json(); } catch { return reply({error:"Invalid JSON body"},400,origin); }
 
   if (body.action === "accept") {
@@ -89,9 +89,11 @@ Deno.serve(async (req) => {
 
   if (body.action === "set-permissions") {
     if (!uuid(String(body.membershipId || "")) || !Array.isArray(body.permissions)) return reply({error:"Invalid permission assignment"},400,origin);
+    const featureKey = body.featureKey === "projects" ? "projects" : "users";
     const actions = [...new Set(body.permissions.map(String))];
-    if (actions.some((a)=>!["view","manage"].includes(a))) return reply({error:"Only Users: View and Users: Manage permissions are currently supported"},400,origin);
-    const {data,error} = await caller.rpc("admin_set_subadmin_permissions",{_membership_id:body.membershipId,_actions:actions});
+    if (actions.some((a)=>!["view","manage"].includes(a))) return reply({error:"Unsupported permission action"},400,origin);
+    const rpc = featureKey === "projects" ? "admin_set_subadmin_project_permissions" : "admin_set_subadmin_permissions";
+    const {data,error} = await caller.rpc(rpc,{_membership_id:body.membershipId,_actions:actions});
     if (error) return reply({error:error.message},409,origin);
     return reply({success:true,permissions:data},200,origin);
   }
