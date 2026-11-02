@@ -29,14 +29,14 @@ function Entity3D({ entity, color, factor }: { entity: CadEntity; color: string;
   }
   if (entity.type === "door") {
     return <group position={point3(entity.at, factor)} rotation={[0, -entity.rotation, 0]}>
-      <mesh position={[entity.width * factor / 2, 1.05, 0]} castShadow><boxGeometry args={[Math.max(0.04, entity.width * factor), 2.1, 0.07]} /><meshStandardMaterial color="#b77942" roughness={0.6} /></mesh>
-      <mesh position={[entity.width * factor / 2, 2.12, 0]}><boxGeometry args={[entity.width * factor + 0.12, 0.08, 0.14]} /><meshStandardMaterial color="#e6c79e" /></mesh>
+      <mesh position={[0, 1.05, 0]} castShadow><boxGeometry args={[Math.max(0.04, entity.width * factor), 2.1, 0.07]} /><meshStandardMaterial color="#b77942" roughness={0.6} /></mesh>
+      <mesh position={[0, 2.12, 0]}><boxGeometry args={[entity.width * factor + 0.12, 0.08, 0.14]} /><meshStandardMaterial color="#e6c79e" /></mesh>
     </group>;
   }
   if (entity.type === "window") {
     return <group position={point3(entity.at, factor)} rotation={[0, -entity.rotation, 0]}>
-      <mesh position={[entity.width * factor / 2, 1.35, 0]}><boxGeometry args={[Math.max(0.04, entity.width * factor), 1.1, 0.08]} /><meshStandardMaterial color="#60a5fa" metalness={0.12} roughness={0.18} transparent opacity={0.72} /></mesh>
-      <mesh position={[entity.width * factor / 2, 1.35, 0.06]}><boxGeometry args={[0.045, 1.1, 0.04]} /><meshStandardMaterial color="#e2e8f0" /></mesh>
+      <mesh position={[0, 1.35, 0]}><boxGeometry args={[Math.max(0.04, entity.width * factor), 1.1, 0.08]} /><meshStandardMaterial color="#60a5fa" metalness={0.12} roughness={0.18} transparent opacity={0.72} /></mesh>
+      <mesh position={[0, 1.35, 0.06]}><boxGeometry args={[0.045, 1.1, 0.04]} /><meshStandardMaterial color="#e2e8f0" /></mesh>
     </group>;
   }
   if (entity.type === "rectangle") {
