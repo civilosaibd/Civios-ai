@@ -7,7 +7,7 @@
   overflow: visible;
   vertical-align: middle;
   background: transparent;
-  contain: layout paint;
+  contain: layout style;
 }
 .animated-logo-scene canvas { display:block; width:100%; height:100%; background:transparent; }
 .animated-logo-glow {
