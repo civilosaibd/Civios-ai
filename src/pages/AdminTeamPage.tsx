@@ -65,7 +65,7 @@ export default function AdminTeamPage() {
   const updatePermissions=async(member:Member,featureKey:"users"|"projects"|"billing")=>{
     const actions=permissionDraft[member.id]?.[featureKey] || [];
     setBusy(member.id);
-    try { await call("set-permissions",{membershipId:member.id,featureKey,permissions:actions}); toast.success(`${featureKey==="users"?"Users":"Projects"} permissions updated.`); await load(); }
+    try { await call("set-permissions",{membershipId:member.id,featureKey,permissions:actions}); toast.success(`${featureKey==="users"?"Users":featureKey==="projects"?"Projects":"Billing"} permissions updated.`); await load(); }
     catch(e:any){toast.error(e.message);}
     setBusy(null);
   };
@@ -116,7 +116,7 @@ export default function AdminTeamPage() {
             <div className="flex flex-col md:flex-row md:items-center gap-2"><div className="flex-1 min-w-0"><p className="font-semibold text-sm">{member.display_name || member.email || "Admin account"}</p><p className="text-xs text-muted-foreground break-all">{member.email || member.user_id}</p></div><Badge variant={member.role==="super_admin"?"default":"secondary"}>{member.role.replace("_"," ")}</Badge><Badge variant={member.status==="active"?"outline":"destructive"}>{member.status}</Badge></div>
             {member.role==="sub_admin" && <><div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {(["users","projects","billing"] as const).map(featureKey=><div key={featureKey} className="rounded-lg border p-3 space-y-2">
-                <p className="text-xs font-semibold">{featureKey==="users"?"Users":"Projects"} workspace permissions</p>
+                <p className="text-xs font-semibold">{featureKey==="users"?"Users":featureKey==="projects"?"Projects":"Billing"} workspace permissions</p>
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={(permissionDraft[member.id]?.[featureKey]||[]).includes("view")} onChange={e=>setFeatureDraft(member.id,featureKey,"view",e.target.checked)}/>{featureKey==="users"?"View user directory and account details":featureKey==="projects"?"View project directory and project details":"View payments and subscription records"}</label>
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={(permissionDraft[member.id]?.[featureKey]||[]).includes("manage")} onChange={e=>setFeatureDraft(member.id,featureKey,"manage",e.target.checked)}/>{featureKey==="users"?"Manage user accounts (suspend / reactivate)":featureKey==="projects"?"Manage project status":"Verify or reject pending payments"}</label>
                 <Button size="sm" onClick={()=>void updatePermissions(member,featureKey)} disabled={busy===member.id}>Save {featureKey} permissions</Button>
