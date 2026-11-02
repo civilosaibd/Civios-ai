@@ -793,6 +793,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
             case "door": return isFinitePoint(entity.at) && entity.width > 0 && (entity.swing === "left" || entity.swing === "right");
             case "window": return isFinitePoint(entity.at) && entity.width > 0;
             case "column": return isFinitePoint(entity.at) && entity.width > 0 && entity.depth > 0;
+            case "stair": return isFinitePoint(entity.at) && Number.isFinite(entity.width) && entity.width > 0 && Number.isFinite(entity.depth) && entity.depth > 0 && Number.isFinite(entity.rotation) && Number.isInteger(entity.steps) && entity.steps >= 3 && entity.steps <= 30 && Number.isFinite(entity.floorHeight) && entity.floorHeight > 0 && (entity.direction === "x" || entity.direction === "y");
             case "text": return isFinitePoint(entity.at) && typeof entity.text === "string" && entity.height > 0;
             case "dimension": return isFinitePoint(entity.a) && isFinitePoint(entity.b);
             default: return false;
