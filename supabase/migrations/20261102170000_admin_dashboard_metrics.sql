@@ -24,8 +24,11 @@ DECLARE
   caller_id uuid := auth.uid();
   result jsonb;
 BEGIN
-  IF caller_id IS NULL OR NOT public.has_role(caller_id, 'admin'::public.app_role) THEN
-    RAISE EXCEPTION 'Admin access required' USING ERRCODE = '42501';
+  IF caller_id IS NULL OR NOT (
+    public.has_role(caller_id, 'admin'::public.app_role)
+    OR public.has_admin_permission('reports','view')
+  ) THEN
+    RAISE EXCEPTION 'Reports: View permission required' USING ERRCODE = '42501';
   END IF;
   IF _from IS NULL OR _to IS NULL OR _to <= _from OR _to - _from > interval '366 days' THEN
     RAISE EXCEPTION 'Invalid reporting period (maximum 366 days)' USING ERRCODE = '22023';
