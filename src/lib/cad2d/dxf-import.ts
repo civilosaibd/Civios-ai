@@ -78,7 +78,7 @@ export function importDxfDocument(source: string, fallbackUnits: CadDocument["un
   let insunits: number | undefined;
   for (let i = 0; i < header.length - 1; i++) {
     if (header[i].code === 9 && header[i].value === "$INSUNITS") {
-      insunits = finite(header[i + 1]?.value, undefined as unknown as number);
+      const parsedUnits = finite(header[i + 1]?.value);\n      if (Number.isFinite(parsedUnits)) insunits = parsedUnits;
       break;
     }
   }
