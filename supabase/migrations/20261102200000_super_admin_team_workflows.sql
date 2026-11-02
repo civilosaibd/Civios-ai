@@ -30,6 +30,7 @@ DECLARE
   target public.admin_memberships%ROWTYPE;
   old_actions text[];
   new_actions text[];
+  permission_item text;
 BEGIN
   IF actor IS NULL OR NOT public.is_super_admin() THEN
     RAISE EXCEPTION 'Super Admin access required' USING ERRCODE = '42501';
@@ -54,8 +55,18 @@ BEGIN
   INSERT INTO public.admin_feature_permissions(membership_id,feature_key,action,granted_by)
     SELECT _membership_id,'users',action,actor FROM unnest(new_actions) AS action;
 
-  INSERT INTO public.admin_rbac_audit(actor_user_id,target_user_id,action,feature_key,metadata)
-  VALUES (actor,target.user_id,'permission_granted','users',jsonb_build_object('actions',to_jsonb(new_actions),'previous_actions',to_jsonb(old_actions)));
+  FOREACH permission_item IN ARRAY old_actions LOOP
+    IF NOT (permission_item = ANY(new_actions)) THEN
+      INSERT INTO public.admin_rbac_audit(actor_user_id,target_user_id,action,feature_key,permission_action,metadata)
+      VALUES (actor,target.user_id,'permission_revoked','users',permission_item,jsonb_build_object('actions',to_jsonb(new_actions)));
+    END IF;
+  END LOOP;
+  FOREACH permission_item IN ARRAY new_actions LOOP
+    IF NOT (permission_item = ANY(old_actions)) THEN
+      INSERT INTO public.admin_rbac_audit(actor_user_id,target_user_id,action,feature_key,permission_action,metadata)
+      VALUES (actor,target.user_id,'permission_granted','users',permission_item,jsonb_build_object('previous_actions',to_jsonb(old_actions)));
+    END IF;
+  END LOOP;
   RETURN jsonb_build_object('membership_id',_membership_id,'feature_key','users','actions',to_jsonb(new_actions));
 END;
 $$;
