@@ -70,6 +70,8 @@ Deno.serve(async (req) => {
         id: u.id, email: u.email, phone: u.phone,
         email_confirmed_at: u.email_confirmed_at, phone_confirmed_at: u.phone_confirmed_at,
         created_at: u.created_at, last_sign_in_at: u.last_sign_in_at,
+        banned_until: u.banned_until || null,
+        is_suspended: !!u.banned_until && new Date(u.banned_until).getTime() > Date.now(),
         providers: u.app_metadata?.providers || [],
         display_name: profileMap.get(u.id)?.display_name || u.user_metadata?.full_name || u.user_metadata?.name || null,
         avatar_url: profileMap.get(u.id)?.avatar_url || null,
@@ -199,20 +201,24 @@ Deno.serve(async (req) => {
   if (body.action === "audit-list") {
     const requestedLimit = Number((body as { limit?: number }).limit) || 50;
     const limit = Math.max(1, Math.min(100, requestedLimit));
-    const { data: events, error: auditListError } = await admin.from("admin_user_access_audit")
-      .select("id,admin_user_id,target_user_id,action,accessed_at")
-      .order("accessed_at", { ascending: false })
-      .limit(limit);
-    if (auditListError) return json({ error: "Unable to load access audit history" }, 500, origin);
+    const [{ data: accessEvents, error: accessError }, { data: statusEvents, error: statusError }] = await Promise.all([
+      admin.from("admin_user_access_audit").select("id,admin_user_id,target_user_id,action,accessed_at").order("accessed_at", { ascending: false }).limit(limit),
+      admin.from("admin_account_status_audit").select("id,admin_user_id,target_user_id,action,result,reason,created_at").order("created_at", { ascending: false }).limit(limit),
+    ]);
+    if (accessError || statusError) return json({ error: "Unable to load administrator audit history" }, 500, origin);
+    const events = [
+      ...(accessEvents || []),
+      ...(statusEvents || []).map((event) => ({ ...event, accessed_at: event.created_at })),
+    ].sort((a, b) => new Date(b.accessed_at).getTime() - new Date(a.accessed_at).getTime()).slice(0, limit);
 
-    const ids = [...new Set((events || []).flatMap((event) => [event.admin_user_id, event.target_user_id]))];
+    const ids = [...new Set(events.flatMap((event) => [event.admin_user_id, event.target_user_id]))];
     const emailById = new Map<string, string | null>();
     await Promise.all(ids.map(async (id) => {
       const { data, error } = await admin.auth.admin.getUserById(id);
       emailById.set(id, error ? null : data.user?.email || null);
     }));
     return json({
-      events: (events || []).map((event) => ({
+      events: events.map((event) => ({
         ...event,
         admin_email: emailById.get(event.admin_user_id) || null,
         target_email: emailById.get(event.target_user_id) || null,
