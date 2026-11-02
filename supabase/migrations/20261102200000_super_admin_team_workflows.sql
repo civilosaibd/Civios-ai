@@ -150,6 +150,44 @@ BEGIN
   IF caller IS NULL OR caller_email IS NULL OR length(caller_email) = 0 THEN
     RAISE EXCEPTION 'Sign in with the invited email address first' USING ERRCODE = '42501';
   END IF;
+  IF _token_hash IS NULL OR _token_hash !~ '^[a-f0-9]{64} FROM public.admin_invitations
+    WHERE token_hash = _token_hash FOR UPDATE;
+  IF invitation.id IS NULL OR invitation.status <> 'pending' OR invitation.expires_at <= now() THEN
+    RAISE EXCEPTION 'Invitation is invalid, revoked, or expired' USING ERRCODE = '22023';
+  END IF;
+  IF lower(trim(invitation.invited_email)) <> caller_email THEN
+    RAISE EXCEPTION 'This invitation belongs to another email address' USING ERRCODE = '42501';
+  END IF;
+  IF public.has_role(caller,'admin'::public.app_role) AND NOT public.is_super_admin() THEN
+    RAISE EXCEPTION 'Legacy full-admin accounts cannot accept sub-admin invitations' USING ERRCODE = '42501';
+  END IF;
+  INSERT INTO public.admin_memberships(user_id,role,status,assigned_by)
+    VALUES (caller,'sub_admin','active',invitation.invited_by)
+    ON CONFLICT (user_id) DO UPDATE
+      SET role = CASE WHEN public.admin_memberships.role = 'super_admin' THEN 'super_admin' ELSE 'sub_admin' END,
+          status = CASE WHEN public.admin_memberships.role = 'super_admin' THEN public.admin_memberships.status ELSE 'active' END,
+          assigned_by = CASE WHEN public.admin_memberships.role = 'super_admin' THEN public.admin_memberships.assigned_by ELSE EXCLUDED.assigned_by END,
+          updated_at = now()
+    RETURNING id INTO membership_id;
+  UPDATE public.admin_invitations SET status = 'accepted', accepted_user_id = caller, accepted_at = now()
+    WHERE id = invitation.id;
+  INSERT INTO public.admin_rbac_audit(actor_user_id,target_user_id,action,metadata)
+    VALUES (caller,caller,'sub_admin_activated',jsonb_build_object('invitation_id',invitation.id,'invited_by',invitation.invited_by));
+  RETURN jsonb_build_object('membership_id',membership_id,'status','active');
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_set_subadmin_permissions(uuid,text[]) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_set_subadmin_status(uuid,text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_remove_subadmin(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_accept_invitation(text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_permissions(uuid,text[]) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_status(uuid,text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_remove_subadmin(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_accept_invitation(text) TO authenticated, service_role;
+ THEN
+    RAISE EXCEPTION 'Invitation token is invalid' USING ERRCODE = '22023';
+  END IF;
   SELECT * INTO invitation FROM public.admin_invitations
     WHERE token_hash = _token_hash FOR UPDATE;
   IF invitation.id IS NULL OR invitation.status <> 'pending' OR invitation.expires_at <= now() THEN
