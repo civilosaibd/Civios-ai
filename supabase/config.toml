@@ -24,3 +24,6 @@ verify_jwt = false
 [functions.ai-floorplan]
 # Authenticated IndoCAD prompt-to-CAD geometry generation.
 verify_jwt = true
+
+[functions.admin-rbac]
+verify_jwt = true
