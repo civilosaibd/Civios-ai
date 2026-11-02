@@ -21,6 +21,42 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { createIndoCadTemplate, type IndoCadTemplateId } from "@/lib/cad2d/templates";
 
 type DraftEntity = CadEntity & { id: string; layerId: string };
+
+type FurnitureKind = "bed" | "sofa" | "dining-table" | "toilet" | "kitchen-counter";
+const furnitureLabels: { id: FurnitureKind; label: string; size: string }[] = [
+  { id: "bed", label: "Bed", size: "6.5 × 5 ft" },
+  { id: "sofa", label: "Sofa", size: "7 × 3 ft" },
+  { id: "dining-table", label: "Dining set", size: "5 × 3 ft" },
+  { id: "toilet", label: "Toilet", size: "2.5 × 4 ft" },
+  { id: "kitchen-counter", label: "Kitchen counter", size: "8 × 2 ft" },
+];
+function buildFurniture(kind: FurnitureKind, at: Point2D, layerId: string, units: CadDocument["units"]): CadEntity[] {
+  const unitScale = ({ ft: 1, in: 12, m: 0.3048, cm: 30.48, mm: 304.8 } as const)[units];
+  const id = () => globalThis.crypto?.randomUUID?.() ?? `furniture-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const rect = (cx: number, cy: number, w: number, h: number): CadEntity => ({
+    id: id(), layerId, type: "rectangle",
+    min: { x: at.x + (cx - w / 2) * unitScale, y: at.y + (cy - h / 2) * unitScale },
+    max: { x: at.x + (cx + w / 2) * unitScale, y: at.y + (cy + h / 2) * unitScale },
+  });
+  const ellipse = (cx: number, cy: number, rx: number, ry: number): CadEntity => ({
+    id: id(), layerId, type: "ellipse",
+    center: { x: at.x + cx * unitScale, y: at.y + cy * unitScale },
+    rx: rx * unitScale, ry: ry * unitScale,
+  });
+  const line = (x1: number, y1: number, x2: number, y2: number): CadEntity => ({
+    id: id(), layerId, type: "line",
+    start: { x: at.x + x1 * unitScale, y: at.y + y1 * unitScale },
+    end: { x: at.x + x2 * unitScale, y: at.y + y2 * unitScale },
+  });
+  switch (kind) {
+    case "bed": return [rect(0, 0, 6.5, 5), rect(0, 0.15, 5.9, 4.1), rect(-1.7, -1.55, 1.8, 0.8), rect(0.2, -1.55, 1.8, 0.8), line(-3.25, -2.1, 3.25, -2.1)];
+    case "sofa": return [rect(0, 0, 7, 3), rect(0, -0.9, 5.8, 1), rect(0, 0.15, 5.8, 1.2), rect(-3.05, 0, 0.9, 2.5), rect(3.05, 0, 0.9, 2.5), line(-2, -0.35, -2, 0.55), line(0, -0.35, 0, 0.55), line(2, -0.35, 2, 0.55)];
+    case "dining-table": return [rect(0, 0, 5, 3), ...[[-2.7,-1.5],[0,-1.5],[2.7,-1.5],[-2.7,1.5],[0,1.5],[2.7,1.5]].map(([x,y]) => ellipse(x,y,0.42,0.42))];
+    case "toilet": return [rect(0, -1.45, 2.5, 0.85), ellipse(0, 0.25, 1.05, 1.45), ellipse(0, 0.25, 0.68, 1.05)];
+    case "kitchen-counter": return [rect(0, 0, 8, 2), rect(-2.3, 0, 1.5, 1.2), ellipse(-2.3, 0, 0.55, 0.4), line(-3.8, -0.75, 3.8, -0.75), line(-3.8, 0.75, 3.8, 0.75)];
+  }
+}
+
 type View = { x: number; y: number; scale: number };
 const palette: { id: CadToolId; label: string; group: string }[] = [
   { id: "select", label: "Select", group: "Common" }, { id: "measure", label: "Measure", group: "Common" },
@@ -67,6 +103,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
   const [future, setFuture] = useState<CadDocument[]>([]);
   const [layerName, setLayerName] = useState("0");
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [furnitureKind, setFurnitureKind] = useState<FurnitureKind | null>(null);
   const isMobile = useIsMobile();
   const svgRef = useRef<SVGSVGElement>(null);
   const panRef = useRef<{ clientX: number; clientY: number; viewX: number; viewY: number } | null>(null);
@@ -194,6 +231,13 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
     }
     if (event.button !== 0) return;
     const p = toWorld(event);
+    if (furnitureKind) {
+      const placed = buildFurniture(furnitureKind, p, activeLayer.id, doc.units);
+      commit({ ...doc, entities: [...doc.entities, ...placed] });
+      setSelected(placed.map((entity) => entity.id));
+      toast.success(`${furnitureLabels.find((item) => item.id === furnitureKind)?.label ?? "Furniture"} placed. Select and move individual parts as needed.`);
+      return;
+    }
     if (tool === "polyline") {
       if (!start) {
         setStart(p);
@@ -587,6 +631,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
         return;
       }
       if (event.key === "Escape") {
+        setFurnitureKind(null);
         setModifyTargetId(null);
         setSelectionWindow(null);
         transformStartRef.current = null;
@@ -782,6 +827,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
   const ToolPalette = (
     <div className="space-y-4">
       <div className="rounded-xl bg-slate-950 p-3 text-white shadow-sm"><div className="mb-2 flex items-center gap-2"><div className="rounded-lg bg-orange-500/20 p-2 text-orange-300"><DraftingCompass className="h-4 w-4"/></div><div><h3 className="text-sm font-semibold">Drafting tools</h3><p className="text-[10px] text-slate-400">Choose a tool to begin</p></div></div><p className="text-[11px] leading-relaxed text-slate-300">Click points on the canvas. Shift-click adds/removes objects from the selection; Ctrl/Cmd+Shift+D duplicates the selection. Polyline supports multiple vertices; press Enter, double-click, or use Finish Polyline when done.</p><div className="mt-3 flex items-center justify-between rounded-lg bg-white/10 px-2 py-1.5 text-[11px]"><span className="text-slate-300">Active tool</span><span className="font-semibold text-orange-300">{tool.toUpperCase()}</span></div></div>
+      <div className="rounded-xl border border-orange-200 bg-orange-50/70 p-2.5"><p className="mb-1 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-orange-800"><House className="h-3.5 w-3.5"/>Furniture library</p><p className="mb-2 text-[10px] text-orange-700">Choose an item, then click once on the drawing to place it. Sizes follow the drawing units.</p><div className="grid grid-cols-2 gap-1.5">{furnitureLabels.map((item)=>{const active=furnitureKind===item.id;return <Button key={item.id} size="sm" variant="outline" className={`h-auto min-h-10 flex-col items-start gap-0 px-2 py-1.5 text-left ${active?"border-orange-500 bg-orange-100 text-orange-900":"border-orange-200 bg-white text-slate-700"}`} onClick={()=>{setFurnitureKind(active?null:item.id);setStart(null);setPolylinePoints([]);}} aria-pressed={active}><span className="text-xs font-semibold">{item.label}</span><span className="text-[9px] opacity-70">{item.size}</span></Button>})}</div>{furnitureKind&&<Button size="sm" variant="ghost" className="mt-2 h-7 w-full text-xs text-orange-800" onClick={()=>setFurnitureKind(null)}>Cancel placement (Esc)</Button>}</div>
       {groups.map((group)=>{const GroupIcon = group === "Draw" ? Shapes : group === "Modify" ? Move : group === "Annotate" ? Ruler : group === "Architecture" ? House : MousePointer2; return <div key={group} className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm"><p className="mb-2 flex items-center gap-2 px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500"><GroupIcon className="h-3.5 w-3.5 text-orange-500"/>{group === "Common" ? "Essentials" : group === "Architecture" ? "Architecture" : group === "Draw" ? "Draw objects" : group === "Modify" ? "Edit objects" : group}</p><div className="grid grid-cols-2 gap-1.5">{palette.filter((p)=>p.group===group).map((p)=>{const active=tool===p.id;return <Button key={p.id} size="sm" variant="outline" className={`h-10 min-w-0 justify-start rounded-lg border px-2 text-xs transition-all ${active?"border-orange-400 bg-orange-50 text-orange-800 shadow-sm ring-1 ring-orange-200 hover:bg-orange-50":"border-slate-200 bg-slate-50/60 text-slate-700 hover:border-slate-300 hover:bg-white"}`} onClick={()=>selectTool(p.id)} title={p.label} aria-pressed={active}><span className={`mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${active?"bg-orange-500 text-white":"bg-white text-slate-500 shadow-sm"}`}><MousePointer2 className="h-3 w-3"/></span><span className="truncate">{p.label}</span></Button>})}</div></div>})}
     </div>
   );
