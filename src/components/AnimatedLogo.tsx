@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { CSSProperties } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
@@ -113,8 +113,8 @@ function CivilOSMark({ mode, onComplete }: { mode: "loop" | "intro"; onComplete?
     }
   });
 
-  const cGeometry = useRef(new THREE.ExtrudeGeometry(makeCShape(), extrudeSettings));
-  const aGeometry = useRef(new THREE.ExtrudeGeometry(makeAShape(), extrudeSettings));
+  const cGeometry = useMemo(() => new THREE.ExtrudeGeometry(makeCShape(), extrudeSettings), []);
+  const aGeometry = useMemo(() => new THREE.ExtrudeGeometry(makeAShape(), extrudeSettings), []);
 
   return (
     <>
@@ -158,10 +158,10 @@ function CivilOSMark({ mode, onComplete }: { mode: "loop" | "intro"; onComplete?
           <Building position={[0.76, 0.12, -0.04]} scale={[0.2, 0.72, 0.15]} color="#0878db" />
         </group>
 
-        <mesh geometry={cGeometry.current} position={[-0.28, -0.13, 0.31]} rotation={[0, 0, 0]}>
+        <mesh geometry={cGeometry} position={[-0.28, -0.13, 0.31]} rotation={[0, 0, 0]}>
           <meshPhysicalMaterial color="#18dfff" metalness={0.72} roughness={0.18} clearcoat={1} emissive="#007ba9" emissiveIntensity={0.48} />
         </mesh>
-        <mesh geometry={aGeometry.current} position={[0.43, -0.17, 0.42]} scale={[0.9, 1, 1]}>
+        <mesh geometry={aGeometry} position={[0.43, -0.17, 0.42]} scale={[0.9, 1, 1]}>
           <meshPhysicalMaterial color="#f4fbff" metalness={0.78} roughness={0.18} clearcoat={1} emissive="#0a7fc0" emissiveIntensity={0.3} />
         </mesh>
         <mesh position={[0.43, -0.17, 0.61]}>
@@ -192,8 +192,6 @@ function CivilOSMark({ mode, onComplete }: { mode: "loop" | "intro"; onComplete?
 
 export default function AnimatedLogo({ size = 260, mode = "loop", onComplete }: AnimatedLogoProps) {
   const style = { width: size, height: size, "--logo-size": `${size}px` } as CSSProperties;
-  const handleCreated = useCallback(() => undefined, []);
-
   return (
     <div className={`animated-logo-scene animated-logo-scene--${mode}`} style={style} role="img" aria-label="CivilOS AI three-dimensional animated emblem">
       <div className="animated-logo-glow" aria-hidden="true" />
@@ -202,7 +200,6 @@ export default function AnimatedLogo({ size = 260, mode = "loop", onComplete }: 
         dpr={[1, 1.5]}
         camera={{ position: [0, 0, 5.25], fov: 34 }}
         gl={{ alpha: true, antialias: true, powerPreference: "low-power" }}
-        onCreated={handleCreated}
         style={{ background: "transparent" }}
       >
         <CivilOSMark mode={mode} onComplete={onComplete} />
