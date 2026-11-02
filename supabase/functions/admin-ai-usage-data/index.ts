@@ -27,13 +27,16 @@ Deno.serve(async (req) => {
   const token = authorization.replace(/^Bearer\s+/i, "");
   const { data: authData, error: authError } = await caller.auth.getUser(token);
   if (authError || !authData.user) return reply({ error: "Invalid session" }, 401, origin);
-  const { data: isAdmin, error: roleError } = await caller.rpc("has_role", { _user_id: authData.user.id, _role: "admin" });
-  if (roleError || isAdmin !== true) return reply({ error: "Admin access required" }, 403, origin);
-
+  const [{data:legacyAdmin},{data:superAdmin},{data:canViewUsage}] = await Promise.all([
+    caller.rpc("has_role", { _user_id: authData.user.id, _role: "admin" }),
+    caller.rpc("is_super_admin"),
+    caller.rpc("has_admin_permission", { _feature_key: "ai_usage", _action: "view" }),
+  ]);
   const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   let body: { action?: string; page?: number; period?: string; search?: string };
   try { body = await req.json(); } catch { return reply({ error: "Invalid JSON body" }, 400, origin); }
   if (body.action !== "list") return reply({ error: "Unsupported action" }, 400, origin);
+  if (legacyAdmin !== true && superAdmin !== true && canViewUsage !== true) return reply({error:"AI Usage: View permission required"},403,origin);
 
   const page = Math.max(1, Math.min(10000, Math.floor(Number(body.page) || 1)));
   const pageSize = 25;
