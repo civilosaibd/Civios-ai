@@ -59,8 +59,6 @@ Deno.serve(async (req) => {
     return json({ error: "Users: View permission required" }, 403, origin);
   }
 
-  try { body = await req.json(); } catch { return json({ error: "Invalid JSON body" }, 400, origin); }
-
   if (body.action === "account-status") {
     const userId = body.userId || "";
     const status = body.status || "";
