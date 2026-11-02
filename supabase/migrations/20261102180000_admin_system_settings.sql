@@ -27,10 +27,15 @@ DECLARE
   max_files integer;
   first_rate numeric;
   next_rate numeric;
+  can_manage boolean;
 BEGIN
-  IF caller_id IS NULL OR NOT public.has_role(caller_id, 'admin'::public.app_role) THEN
-    RAISE EXCEPTION 'Admin access required' USING ERRCODE = '42501';
+  IF caller_id IS NULL OR NOT (
+    public.has_role(caller_id, 'admin'::public.app_role)
+    OR public.has_admin_permission('settings','view')
+  ) THEN
+    RAISE EXCEPTION 'Settings: View permission required' USING ERRCODE = '42501';
   END IF;
+  can_manage := public.has_role(caller_id, 'admin'::public.app_role) OR public.is_super_admin() OR public.has_admin_permission('settings','manage');
   SELECT coalesce((value #>> '{}')::integer, 25) INTO max_file_mb
     FROM public.app_settings WHERE key = 'viz.max_file_mb';
   SELECT coalesce((value #>> '{}')::integer, 10) INTO max_files
@@ -48,7 +53,8 @@ BEGIN
       'first_payment_rate', coalesce(first_rate,0.30),
       'subsequent_payment_rate', coalesce(next_rate,0.10),
       'editable', false
-    )
+    ),
+    'can_manage', can_manage
   );
 END;
 $$;
@@ -65,8 +71,12 @@ DECLARE
   old_values jsonb;
   new_values jsonb;
 BEGIN
-  IF caller_id IS NULL OR NOT public.has_role(caller_id, 'admin'::public.app_role) THEN
-    RAISE EXCEPTION 'Admin access required' USING ERRCODE = '42501';
+  IF caller_id IS NULL OR NOT (
+    public.has_role(caller_id, 'admin'::public.app_role)
+    OR public.is_super_admin()
+    OR public.has_admin_permission('settings','manage')
+  ) THEN
+    RAISE EXCEPTION 'Settings: Manage permission required' USING ERRCODE = '42501';
   END IF;
   IF _max_file_mb IS NULL OR _max_file_mb < 1 OR _max_file_mb > 50
      OR _max_files IS NULL OR _max_files < 1 OR _max_files > 20 THEN
