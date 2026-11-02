@@ -189,6 +189,8 @@ function ParametricRoof({ type, minX, maxX, minZ, maxZ, baseY, color }: {
     if (type === "gable") return [
       roofFace([[minX,eave,minZ],[maxX,eave,minZ],[maxX,ridge,centerZ],[minX,ridge,centerZ]]),
       roofFace([[maxX,eave,maxZ],[minX,eave,maxZ],[minX,ridge,centerZ],[maxX,ridge,centerZ]]),
+      roofFace([[minX,eave,minZ],[minX,eave,maxZ],[minX,ridge,centerZ]]),
+      roofFace([[maxX,eave,minZ],[maxX,ridge,centerZ],[maxX,eave,maxZ]]),
     ];
     if (type === "shed") return [
       roofFace([[minX,eave,minZ],[maxX,eave,minZ],[maxX,ridge,maxZ],[minX,ridge,maxZ]]),
