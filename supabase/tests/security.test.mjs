@@ -607,7 +607,7 @@ test("admin_process_payment: non-admin callers cannot verify or reject payments"
   });
   await alice(() => rejects(
     () => db.query("SELECT public.admin_process_payment($1,'verify',NULL)", [paymentId]),
-    /Admin access required/
+    /Billing: Manage permission required/
   ));
   const [row] = await q("SELECT status FROM public.payments WHERE id=$1", [paymentId]);
   assert.equal(row.status, "pending");
