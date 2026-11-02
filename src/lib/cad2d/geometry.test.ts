@@ -27,6 +27,13 @@ describe("2D CAD geometry foundation", () => {
     expect(() => parseCadCommand("LINE nope 2,3")).toThrow(/Invalid point/);
   });
 
+  it("preserves semantic staircase dimensions through transforms", () => {
+    const stair: CadEntity = { id:"stair-1",layerId:"layer-0",type:"stair",at:{x:10,y:8},width:4,depth:12,rotation:0,steps:16,floorHeight:3.2,direction:"y" };
+    expect(translateEntity(stair,2,-1)).toMatchObject({type:"stair",at:{x:12,y:7},steps:16});
+    expect(scaleEntity(stair,2)).toMatchObject({type:"stair",width:8,depth:24,floorHeight:6.4});
+    expect(entityBounds(stair)).toEqual({min:{x:8,y:2},max:{x:12,y:14}});
+  });
+
   it("translates and rotates entities without mutating the original", () => {
     const line: CadEntity = { id: "e1", layerId: "layer-0", type: "line", start: { x: 0, y: 0 }, end: { x: 2, y: 0 } };
     const moved = translateEntity(line, 3, 4);
