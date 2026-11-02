@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "project": "CivilOS AI realistic aerial city",
-  "status": "road-and-surface-candidates-added-acquisition-pending",
+  "status": "expanded-source-catalog-with-blockout-only-rejections",
   "coordinateSystem": {
     "unit": "meter",
     "verticalAxis": "Y",
@@ -399,6 +399,58 @@
         "compress-to-webp-or-ktx2",
         "test-tiling-under-daylight"
       ],
+      "runtimePath": null
+    },
+    {
+      "id": "BLK-ROAD-STRAIGHT-LOWPOLY-01",
+      "name": "Low-poly City — Road straight",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/low-poly-city-road-straight-cf2e392c",
+      "creator": "Innerscene original model",
+      "license": "CC0",
+      "sourceStatus": "blockout-only-low-poly",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 10240,
+      "notes": "8 x 8 m modular road tile. Useful for early layout/blockout tests only; explicitly low-poly and not approved for photoreal final streets.",
+      "runtimePath": null
+    },
+    {
+      "id": "BLK-ROAD-END-LOWPOLY-01",
+      "name": "Low-poly City — Road end",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/low-poly-city-road-end-baa1e3f9",
+      "creator": "Innerscene original model",
+      "license": "CC0",
+      "sourceStatus": "blockout-only-low-poly",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 15360,
+      "notes": "8 x 8 m road-end tile. Blockout/geometry-fit testing only; low-poly appearance is not suitable for final photoreal city.",
+      "runtimePath": null
+    },
+    {
+      "id": "BLK-TRAFFIC-LIGHT-LOWPOLY-01",
+      "name": "Low-poly City — Traffic light",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/low-poly-city-traffic-light-94ebd054",
+      "creator": "Innerscene original model",
+      "license": "CC0",
+      "sourceStatus": "blockout-only-low-poly",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 15360,
+      "notes": "Reported 0.33 x 0.275 x 3.5 m. Can validate placement and scale; replace with detailed photoreal street signal before final release.",
+      "runtimePath": null
+    },
+    {
+      "id": "BLK-CROSSWALK-LOWPOLY-01",
+      "name": "Low-poly City — Crosswalk",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/low-poly-city-crosswalk-5bd32d06",
+      "creator": "Innerscene original model",
+      "license": "CC0",
+      "sourceStatus": "blockout-only-low-poly",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 13312,
+      "notes": "8 x 8 m modular crossing tile. Layout/fit testing only; not approved as final photoreal road surface.",
       "runtimePath": null
     }
   ],
