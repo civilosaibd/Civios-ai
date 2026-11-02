@@ -20,6 +20,7 @@ const date = (value?:string|null) => value ? new Date(value).toLocaleString() : 
 export default function AdminProjectManagementPage() {
   const { user } = useAuth(); const nav = useNavigate();
   const [authorized,setAuthorized] = useState(false);
+  const [canManageProjects,setCanManageProjects] = useState(false);
   const [rows,setRows] = useState<Project[]>([]);
   const [page,setPage] = useState(1); const [total,setTotal] = useState(0); const [hasMore,setHasMore] = useState(false);
   const [search,setSearch] = useState(""); const [loading,setLoading] = useState(false);
@@ -39,9 +40,15 @@ export default function AdminProjectManagementPage() {
 
   useEffect(()=>{let active=true;(async()=>{
     if(!user){nav("/auth?redirect=/admin/projects");return;}
-    const {data,error}=await supabase.rpc("has_role",{_user_id:user.id,_role:"admin"});
+    const [{data:legacyAdmin,error:legacyError},{data:superAdmin},{data:canView},{data:canManage}] = await Promise.all([
+      supabase.rpc("has_role",{_user_id:user.id,_role:"admin"}),
+      supabase.rpc("is_super_admin"),
+      supabase.rpc("has_admin_permission",{_feature_key:"projects",_action:"view"}),
+      supabase.rpc("has_admin_permission",{_feature_key:"projects",_action:"manage"}),
+    ]);
     if(!active)return;
-    if(error||data!==true){toast.error("Admin only");nav("/");return;}
+    if(legacyError || (legacyAdmin!==true && superAdmin!==true && canView!==true)){toast.error("Projects: View permission required");nav("/");return;}
+    setCanManageProjects(legacyAdmin===true||superAdmin===true||canManage===true);
     setAuthorized(true); await load(1,"");
   })();return()=>{active=false;};},[user,nav,load]);
 
@@ -75,7 +82,7 @@ export default function AdminProjectManagementPage() {
   <Dialog open={!!selected} onOpenChange={open=>{if(!open){setSelected(null);setDetails(null);}}}><DialogContent className="max-w-4xl max-h-[88vh] overflow-y-auto"><DialogHeader><DialogTitle>Project inspection</DialogTitle></DialogHeader>
     {detailLoading?<p className="py-10 text-center text-sm text-muted-foreground">Loading project records…</p>:details?<div className="space-y-5">
       <section className="rounded-xl border p-4 space-y-1"><h2 className="font-semibold text-lg">{details.project.name}</h2><p className="text-sm">{details.owner.name||"Owner"} · {details.owner.email||details.owner.id} · {details.owner.phone||"No phone"}</p><p className="text-xs text-muted-foreground">Project ID: {details.project.id} · Created {date(details.project.created_at)} · Updated {date(details.project.updated_at)}</p><p className="text-xs text-muted-foreground">{details.project.project_type||"Type unavailable"} · {details.project.location||"Location unavailable"} · {details.project.client_name||"No client"}</p></section>
-      <section className="rounded-xl border p-4 space-y-2"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Project status</h3><div className="flex gap-2"><select className="h-9 rounded-md border bg-background px-2 text-sm" value={status} onChange={e=>setStatus(e.target.value)}>{["planning","in_progress","on_hold","completed","cancelled"].map(x=><option key={x} value={x}>{x.replace("_"," ")}</option>)}</select><Button size="sm" onClick={()=>void updateStatus()} disabled={saving||status===details.project.status}>{saving?"Saving…":"Update status"}</Button></div></div><p className="text-xs text-muted-foreground">Status updates are recorded in the admin project audit trail.</p></section>
+      {canManageProjects && <section className="rounded-xl border p-4 space-y-2"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Project status</h3><div className="flex gap-2"><select className="h-9 rounded-md border bg-background px-2 text-sm" value={status} onChange={e=>setStatus(e.target.value)}>{["planning","in_progress","on_hold","completed","cancelled"].map(x=><option key={x} value={x}>{x.replace("_"," ")}</option>)}</select><Button size="sm" onClick={()=>void updateStatus()} disabled={saving||status===details.project.status}>{saving?"Saving…":"Update status"}</Button></div></div><p className="text-xs text-muted-foreground">Status updates are recorded in the admin project audit trail.</p></section>}
       {(["inputs","estimate","bnbc_loads"] as const).map(key=><section key={key} className="space-y-2"><div className="flex items-center justify-between"><h3 className="font-semibold capitalize">{key.replace("_"," ")}</h3><Badge variant="secondary">{details.project[key]==null?"Empty":"Available"}</Badge></div><pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-lg border bg-muted/40 p-3 text-xs">{pretty(details.project[key])}</pre></section>)}
       <section className="space-y-2"><h3 className="font-semibold">Documents ({details.documents.length})</h3>{details.documents.length?details.documents.map(d=><div key={d.id} className="rounded-lg border p-3 text-sm"><p className="font-medium">{d.file_name}</p><p className="text-xs text-muted-foreground">{d.file_type||"File"} · {d.file_size?Math.round(d.file_size/1024)+" KB":"Size unknown"} · {date(d.created_at)}</p></div>):<p className="text-sm text-muted-foreground">No project document metadata found.</p>}</section>
       <section className="space-y-2"><h3 className="font-semibold">Team members ({details.members.length})</h3>{details.members.map(m=><div key={m.id} className="rounded-lg border p-2 text-xs">{m.user_id} · {m.role} · {m.status}</div>)}</section>
