@@ -94,7 +94,7 @@ export default function Cad3DPreview({ document, floorCount = 1 }: { document: C
   const bounds = useMemo(() => {
     if (!visibleEntities.length) return { minX: -5, maxX: 5, minZ: -5, maxZ: 5 };
     const points: Point2D[] = [];
-    visibleEntities.forEach((entity) => {
+    visibleEntities.filter((entity) => entity.type !== "text" && entity.type !== "dimension").forEach((entity) => {
       if (entity.type === "line" || entity.type === "wall") points.push(entity.start, entity.end);
       else if (entity.type === "polyline") points.push(...entity.points);
       else if (entity.type === "rectangle") points.push(entity.min, entity.max);
