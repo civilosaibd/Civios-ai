@@ -103,6 +103,18 @@ test("Super Admin can grant billing permissions and billing manage implies view"
   });
 });
 
+test("Super Admin can grant affiliate permissions and commission review honors affiliate.manage",async()=>{
+  const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
+  await admin(async()=>{ await db.query("SELECT public.admin_set_subadmin_affiliate_permissions($1,ARRAY['manage']::text[])",[membership.id]); });
+  const actions=(await q("SELECT action FROM public.admin_feature_permissions WHERE membership_id=$1 AND feature_key='affiliate' ORDER BY action",[membership.id])).map(x=>x.action);
+  assert.deepEqual(actions,["manage","view"]);
+  await sub(async()=>{
+    assert.equal((await db.query("SELECT public.has_admin_permission('affiliate','view') AS allowed")).rows[0].allowed,true);
+    assert.equal((await db.query("SELECT public.has_admin_permission('affiliate','manage') AS allowed")).rows[0].allowed,true);
+    await rejects(()=>db.query("SELECT public.review_commission('00000000-0000-4000-8000-000000000099',false,'test')"),/Commission not found/);
+  });
+});
+
 test("Sub-admin cannot grant permissions or manage other sub-admins",async()=>{
   const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
   await sub(()=>rejects(()=>db.query("SELECT public.admin_set_subadmin_permissions($1,ARRAY['view']::text[])",[membership.id]),/Super Admin access required/));
