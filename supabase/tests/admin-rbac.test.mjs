@@ -161,7 +161,7 @@ test("Expired, mismatched and replayed invitations cannot activate access",async
 
 
 test("Only Super Admin can create invitations; token hashes and audit rows are stored atomically",async()=>{
-  const hash="dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+  const hash="7777777777777777777777777777777777777777777777777777777777777777";
   await sub(()=>rejects(()=>db.query("SELECT public.admin_create_invitation('new-admin@example.com',$1,now()+interval '7 days')",[hash]),/Super Admin access required/));
   await admin(async()=>{
     const result=await db.query("SELECT public.admin_create_invitation('new-admin@example.com',$1,now()+interval '7 days') AS invitation",[hash]);
