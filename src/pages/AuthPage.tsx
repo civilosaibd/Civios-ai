@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { useAuth } from "@/lib/auth";
 import { isManagedOAuthHost, LOVABLE_SIGNIN_ORIGIN } from "@/lib/oauthHost";
-import { clearStoredReferral, referralForSignup, referralEventSessionId } from "@/lib/referral";
+import { clearStoredReferral, referralForSignup } from "@/lib/referral";
 
 import { toast } from "sonner";
 import CivilOSLogo from "@/components/CivilOSLogo";
@@ -28,20 +28,6 @@ const AuthPage = () => {
   const [loading, setLoading] = useState(false);
   const [verificationPending, setVerificationPending] = useState<string | null>(null);
 
-  const referralClickRecorded = useRef(false);
-  useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get("ref");
-    if (!code || referralClickRecorded.current) return;
-    const sessionId = referralEventSessionId();
-    if (!sessionId) return;
-    referralClickRecorded.current = true;
-    void supabase.rpc("record_referral_event", {
-      _referral_code: code,
-      _event_type: "link_click",
-      _session_id: sessionId,
-      _source: "registration_landing",
-    });
-  }, []);
 
   // Record one referral-link landing per browser session and referral code.
   // This measures in-product link visits, not verified human reach or external shares.
