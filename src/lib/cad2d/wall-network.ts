@@ -31,21 +31,31 @@ export function snapPointToWallNetwork(
   );
   if (!walls.length) return null;
 
+  // A true wall-to-wall intersection is a stronger snap target than the
+  // projection onto either individual wall. Otherwise a nearby projection
+  // can incorrectly win by a few centimetres and miss the junction.
+  let nearestIntersection: Point2D | null = null;
+  let bestIntersectionDistance = tolerance + 1e-9;
+  for (let i = 0; i < walls.length; i += 1) {
+    for (let j = i + 1; j < walls.length; j += 1) {
+      const first = walls[i], second = walls[j];
+      const hit = lineIntersection(first.start, first.end, second.start, second.end);
+      if (!hit || hit.t < -1e-8 || hit.t > 1 + 1e-8 || hit.u < -1e-8 || hit.u > 1 + 1e-8) continue;
+      const candidateDistance = distance(point, hit.point);
+      if (candidateDistance <= tolerance && candidateDistance < bestIntersectionDistance) {
+        nearestIntersection = hit.point;
+        bestIntersectionDistance = candidateDistance;
+      }
+    }
+  }
+  if (nearestIntersection) return { ...nearestIntersection };
+
   const candidates: Point2D[] = [];
   for (const wall of walls) {
     const projected = projectToSegment(point, wall);
     if (distance(point, projected) <= tolerance) candidates.push(projected);
     if (distance(point, wall.start) <= tolerance) candidates.push({ ...wall.start });
     if (distance(point, wall.end) <= tolerance) candidates.push({ ...wall.end });
-  }
-
-  for (let i = 0; i < walls.length; i += 1) {
-    for (let j = i + 1; j < walls.length; j += 1) {
-      const first = walls[i], second = walls[j];
-      const hit = lineIntersection(first.start, first.end, second.start, second.end);
-      if (!hit || hit.t < -1e-8 || hit.t > 1 + 1e-8 || hit.u < -1e-8 || hit.u > 1 + 1e-8) continue;
-      if (distance(point, hit.point) <= tolerance) candidates.push(hit.point);
-    }
   }
 
   let nearest: Point2D | null = null;
