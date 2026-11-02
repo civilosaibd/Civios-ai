@@ -25,7 +25,8 @@ Deno.serve(async (req) => {
 
   const url = Deno.env.get("SUPABASE_URL"), anon = Deno.env.get("SUPABASE_ANON_KEY"), service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const auth = req.headers.get("Authorization") || "";
-  if (!url || !anon || !service || !auth.startsWith("Bearer ")) return reply({ error: "Authentication required" },401,origin);
+  if (!url || !anon || !service || allowedOrigins.length === 0) return reply({ error: "Server configuration incomplete" },500,origin);
+  if (!auth.startsWith("Bearer ")) return reply({ error: "Authentication required" },401,origin);
 
   const caller = createClient(url,anon,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data: authData,error: authError} = await caller.auth.getUser();
