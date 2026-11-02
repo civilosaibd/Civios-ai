@@ -73,6 +73,7 @@ const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage.tsx"));
 const ModulesPage = lazy(() => import("./pages/ModulesPage.tsx"));
 const BillingPage = lazy(() => import("./pages/BillingPage.tsx"));
 const AdminBillingPage = lazy(() => import("./pages/AdminBillingPage.tsx"));
+const AdminReportsPage = lazy(() => import("./pages/AdminReportsPage.tsx"));
 const FinancePage = lazy(() => import("./pages/FinancePage.tsx"));
 const DefectDetectionPage = lazy(() => import("./pages/DefectDetectionPage.tsx"));
 const KnowledgeLibraryPage = lazy(
@@ -261,6 +262,7 @@ const App = () => (
                         path="/admin/billing"
                         element={<AdminBillingPage />}
                       />
+                      <Route path="/admin/reports" element={<AdminReportsPage />} />
 
                       <Route
                         path="/share/:token"
