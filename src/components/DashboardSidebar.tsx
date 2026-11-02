@@ -149,7 +149,7 @@ export function DashboardSidebar() {
   const [hidden, setHidden] = useState<string[]>([]);
   useEffect(() => {
     if (!user) { setHidden([]); return; }
-    const URLS: Record<string, string> = { boq: "/boq-hub", cost_estimator: "/upload", rate_analysis: "/rate-analysis", plan_generator: "/plan-generator", bim_studio: "/bim-studio", site_geo: "/site-geo", scheduler: "/scheduler", inventory: "/inventory", tender: "/tender", ai_writer: "/ai-writer", analytics: "/analytics" };
+    const URLS: Record<string, string> = { boq: "/boq-hub", cost_estimator: "/upload", rate_analysis: "/rate-analysis", plan_generator: "/plan-generator", site_geo: "/site-geo", scheduler: "/scheduler", inventory: "/inventory", tender: "/tender", ai_writer: "/ai-writer", analytics: "/analytics" };
     supabase.from("user_feature_settings").select("feature_key").eq("user_id", user.id).eq("enabled", false)
       .then(({ data }) => setHidden((data || []).map((r) => URLS[r.feature_key]).filter(Boolean)));
   }, [user, pathname]);
@@ -183,12 +183,20 @@ export function DashboardSidebar() {
             <SidebarMenu>
               {topNav.map((item) => (
                 <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton asChild isActive={pathname === item.url} tooltip={item.title}>
-                    <NavLink to={item.url} className="flex items-center gap-2">
+                  {item.adminOnly && !isAdmin ? (
+                    <SidebarMenuButton disabled tooltip="IndoCAD — Coming Soon">
                       <item.icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && <span className="truncate">{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
+                      {!collapsed && <span className="min-w-0 flex-1 truncate">IndoCAD</span>}
+                      {!collapsed && <span className="shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">Coming Soon</span>}
+                    </SidebarMenuButton>
+                  ) : (
+                    <SidebarMenuButton asChild isActive={pathname === item.url} tooltip={item.title}>
+                      <NavLink to={item.url} className="flex items-center gap-2">
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span className="truncate">{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
