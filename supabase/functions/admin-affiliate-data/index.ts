@@ -69,7 +69,11 @@ Deno.serve(async (req) => {
     });
     const audit = await db.from("admin_action_audit").insert({ admin_user_id: auth.user.id, action: "view_affiliate_control_center", target_type: "affiliate_directory", details: { affiliate_count: affiliates.length, referral_count: referrals.length, engagement_event_count: events.length } });
     if (audit.error) return reply({ error: "Unable to record privileged access; records were not returned" }, 500, origin);
-    return reply({ affiliates, commissions, withdrawals, can_manage: mayManageAffiliate, totals: { affiliates: affiliates.length, referrals: referrals.length, conversions: referrals.filter((r) => r.status === "converted").length,
+    const visibleWithdrawals = mayManageAffiliate ? withdrawals : withdrawals.map((w) => ({
+      ...w,
+      account_number: w.account_number ? `••••${String(w.account_number).slice(-4)}` : null,
+    }));
+    return reply({ affiliates, commissions, withdrawals: visibleWithdrawals, can_manage: mayManageAffiliate, totals: { affiliates: affiliates.length, referrals: referrals.length, conversions: referrals.filter((r) => r.status === "converted").length,
       commission_approved: totalAll(commissions, ["approved"]), commission_flagged: totalAll(commissions, ["flagged"]), withdrawals_paid: totalAll(withdrawals, ["paid"]) } }, 200, origin);
   }
   if (body.action === "withdrawal-update") {
