@@ -136,7 +136,7 @@ function GroundScene() {
 function ModernResidence({ motionEnabled }: { motionEnabled: boolean }) {
   const root = useRef<Group>(null);
   useFrame((_, delta) => {
-    if (motionEnabled && root.current) root.current.rotation.y += delta * (Math.PI * 2 / 72);
+    if (root.current) root.current.rotation.y = -0.35;
   });
 
   const floors = [0.96, 2.38, 3.8, 5.22];
@@ -342,7 +342,7 @@ function CityEnvironment() {
       <CityEnvironment />\n      <ModernResidence motionEnabled={motionEnabled} />
       <ContactShadows position={[0, 0.22, 0]} opacity={0.34} scale={11} blur={2.8} far={5} />
       <OrbitControls
-        target={[0, 2.2, 0]} enableDamping dampingFactor={0.055}
+        target={[0, 0, 0]} enableDamping dampingFactor={0.055}
         enablePan={false} enableZoom={false}
         minPolarAngle={Math.PI / 3.35} maxPolarAngle={Math.PI / 2.12}
       />
@@ -359,14 +359,14 @@ export default function HeroBuilding3D() {
     <div
       className="relative isolate h-[340px] w-full overflow-visible sm:h-[430px] lg:h-[560px]"
       role="img"
-      aria-label="An interactive miniature realistic modern town with a landmark glass-and-stone residence, surrounding buildings, asphalt roads, moving cars, walking pedestrians, streetlights and trees."
+      aria-label="A high-angle aerial 3D view of a realistic modern urban neighborhood with buildings, asphalt streets, moving traffic and pedestrians."
       style={{
         background: "transparent",
       }}
     >
       <Canvas
         shadows dpr={[1, 1.5]}
-        camera={{ position: [23, 17, 27], fov: 38, near: 0.1, far: 150 }}
+        camera={{ position: [0, 42, 38], fov: 43, near: 0.1, far: 180 }}
         gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
         fallback={<div className="flex h-full items-center justify-center text-sm text-white/70">3D preview is not available in this browser.</div>}
       >
