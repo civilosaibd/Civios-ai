@@ -12,7 +12,7 @@ import SEO from "@/components/SEO";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ShieldCheck, UserPlus, Copy, RefreshCw, UserCheck, UserX, Trash2, LockKeyhole, History } from "lucide-react";
+import { ShieldCheck, UserPlus, Copy, RefreshCw, UserCheck, UserX, Trash2, History } from "lucide-react";
 
 type Permission = { id: string; membership_id: string; feature_key: string; action: string };
 type Member = { id: string; user_id: string; role: "super_admin" | "sub_admin"; status: "active" | "suspended"; email: string | null; display_name: string | null; permissions: Permission[] };
