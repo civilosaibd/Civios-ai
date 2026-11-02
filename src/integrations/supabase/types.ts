@@ -1745,6 +1745,48 @@ export type Database = {
         Relationships: []
       }
     }
+      excel_library_files: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          folder_path: string | null
+          id: string
+          mime_type: string
+          original_filename: string
+          size_bytes: number
+          storage_path: string
+          title: string
+          uploaded_by: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          folder_path?: string | null
+          id?: string
+          mime_type: string
+          original_filename: string
+          size_bytes: number
+          storage_path: string
+          title: string
+          uploaded_by: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          folder_path?: string | null
+          id?: string
+          mime_type?: string
+          original_filename?: string
+          size_bytes?: number
+          storage_path?: string
+          title?: string
+          uploaded_by?: string
+        }
+        Relationships: []
+      }
     Views: {
       [_ in never]: never
     }
