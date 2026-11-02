@@ -12,14 +12,6 @@ const MATERIAL_THEMES: Record<MaterialThemeId, { label: string; wall: string; co
   concrete: { label: "Exposed Concrete", wall: "#a8adb3", column: "#858c94", frame: "#3f4852", trim: "#d1d5db", roof: "#9ca3af", glass: "#9bc7df", ground: "#d4d8dc" },
 };
 
-type MaterialThemeId = "modern" | "warm" | "glass" | "concrete";
-const MATERIAL_THEMES: Record<MaterialThemeId, { label: string; wall: string; column: string; frame: string; trim: string; roof: string; glass: string; ground: string }> = {
-  modern: { label: "Modern White", wall: "#e8edf2", column: "#cbd5e1", frame: "#334155", trim: "#f8fafc", roof: "#d7dde5", glass: "#8fc8e8", ground: "#dce5ed" },
-  warm: { label: "Warm Stone", wall: "#c8b59b", column: "#9a8062", frame: "#493b30", trim: "#e9dcc8", roof: "#b9a68f", glass: "#a6cbd8", ground: "#e3d9ca" },
-  glass: { label: "Glass & Steel", wall: "#9fb4c3", column: "#475569", frame: "#1e293b", trim: "#cbd5e1", roof: "#64748b", glass: "#77bde0", ground: "#d9e3ea" },
-  concrete: { label: "Exposed Concrete", wall: "#a8adb3", column: "#858c94", frame: "#3f4852", trim: "#d1d5db", roof: "#9ca3af", glass: "#9bc7df", ground: "#d4d8dc" },
-};
-
 const unitToMetres: Record<CadDocument["units"], number> = { mm: 0.001, cm: 0.01, m: 1, in: 0.0254, ft: 0.3048 };
 const DEFAULT_WALL_HEIGHT = 3;
 const point3 = (p: Point2D, factor: number, y = 0): [number, number, number] => [p.x * factor, y, -p.y * factor];
