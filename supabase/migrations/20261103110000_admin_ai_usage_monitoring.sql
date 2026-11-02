@@ -24,8 +24,11 @@ DECLARE
   selected_period text := coalesce(_period, to_char(now(),'YYYY-MM'));
   result jsonb;
 BEGIN
-  IF actor IS NULL OR NOT public.has_role(actor,'admin') THEN
-    RAISE EXCEPTION 'Admin access required' USING ERRCODE = '42501';
+  IF actor IS NULL OR NOT (
+    public.has_role(actor,'admin'::public.app_role)
+    OR public.has_admin_permission('ai_usage','view')
+  ) THEN
+    RAISE EXCEPTION 'AI Usage: View permission required' USING ERRCODE = '42501';
   END IF;
   IF selected_period !~ '^\d{4}-(0[1-9]|1[0-2])$' THEN
     RAISE EXCEPTION 'Period must use YYYY-MM format' USING ERRCODE = '22023';
