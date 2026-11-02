@@ -63,6 +63,7 @@ After adding a real screenshot, embed it with a relative Markdown image link, fo
 
 The following is a high-level product map, not a complete deployment or security specification.
 
+```mermaid
 flowchart TB
     U[Engineer / Student / Contractor / Owner] --> UI[CivilOS AI Web Workspace]
     UI --> AUTH[Authentication and Access Control]
@@ -73,6 +74,7 @@ flowchart TB
     AI --> ENG
     ENG --> DB
     ENG --> DOC[Reports and Exports]
+```
 
 ---
 
