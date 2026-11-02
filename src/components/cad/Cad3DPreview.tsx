@@ -131,7 +131,8 @@ function Entity3D({ entity, color, factor, theme }: { entity: CadEntity; color: 
   return null;
 }
 
-export default function Cad3DPreview({ document, floorCount = 1 }: { document: CadDocument; floorCount?: number }) {\n  const [themeId, setThemeId] = useState<MaterialThemeId>("modern");\n  const theme = MATERIAL_THEMES[themeId];
+export default function Cad3DPreview({ document, floorCount = 1 }: { document: CadDocument; floorCount?: number }) {
+  const [themeId, setThemeId] = useState<MaterialThemeId>("modern");\n  const theme = MATERIAL_THEMES[themeId];
   const levels = Math.max(1, Math.min(20, Math.round(floorCount)));
   const factor = unitToMetres[document.units];
   const visibleEntities = useMemo(() => document.entities.filter((entity) => document.layers.find((layer) => layer.id === entity.layerId)?.visible !== false), [document]);
