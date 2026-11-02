@@ -84,7 +84,7 @@ const palette: { id: CadToolId; label: string; group: string }[] = [
   { id: "extend", label: "Extend", group: "Modify" }, { id: "fillet", label: "Fillet", group: "Modify" }, { id: "chamfer", label: "Chamfer", group: "Modify" },
   { id: "dimension", label: "Dimension", group: "Annotate" }, { id: "text", label: "Text", group: "Annotate" },
   { id: "wall", label: "Wall", group: "Architecture" }, { id: "door", label: "Door", group: "Architecture" },
-  { id: "window", label: "Window", group: "Architecture" }, { id: "column", label: "Column", group: "Architecture" }, { id: "stair", label: "Staircase", group: "Architecture" },
+  { id: "window", label: "Window", group: "Architecture" }, { id: "column", label: "Column", group: "Architecture" }, { id: "stair", label: "Staircase", group: "Architecture" }, { id: "balcony", label: "Balcony", group: "Architecture" },
 ];
 
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `cad-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -216,7 +216,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
       }
       return false;
     }
-    if (e.type === "column" || e.type === "stair") {
+    if (e.type === "column" || e.type === "stair" || e.type === "balcony") {
       const bounds = entityBounds(e);
       const tolerance = 7 / view.scale;
       return p.x >= bounds.min.x - tolerance && p.x <= bounds.max.x + tolerance
@@ -489,6 +489,9 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
     } else if (tool==="stair") {
       const r=normalizeRect(a,b), width=r.max.x-r.min.x, depth=r.max.y-r.min.y;
       if(width>1e-8&&depth>1e-8) entity={...base,type:"stair",at:{x:(r.min.x+r.max.x)/2,y:(r.min.y+r.max.y)/2},width,depth,rotation:0,steps:Math.max(3,Math.min(30,Math.round(Math.max(width,depth)/1.1))),floorHeight:3.2,direction:depth>=width?"y":"x"};
+    } else if (tool==="balcony") {
+      const r=normalizeRect(a,b), width=r.max.x-r.min.x, depth=r.max.y-r.min.y;
+      if(width>1e-8&&depth>1e-8) entity={...base,type:"balcony",at:{x:(r.min.x+r.max.x)/2,y:(r.min.y+r.max.y)/2},width,depth,rotation:0,slabThickness:0.15,railingHeight:1.05,railingSide:"y-max"};
     }
     else if (tool==="dimension") {
       if (Math.hypot(b.x-a.x,b.y-a.y) > 1e-8) entity={...base,type:"dimension",a,b,offset:Math.max(grid.snapSpacing,1)};
@@ -794,6 +797,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
             case "window": return isFinitePoint(entity.at) && entity.width > 0;
             case "column": return isFinitePoint(entity.at) && entity.width > 0 && entity.depth > 0;
             case "stair": return isFinitePoint(entity.at) && Number.isFinite(entity.width) && entity.width > 0 && Number.isFinite(entity.depth) && entity.depth > 0 && Number.isFinite(entity.rotation) && Number.isInteger(entity.steps) && entity.steps >= 3 && entity.steps <= 30 && Number.isFinite(entity.floorHeight) && entity.floorHeight > 0 && (entity.direction === "x" || entity.direction === "y");
+            case "balcony": return isFinitePoint(entity.at) && Number.isFinite(entity.width) && entity.width > 0 && Number.isFinite(entity.depth) && entity.depth > 0 && Number.isFinite(entity.rotation) && Number.isFinite(entity.slabThickness) && entity.slabThickness > 0 && Number.isFinite(entity.railingHeight) && entity.railingHeight > 0 && ["x-min","x-max","y-min","y-max"].includes(entity.railingSide);
             case "text": return isFinitePoint(entity.at) && typeof entity.text === "string" && entity.height > 0;
             case "dimension": return isFinitePoint(entity.a) && isFinitePoint(entity.b);
             default: return false;
@@ -910,6 +914,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
     }
     if(e.type==="column") return <rect key={e.id} x={e.at.x-e.width/2} y={e.at.y-e.depth/2} width={e.width} height={e.depth} {...common} fill={color} fillOpacity={0.25}/>;
     if(e.type==="stair") { const x=-e.width/2,y=-e.depth/2,run=e.direction==="x"?e.width:e.depth,tread=run/e.steps; return <g key={e.id} transform={`translate(${e.at.x} ${e.at.y}) rotate(${e.rotation*180/Math.PI})`}><rect x={x} y={y} width={e.width} height={e.depth} {...common} fill={color} fillOpacity={0.06}/>{Array.from({length:e.steps-1},(_,i)=>e.direction==="x"?<line key={i} x1={x+(i+1)*tread} y1={y} x2={x+(i+1)*tread} y2={y+e.depth} {...common}/>:<line key={i} x1={x} y1={y+(i+1)*tread} x2={x+e.width} y2={y+(i+1)*tread} {...common}/>)}<text x="0" y="0" textAnchor="middle" fontSize={Math.max(0.7,Math.min(e.width,e.depth)*0.09)} fill={color}>UP · {e.steps} RISERS</text></g>; }
+    if(e.type==="balcony") { const x=-e.width/2,y=-e.depth/2; const rail=e.railingSide==="x-min"?<line x1={x} y1={y} x2={x} y2={y+e.depth} {...common}/>:e.railingSide==="x-max"?<line x1={x+e.width} y1={y} x2={x+e.width} y2={y+e.depth} {...common}/>:e.railingSide==="y-min"?<line x1={x} y1={y} x2={x+e.width} y2={y} {...common}/>:<line x1={x} y1={y+e.depth} x2={x+e.width} y2={y+e.depth} {...common}/>; return <g key={e.id} transform={`translate(${e.at.x} ${e.at.y}) rotate(${e.rotation*180/Math.PI})`}><rect x={x} y={y} width={e.width} height={e.depth} {...common} fill={color} fillOpacity={0.12}/>{rail}<text x="0" y="0" textAnchor="middle" fontSize={Math.max(0.7,Math.min(e.width,e.depth)*0.1)} fill={color}>BALCONY</text></g>; }
     if(e.type==="text") return <text key={e.id} x={e.at.x} y={e.at.y} fontSize={e.height} fill={color}>{e.text}</text>;
     if(e.type==="dimension") return <g key={e.id}><line x1={e.a.x} y1={e.a.y} x2={e.b.x} y2={e.b.y} {...common}/><text x={(e.a.x+e.b.x)/2} y={(e.a.y+e.b.y)/2 - e.offset} fontSize={Math.max(1, 8/view.scale)} fill={color}>{dimensionLength(e).toFixed(3)} {doc.units}</text></g>;
     return null;
