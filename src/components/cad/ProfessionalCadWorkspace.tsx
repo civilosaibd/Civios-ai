@@ -83,7 +83,7 @@ const palette: { id: CadToolId; label: string; group: string }[] = [
   { id: "extend", label: "Extend", group: "Modify" }, { id: "fillet", label: "Fillet", group: "Modify" }, { id: "chamfer", label: "Chamfer", group: "Modify" },
   { id: "dimension", label: "Dimension", group: "Annotate" }, { id: "text", label: "Text", group: "Annotate" },
   { id: "wall", label: "Wall", group: "Architecture" }, { id: "door", label: "Door", group: "Architecture" },
-  { id: "window", label: "Window", group: "Architecture" }, { id: "column", label: "Column", group: "Architecture" },
+  { id: "window", label: "Window", group: "Architecture" }, { id: "column", label: "Column", group: "Architecture" }, { id: "stair", label: "Staircase", group: "Architecture" },
 ];
 
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `cad-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -215,7 +215,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
       }
       return false;
     }
-    if (e.type === "column") {
+    if (e.type === "column" || e.type === "stair") {
       const bounds = entityBounds(e);
       const tolerance = 7 / view.scale;
       return p.x >= bounds.min.x - tolerance && p.x <= bounds.max.x + tolerance
@@ -484,9 +484,11 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
       }
     }
     else if (tool==="column") {
-      const r=normalizeRect(a,b);
-      const width=r.max.x-r.min.x, depth=r.max.y-r.min.y;
+      const r=normalizeRect(a,b); const width=r.max.x-r.min.x, depth=r.max.y-r.min.y;
       if (width>1e-8 && depth>1e-8) entity={...base,type:"column",at:{x:(r.min.x+r.max.x)/2,y:(r.min.y+r.max.y)/2},width,depth,rotation:0};
+    } else if (tool==="stair") {
+      const r=normalizeRect(a,b), width=r.max.x-r.min.x, depth=r.max.y-r.min.y;
+      if(width>1e-8&&depth>1e-8) entity={...base,type:"stair",at:{x:(r.min.x+r.max.x)/2,y:(r.min.y+r.max.y)/2},width,depth,rotation:0,steps:Math.max(3,Math.min(30,Math.round(Math.max(width,depth)/1.1))),floorHeight:3.2,direction:depth>=width?"y":"x"};
     }
     else if (tool==="dimension") {
       if (Math.hypot(b.x-a.x,b.y-a.y) > 1e-8) entity={...base,type:"dimension",a,b,offset:Math.max(grid.snapSpacing,1)};
@@ -906,6 +908,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
       </g>;
     }
     if(e.type==="column") return <rect key={e.id} x={e.at.x-e.width/2} y={e.at.y-e.depth/2} width={e.width} height={e.depth} {...common} fill={color} fillOpacity={0.25}/>;
+    if(e.type==="stair") { const x=-e.width/2,y=-e.depth/2,run=e.direction==="x"?e.width:e.depth,tread=run/e.steps; return <g key={e.id} transform={`translate(${e.at.x} ${e.at.y}) rotate(${e.rotation*180/Math.PI})`}><rect x={x} y={y} width={e.width} height={e.depth} {...common} fill={color} fillOpacity={0.06}/>{Array.from({length:e.steps-1},(_,i)=>e.direction==="x"?<line key={i} x1={x+(i+1)*tread} y1={y} x2={x+(i+1)*tread} y2={y+e.depth} {...common}/>:<line key={i} x1={x} y1={y+(i+1)*tread} x2={x+e.width} y2={y+(i+1)*tread} {...common}/>)}<text x="0" y="0" textAnchor="middle" fontSize={Math.max(0.7,Math.min(e.width,e.depth)*0.09)} fill={color}>UP · {e.steps} RISERS</text></g>; }
     if(e.type==="text") return <text key={e.id} x={e.at.x} y={e.at.y} fontSize={e.height} fill={color}>{e.text}</text>;
     if(e.type==="dimension") return <g key={e.id}><line x1={e.a.x} y1={e.a.y} x2={e.b.x} y2={e.b.y} {...common}/><text x={(e.a.x+e.b.x)/2} y={(e.a.y+e.b.y)/2 - e.offset} fontSize={Math.max(1, 8/view.scale)} fill={color}>{dimensionLength(e).toFixed(3)} {doc.units}</text></g>;
     return null;
@@ -972,7 +975,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5"><div className="flex items-center gap-2"><div className="rounded-md bg-orange-50 p-1.5 text-orange-600"><Ruler className="h-4 w-4"/></div><div><p className="text-xs font-semibold text-slate-800">Drawing canvas</p><p className="text-[10px] text-slate-500">Infinite-feel workspace · grid & precision controls</p></div></div><div className="flex items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-600">{doc.entities.length} objects</span><Button size="sm" variant={show3D ? "default" : "outline"} className="h-8 text-xs" onClick={() => setShow3D((value) => !value)} disabled={!show3D && doc.entities.length === 0} title={doc.entities.length === 0 ? "Generate or draw a 2D plan before viewing its 3D model" : "View the current 2D drawing as a 3D architectural massing model"}><Box className="mr-1.5 h-3.5 w-3.5"/>{show3D ? "Back to 2D" : "View 3D Model"}</Button></div></div>
         {show3D ? <Cad3DPreview document={doc} floorCount={buildingFloors}/> : (
         <svg ref={svgRef} viewBox="0 0 1000 640" className="min-h-[360px] w-full flex-1 touch-none bg-slate-50" role="img" aria-label="2D CAD drafting canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerCancel} onLostPointerCapture={handleLostPointerCapture} onDoubleClick={(event)=>{if(tool==="polyline"){event.preventDefault();finishPolyline();}}} onWheel={handleWheel} onContextMenu={(event)=>event.preventDefault()}>
-          <defs><pattern id="cad-grid-small" width={Math.max(2,grid.gridSpacing*view.scale)} height={Math.max(2,grid.gridSpacing*view.scale)} patternUnits="userSpaceOnUse" x={view.x%Math.max(2,grid.gridSpacing*view.scale)} y={view.y%Math.max(2,grid.gridSpacing*view.scale)}><path d={`M ${Math.max(2,grid.gridSpacing*view.scale)} 0 L 0 0 0 ${Math.max(2,grid.gridSpacing*view.scale)}`} fill="none" stroke="#e5e7eb" strokeWidth=".7"/></pattern></defs>
+          <defs><marker id="cad-stair-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="#f97316"/></marker><pattern id="cad-grid-small" width={Math.max(2,grid.gridSpacing*view.scale)} height={Math.max(2,grid.gridSpacing*view.scale)} patternUnits="userSpaceOnUse" x={view.x%Math.max(2,grid.gridSpacing*view.scale)} y={view.y%Math.max(2,grid.gridSpacing*view.scale)}><path d={`M ${Math.max(2,grid.gridSpacing*view.scale)} 0 L 0 0 0 ${Math.max(2,grid.gridSpacing*view.scale)}`} fill="none" stroke="#e5e7eb" strokeWidth=".7"/></pattern></defs>
           {grid.enabled&&<rect width="1000" height="640" fill="url(#cad-grid-small)"/>}
           {selectionWindow && tool === "select" && <rect x={Math.min(selectionWindow.start.x, selectionWindow.end.x)} y={Math.min(selectionWindow.start.y, selectionWindow.end.y)} width={Math.abs(selectionWindow.end.x - selectionWindow.start.x)} height={Math.abs(selectionWindow.end.y - selectionWindow.start.y)} fill="#2563eb" fillOpacity={0.08} stroke="#2563eb" strokeDasharray="5 3" strokeWidth={1 / view.scale} pointerEvents="none" transform={`translate(${view.x},${view.y}) scale(${view.scale})`} />}
           <g transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>{doc.entities.map(renderEntity)}{tool==="polyline"&&polylinePoints.length>0&&<polyline points={[...polylinePoints,...(cursor?[cursor]:[])].map((p)=>`${p.x},${p.y}`).join(" ")} fill="none" stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}{start&&cursor&&tool!=="select"&&tool!=="move"&&tool!=="copy"&&tool!=="polyline"&&<line x1={start.x} y1={start.y} x2={cursor.x} y2={cursor.y} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}</g>
