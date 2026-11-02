@@ -45,7 +45,7 @@ describe("native DXF importer", () => {
       "0","LWPOLYLINE","8","0","90","3","70","1","10","0","20","0","10","40","20","0","10","40","20","30",
       "0","CIRCLE","8","0","10","20","20","20","40","5",
       "0","ENDSEC","0","EOF",
-    ].join("\\n");
+    ].join("\n");
     const result = importDxfDocument(dxf);
     expect(result.document.units).toBe("mm");
     expect(result.document.entities).toHaveLength(3);
@@ -66,7 +66,7 @@ describe("native DXF importer", () => {
       "0","SEQEND",
       "0","INSERT","8","BLOCKS","2","CHAIR",
       "0","ENDSEC","0","EOF",
-    ].join("\\n");
+    ].join("\n");
     const result = importDxfDocument(dxf, "ft");
     expect(result.document.entities).toHaveLength(1);
     expect(result.document.entities[0].type).toBe("polyline");
@@ -76,6 +76,6 @@ describe("native DXF importer", () => {
 
   it("rejects empty or unsupported-only drawings", () => {
     expect(() => importDxfDocument("")).toThrow(/empty/i);
-    expect(() => importDxfDocument(["0","SECTION","2","ENTITIES","0","INSERT","2","X","0","ENDSEC","0","EOF"].join("\\n"))).toThrow(/supported/i);
+    expect(() => importDxfDocument(["0","SECTION","2","ENTITIES","0","INSERT","2","X","0","ENDSEC","0","EOF"].join("\n"))).toThrow(/supported/i);
   });
 });
