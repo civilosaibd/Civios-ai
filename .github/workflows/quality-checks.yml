@@ -44,7 +44,7 @@ jobs:
         run: npm install --no-save --no-audit --no-fund @electric-sql/pglite
 
       - name: Test Supabase migrations and referral/payment security
-        run: node --test supabase/tests/security.test.mjs supabase/tests/affiliate.test.mjs
+        run: node --test supabase/tests/security.test.mjs supabase/tests/affiliate.test.mjs supabase/tests/admin-rbac.test.mjs
 
       - name: Build production bundle
         # Build with isolated placeholder config; never embed a production project in CI.
