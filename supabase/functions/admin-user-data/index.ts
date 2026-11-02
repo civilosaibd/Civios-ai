@@ -219,18 +219,25 @@ Deno.serve(async (req) => {
       .limit(limit);
     if (auditListError) return json({ error: "Unable to load access audit history" }, 500, origin);
 
-    const ids = [...new Set((events || []).flatMap((event) => [event.admin_user_id, event.target_user_id]))];
+    const { data: statusEvents, error: statusAuditError } = await admin.from("admin_account_status_audit")
+      .select("id,admin_user_id,target_user_id,action,result,reason,created_at")
+      .order("created_at", { ascending: false }).limit(limit);
+    if (statusAuditError) return json({ error: "Unable to load account status audit history" }, 500, origin);
+    const ids = [...new Set([...(events || []).flatMap((event) => [event.admin_user_id, event.target_user_id]), ...(statusEvents || []).flatMap((event) => [event.admin_user_id, event.target_user_id])])];
     const emailById = new Map<string, string | null>();
     await Promise.all(ids.map(async (id) => {
       const { data, error } = await admin.auth.admin.getUserById(id);
       emailById.set(id, error ? null : data.user?.email || null);
     }));
     return json({
-      events: (events || []).map((event) => ({
+      events: [
+        ...(events || []).map((event) => ({ ...event, event_type: "privileged_data_access", occurred_at: event.accessed_at })),
+        ...(statusEvents || []).map((event) => ({ ...event, event_type: "account_status_change", occurred_at: event.created_at })),
+      ].map((event) => ({
         ...event,
         admin_email: emailById.get(event.admin_user_id) || null,
         target_email: emailById.get(event.target_user_id) || null,
-      })),
+      })).sort((a,b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()).slice(0,limit),
     }, 200, origin);
   }
 
