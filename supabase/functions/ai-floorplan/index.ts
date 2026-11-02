@@ -123,54 +123,39 @@ Deno.serve(async (req: Request) => {
     const quota = await consumeAiCredit(user.id);
     if (quota) return json({ error: quota.message }, quota.status);
 
-    const provider = (Deno.env.get("AI_PROVIDER") || "lovable").toLowerCase();
-    const messages = [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: body.prompt.trim().slice(0, 4000) },
-    ];
-    let response: Response;
-    if (provider === "openai") {
-      const key = Deno.env.get("OPENAI_API_KEY");
-      const model = Deno.env.get("OPENAI_MODEL") || "gpt-5.5";
-      if (!key) return json({ error: "OpenAI is not configured on the server." }, 503);
-      response = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          instructions: SYSTEM_PROMPT,
-          input: [{ role: "user", content: body.prompt.trim().slice(0, 4000) }],
-          text: { format: { type: "json_object" } },
-          store: false,
-        }),
-      });
-    } else if (provider === "lovable") {
-      const key = Deno.env.get("LOVABLE_API_KEY");
-      if (!key) return json({ error: "AI service is not configured on the server." }, 503);
-      response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages,
-          response_format: { type: "json_object" },
-        }),
-      });
-    } else {
-      return json({ error: "Unsupported AI provider configuration." }, 503);
+    // Match CivilOS AI's existing server-side OpenAI configuration used by ai-chat.
+    // Never accept provider or API key overrides from the browser.
+    const openAiKey = Deno.env.get("OPENAI_API_KEY");
+    const openAiModel = Deno.env.get("OPENAI_MODEL") || "gpt-5.5";
+    if (!openAiKey) {
+      console.error("OPENAI_API_KEY is not configured for IndoCAD");
+      return json({ error: "OpenAI is not configured on the server. Please contact the administrator." }, 503);
     }
+
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openAiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: openAiModel,
+        instructions: SYSTEM_PROMPT,
+        input: [{ role: "user", content: body.prompt.trim().slice(0, 4000) }],
+        text: { format: { type: "json_object" } },
+        store: false,
+      }),
+    });
     if (response.status === 429) return json({ error: "AI rate limit reached. Please wait and try again." }, 429);
     if (response.status === 402) return json({ error: "AI provider credits are exhausted." }, 402);
     if (!response.ok) {
-      console.error("IndoCAD floor-plan provider failed", { provider, status: response.status });
+      console.error("IndoCAD OpenAI Responses API request failed", { status: response.status });
       return json({ error: "AI floor-plan generation failed at the provider. Please try again." }, 502);
     }
     const payload = await response.json();
-    let raw = "";
-    if (provider === "lovable") raw = payload?.choices?.[0]?.message?.content ?? "";
-    else {
-      raw = payload?.output_text ?? payload?.output?.flatMap((item: any) => item.content ?? []).find((part: any) => part.type === "output_text")?.text ?? "";
-    }
+    const raw = payload?.output_text
+      ?? payload?.output?.flatMap((item: any) => item.content ?? []).find((part: any) => part.type === "output_text")?.text
+      ?? "";
     if (typeof raw !== "string" || !raw.trim()) return json({ error: "AI returned an empty floor plan." }, 502);
     let parsed: unknown;
     try { parsed = JSON.parse(raw); } catch {
