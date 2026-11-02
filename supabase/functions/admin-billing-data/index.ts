@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     const page = Math.max(1, Math.min(10000, Number(body.page) || 1));
     const pageSize = Math.max(10, Math.min(50, Number(body.pageSize) || 25));
     const status = String(body.status || "all");
-    const search = String(body.search || "").trim().replace(/[%,().,*]/g, " ").replace(/\s+/g, " ").slice(0, 80);
+    const search = String(body.search || "").trim().replace(/[\\\\%,().,*]/g, " ").replace(/\s+/g, " ").slice(0, 80);
     let query = admin.from("payments")
       .select("id,user_id,plan_id,subscription_id,amount,currency,billing_cycle,payment_provider,payment_method,transaction_id,sender_number,status,admin_note,invoice_number,verified_at,created_at,updated_at", { count: "exact" })
       .order("created_at", { ascending: false })
