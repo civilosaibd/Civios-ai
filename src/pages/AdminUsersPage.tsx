@@ -20,7 +20,7 @@ export default function AdminUsersPage(){
   const {user,loading:authLoading}=useAuth(); const navigate=useNavigate();
   const [accounts,setAccounts]=useState<Account[]>([]); const [page,setPage]=useState(1); const [hasMore,setHasMore]=useState(false);
   const [loading,setLoading]=useState(true); const [search,setSearch]=useState(""); const [searchInput,setSearchInput]=useState("");
-  const [selected,setSelected]=useState<Account|null>(null); const [details,setDetails]=useState<any|null>(null); const [detailsLoading,setDetailsLoading]=useState(false); const [busy,setBusy]=useState<string|null>(null);
+  const [selected,setSelected]=useState<Account|null>(null); const [details,setDetails]=useState<any|null>(null); const [detailsLoading,setDetailsLoading]=useState(false); const [busy,setBusy]=useState<string|null>(null); const [auditOpen,setAuditOpen]=useState(false); const [auditRows,setAuditRows]=useState<any[]>([]); const [auditLoading,setAuditLoading]=useState(false);
   useEffect(()=>{if(!authLoading&&!user)navigate("/auth?redirect=/admin/users");},[user,authLoading,navigate]);
   const load=useCallback(async(nextPage=1,append=false)=>{
     setLoading(true);
@@ -37,6 +37,13 @@ export default function AdminUsersPage(){
     if(error||data?.error)toast.error(data?.error||"Unable to load account details.");else setDetails(data);
     setDetailsLoading(false);
   };
+  const loadAudit=async()=>{
+    setAuditLoading(true);
+    const {data,error}=await supabase.functions.invoke("admin-user-data",{body:{action:"audit-list",limit:100}});
+    if(error||data?.error)toast.error(data?.error||"Audit history is available to Super Admins only.");
+    else{setAuditRows(data.events||[]);setAuditOpen(true);}
+    setAuditLoading(false);
+  };
   const setStatus=async(account:Account,status:"suspended"|"active")=>{
     const reason=status==="suspended"?(window.prompt("Reason for suspension (minimum 8 characters):")||"").trim():"";
     if(status==="suspended"&&reason.length<8)return toast.error("A clear reason is required.");
@@ -50,7 +57,7 @@ export default function AdminUsersPage(){
   return <>
     <SEO title="Admin · User Accounts" description="User directory and audited account status controls."/>
     <SidebarProvider><div className="min-h-screen flex w-full bg-muted/30"><DashboardSidebar/><div className="flex-1 min-w-0 flex flex-col">
-      <header className="sticky top-0 z-30 h-14 flex items-center gap-2 border-b bg-background/95 backdrop-blur px-3 md:px-6"><SidebarTrigger/><h1 className="flex-1 font-heading text-base md:text-lg font-semibold truncate">User Accounts</h1><Button variant="ghost" size="icon" onClick={()=>void load(page)} aria-label="Refresh"><RefreshCw className="h-4 w-4"/></Button><NotificationBell/><ThemeToggle/></header>
+      <header className="sticky top-0 z-30 h-14 flex items-center gap-2 border-b bg-background/95 backdrop-blur px-3 md:px-6"><SidebarTrigger/><h1 className="flex-1 font-heading text-base md:text-lg font-semibold truncate">User Accounts</h1><Button variant="outline" size="sm" onClick={()=>void loadAudit()} disabled={auditLoading} className="hidden sm:inline-flex"><ShieldAlert className="h-4 w-4 mr-1"/>{auditLoading?"Loading…":"Access Audit"}</Button><Button variant="ghost" size="icon" onClick={()=>void load(page)} aria-label="Refresh"><RefreshCw className="h-4 w-4"/></Button><NotificationBell/><ThemeToggle/></header>
       <main className="flex-1 p-4 md:p-6 space-y-4 max-w-7xl w-full mx-auto">
         <div className="rounded-xl border bg-card p-4 flex gap-3"><Users className="h-5 w-5 text-primary mt-0.5"/><div><p className="font-medium text-sm">Permission-controlled user directory</p><p className="text-xs text-muted-foreground mt-1">Only accounts and limited profile metadata are shown. Private files, payment account identifiers, credentials, tokens and agent memory values are excluded. Account suspension blocks new sign-ins; existing access tokens may remain valid until expiry.</p></div></div>
         <div className="flex flex-col sm:flex-row gap-2"><div className="flex-1 flex gap-2"><Input value={searchInput} onChange={e=>setSearchInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")setSearch(searchInput.trim());}} placeholder="Search loaded users by name, email, phone or UUID"/><Button variant="outline" onClick={()=>setSearch(searchInput.trim())}><Search className="h-4 w-4"/></Button></div><Badge variant="outline" className="h-10 px-3">{accounts.length} loaded · page {page}</Badge></div>
@@ -64,6 +71,7 @@ export default function AdminUsersPage(){
         </div>
       </main>
     </div></div></SidebarProvider>
+    <Dialog open={auditOpen} onOpenChange={setAuditOpen}><DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto"><DialogHeader><DialogTitle>Privileged User Access Audit</DialogTitle></DialogHeader>{auditRows.length===0?<p className="text-sm text-muted-foreground">No privileged access events found.</p>:<div className="space-y-2">{auditRows.map((row:any)=><div key={row.id} className="rounded-lg border p-3 text-sm"><div className="flex flex-wrap justify-between gap-2"><Badge variant="outline">{row.action}</Badge><span className="text-xs text-muted-foreground">{new Date(row.accessed_at).toLocaleString()}</span></div><p className="text-xs text-muted-foreground mt-2">Admin: {row.admin_email||row.admin_user_id} · Target: {row.target_email||row.target_user_id}</p></div>)}</div>}</DialogContent></Dialog>
     <Dialog open={!!selected} onOpenChange={open=>{if(!open){setSelected(null);setDetails(null);}}}><DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto"><DialogHeader><DialogTitle>User account details</DialogTitle></DialogHeader>{detailsLoading?<Skeleton className="h-48 w-full"/>:details?<div className="space-y-4"><div className="rounded-lg border p-3 space-y-1"><p className="font-semibold">{details.user?.metadata?.full_name||details.user?.metadata?.name||details.user?.email}</p><p className="text-xs text-muted-foreground break-all">{details.user?.email} · {details.user?.phone||"No phone"}</p><p className="text-xs text-muted-foreground">Email verified: {details.user?.email_confirmed_at?"Yes":"No"} · Status: {details.user?.is_suspended?"Suspended":"Active"}</p><p className="text-xs text-muted-foreground">Created: {details.user?.created_at?new Date(details.user.created_at).toLocaleString():"—"} · Providers: {(details.user?.providers||[]).join(", ")||"—"}</p></div><div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{Object.entries(details.records||{}).map(([key,value])=><div key={key} className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{key.replaceAll("_"," ")}</p><p className="text-lg font-semibold">{Array.isArray(value)?value.length:0}</p></div>)}</div>{details.unavailable_tables?.length>0&&<p className="text-xs text-muted-foreground">Unavailable data sources: {details.unavailable_tables.join(", ")}</p>}<p className="text-xs text-muted-foreground">{details.security_notice}</p></div>:<p className="text-sm text-muted-foreground">No detail data.</p>}</DialogContent></Dialog>
   </>;
 }
