@@ -87,7 +87,8 @@ function Entity3D({ entity, color, factor }: { entity: CadEntity; color: string;
   return null;
 }
 
-export default function Cad3DPreview({ document }: { document: CadDocument }) {
+export default function Cad3DPreview({ document, floorCount = 1 }: { document: CadDocument; floorCount?: number }) {
+  const levels = Math.max(1, Math.min(20, Math.round(floorCount)));
   const factor = unitToMetres[document.units];
   const visibleEntities = useMemo(() => document.entities.filter((entity) => document.layers.find((layer) => layer.id === entity.layerId)?.visible !== false), [document]);
   const bounds = useMemo(() => {
@@ -123,12 +124,16 @@ export default function Cad3DPreview({ document }: { document: CadDocument }) {
           <meshStandardMaterial color="#dce5ed" roughness={0.95} />
         </mesh>
         <Grid position={[center[0], -0.065, center[2]]} args={[width + radius * 1.5, depth + radius * 1.5]} cellSize={1} sectionSize={5} fadeDistance={radius * 4} infiniteGrid={false} />
-        {visibleEntities.map((entity) => <Entity3D key={entity.id} entity={entity} factor={factor} color={document.layers.find((layer) => layer.id === entity.layerId)?.color ?? "#64748b"} />)}
+        {Array.from({ length: levels }, (_, level) => <group key={`floor-${level}`} position={[0, level * 3.2, 0]}>
+          {level > 0 && <mesh position={[center[0], -0.025, center[2]]} receiveShadow><boxGeometry args={[width, 0.12, depth]} /><meshStandardMaterial color="#cbd5e1" roughness={0.85} /></mesh>}
+          {visibleEntities.filter((entity) => level === 0 || (entity.type !== "text" && entity.type !== "dimension")).map((entity) => <Entity3D key={`${level}-${entity.id}`} entity={entity} factor={factor} color={document.layers.find((layer) => layer.id === entity.layerId)?.color ?? "#64748b"} />)}
+        </group>)}
+        {levels > 1 && <mesh position={[center[0], levels * 3.2 - 0.02, center[2]]} receiveShadow><boxGeometry args={[width, 0.14, depth]} /><meshStandardMaterial color="#94a3b8" roughness={0.8} /></mesh>}
       </group>
       <OrbitControls makeDefault enableDamping dampingFactor={0.1} minDistance={2} maxDistance={radius * 12} />
     </Canvas>
     <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg border border-white/70 bg-white/85 px-3 py-2 text-[11px] text-slate-600 shadow-sm backdrop-blur">
-      <b className="text-slate-800">Live 3D preview</b><span className="mx-2">·</span>{visibleEntities.length} visible objects<span className="mx-2">·</span>{document.units}
+      <b className="text-slate-800">Live 3D preview</b><span className="mx-2">·</span>{levels} floor(s)<span className="mx-2">·</span>{visibleEntities.length} visible objects<span className="mx-2">·</span>{document.units}
       <p className="mt-0.5 text-[10px] text-slate-500">Drag to orbit · scroll to zoom · right-drag to pan</p>
     </div>
     {!visibleEntities.length && <div className="pointer-events-none absolute inset-0 flex items-center justify-center"><div className="rounded-xl bg-white/90 px-5 py-4 text-center shadow"><p className="text-sm font-semibold text-slate-800">Your 3D model will appear here</p><p className="mt-1 text-xs text-slate-500">Draw walls, columns, doors or furniture in 2D to build the model.</p></div></div>}
