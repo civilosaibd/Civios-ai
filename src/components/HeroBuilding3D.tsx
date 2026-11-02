@@ -311,8 +311,8 @@ function CityEnvironment() {
         <mesh key={z + ":" + i} position={[-48 + i * 4, -0.055, z]}><boxGeometry args={[2, 0.012, 0.09]} /><meshBasicMaterial color="#d9d4b9" /></mesh>
       )))}
       {blocks.map((b) => <CityBuilding key={b.seed} position={[b.x, -0.12, b.z]} width={b.w} depth={b.d} height={b.h} tone={b.c} seed={b.seed} />)}
-      {[-1.5, 1.5].map((lane) => <MovingCar key={"carx" + lane} lane={lane} speed={lane > 0 ? 4.2 : -3.4} color={lane > 0 ? "#d9e0e2" : "#c56b43"} axis="x" offset={lane * 8} />)}
-      {[-1.5, 1.5].map((lane) => <MovingCar key={"carz" + lane} lane={lane} speed={lane > 0 ? -3.1 : 3.7} color={lane > 0 ? "#355d7a" : "#d5bd77"} axis="z" offset={lane * 11} />)}
+      {[-9.5, -6.5].map((lane) => <MovingCar key={"carx" + lane} lane={lane} speed={lane > 0 ? 4.2 : -3.4} color={lane > 0 ? "#d9e0e2" : "#c56b43"} axis="x" offset={lane * 8} />)}
+      {[-9.5, -6.5].map((lane) => <MovingCar key={"carz" + lane} lane={lane} speed={lane > 0 ? -3.1 : 3.7} color={lane > 0 ? "#355d7a" : "#d5bd77"} axis="z" offset={lane * 11} />)}
       {Array.from({ length: 10 }, (_, i) => (
         <WalkingPerson key={i} start={[-5.1 + (i % 5) * 2.5, 0.02, i < 5 ? -5.15 : 5.15]} speed={0.32 + (i % 3) * 0.08} direction={i % 2 ? 1 : -1} tone={["#c99a77", "#8d624c", "#d2ad8a"][i % 3]} />
       ))}
