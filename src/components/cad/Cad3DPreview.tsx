@@ -163,8 +163,79 @@ function Entity3D({ entity, color, factor, theme, entities }: { entity: CadEntit
   return null;
 }
 
+
+type RoofType = "flat" | "gable" | "hip" | "shed";
+
+function roofFace(points: [number, number, number][]) {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(points.flat(), 3));
+  geometry.setIndex(points.length === 3 ? [0, 1, 2] : [0, 1, 2, 0, 2, 3]);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function ParametricRoof({ type, minX, maxX, minZ, maxZ, baseY, color }: {
+  type: RoofType; minX: number; maxX: number; minZ: number; maxZ: number; baseY: number; color: string;
+}) {
+  const width = Math.max(0.5, maxX - minX);
+  const depth = Math.max(0.5, maxZ - minZ);
+  const centerX = (minX + maxX) / 2;
+  const centerZ = (minZ + maxZ) / 2;
+  const rise = Math.min(2.2, Math.max(0.65, Math.min(width, depth) * 0.16));
+  const geometries = useMemo(() => {
+    if (type === "flat") return [];
+    const eave = baseY;
+    const ridge = baseY + rise;
+    if (type === "gable") return [
+      roofFace([[minX,eave,minZ],[maxX,eave,minZ],[maxX,ridge,centerZ],[minX,ridge,centerZ]]),
+      roofFace([[maxX,eave,maxZ],[minX,eave,maxZ],[minX,ridge,centerZ],[maxX,ridge,centerZ]]),
+    ];
+    if (type === "shed") return [
+      roofFace([[minX,eave,minZ],[maxX,eave,minZ],[maxX,ridge,maxZ],[minX,ridge,maxZ]]),
+    ];
+    const inset = Math.min(width * 0.22, depth * 0.22);
+    return [
+      roofFace([[minX,eave,minZ],[maxX,eave,minZ],[maxX-inset,ridge,centerZ],[minX+inset,ridge,centerZ]]),
+      roofFace([[maxX,eave,maxZ],[minX,eave,maxZ],[minX+inset,ridge,centerZ],[maxX-inset,ridge,centerZ]]),
+      roofFace([[minX,eave,minZ],[minX+inset,ridge,centerZ],[minX,eave,maxZ]]),
+      roofFace([[maxX,eave,minZ],[maxX,eave,maxZ],[maxX-inset,ridge,centerZ]]),
+    ];
+  }, [type,minX,maxX,minZ,maxZ,baseY,rise,width,depth,centerZ]);
+  if (type === "flat") return <group>
+    <mesh position={[centerX,baseY+0.04,centerZ]} castShadow receiveShadow>
+      <boxGeometry args={[width+0.36,0.18,depth+0.36]} />
+      <meshStandardMaterial color={color} roughness={0.78} />
+    </mesh>
+    {[
+      {position:[centerX,baseY+0.43,minZ-0.12] as [number,number,number],size:[width+0.36,0.62,0.16] as [number,number,number]},
+      {position:[centerX,baseY+0.43,maxZ+0.12] as [number,number,number],size:[width+0.36,0.62,0.16] as [number,number,number]},
+      {position:[minX-0.12,baseY+0.43,centerZ] as [number,number,number],size:[0.16,0.62,depth+0.36] as [number,number,number]},
+      {position:[maxX+0.12,baseY+0.43,centerZ] as [number,number,number],size:[0.16,0.62,depth+0.36] as [number,number,number]},
+    ].map((edge,index)=><mesh key={index} position={edge.position} castShadow receiveShadow>
+      <boxGeometry args={edge.size}/><meshStandardMaterial color="#f8fafc" roughness={0.82}/>
+    </mesh>)}
+  </group>;
+  return <group>
+    {geometries.map((geometry,index)=><mesh key={index} geometry={geometry} castShadow receiveShadow>
+      <meshStandardMaterial color={color} roughness={0.72} side={THREE.DoubleSide}/>
+    </mesh>)}
+    {type !== "shed" && <mesh position={[centerX,baseY+0.06,centerZ]} castShadow>
+      <boxGeometry args={[width+0.12,0.12,depth+0.12]}/>
+      <meshStandardMaterial color={color} roughness={0.76}/>
+    </mesh>}
+    <mesh position={[centerX,baseY+0.025,minZ]} castShadow>
+      <boxGeometry args={[width+0.16,0.12,0.12]}/><meshStandardMaterial color="#f8fafc" roughness={0.7}/>
+    </mesh>
+    <mesh position={[centerX,baseY+0.025,maxZ]} castShadow>
+      <boxGeometry args={[width+0.16,0.12,0.12]}/><meshStandardMaterial color="#f8fafc" roughness={0.7}/>
+    </mesh>
+  </group>;
+}
+
 export default function Cad3DPreview({ document, floorCount = 1 }: { document: CadDocument; floorCount?: number }) {
   const [themeId, setThemeId] = useState<MaterialThemeId>("modern");
+  const [roofType, setRoofType] = useState<RoofType>("flat");
+  const [autoRotate, setAutoRotate] = useState(true);
   const theme = MATERIAL_THEMES[themeId];
   const levels = Math.max(1, Math.min(20, Math.round(floorCount)));
   const factor = unitToMetres[document.units];
@@ -190,7 +261,8 @@ export default function Cad3DPreview({ document, floorCount = 1 }: { document: C
   const width = Math.max(4, bounds.maxX - bounds.minX);
   const depth = Math.max(4, bounds.maxZ - bounds.minZ);
   const center: [number, number, number] = [(bounds.minX + bounds.maxX) / 2, 0, (bounds.minZ + bounds.maxZ) / 2];
-  const modelHeight = levels * 3.2;
+  const roofRise = roofType === "flat" ? 0.7 : Math.min(2.2, Math.max(0.65, Math.min(width, depth) * 0.16));
+  const modelHeight = levels * 3.2 + roofRise;
   const radius = Math.max(width, depth, modelHeight * 0.75, 3);
   return <div className="relative min-h-[360px] w-full flex-1 bg-slate-100" data-testid="indocad-3d-preview">
     <Canvas shadows dpr={[1, 1.75]} camera={{ position: [radius * 1.35, modelHeight / 2 + radius * 1.1, radius * 1.35], fov: 42, near: 0.1, far: radius * 40 }}>
@@ -223,30 +295,20 @@ export default function Cad3DPreview({ document, floorCount = 1 }: { document: C
             <meshStandardMaterial color="#94a3b8" metalness={0.16} roughness={0.42} />
           </mesh>)}
         </group>)}
-        {/* Flat roof slab with a low parapet gives the generated massing a clear top-floor silhouette. */}
-        <mesh position={[center[0], levels * 3.2 + 0.04, center[2]]} castShadow receiveShadow>
-          <boxGeometry args={[width + 0.36, 0.18, depth + 0.36]} />
-          <meshStandardMaterial color={theme.roof} roughness={0.78} />
-        </mesh>
-        {[
-          { position: [center[0], levels * 3.2 + 0.43, bounds.minZ - 0.12] as [number, number, number], size: [width + 0.36, 0.62, 0.16] as [number, number, number] },
-          { position: [center[0], levels * 3.2 + 0.43, bounds.maxZ + 0.12] as [number, number, number], size: [width + 0.36, 0.62, 0.16] as [number, number, number] },
-          { position: [bounds.minX - 0.12, levels * 3.2 + 0.43, center[2]] as [number, number, number], size: [0.16, 0.62, depth + 0.36] as [number, number, number] },
-          { position: [bounds.maxX + 0.12, levels * 3.2 + 0.43, center[2]] as [number, number, number], size: [0.16, 0.62, depth + 0.36] as [number, number, number] },
-        ].map((edge, index) => (
-          <mesh key={`roof-parapet-${index}`} position={edge.position} castShadow receiveShadow>
-            <boxGeometry args={edge.size} />
-            <meshStandardMaterial color={theme.trim} roughness={0.82} />
-          </mesh>
-        ))}
+        <ParametricRoof type={roofType} minX={bounds.minX} maxX={bounds.maxX} minZ={bounds.minZ} maxZ={bounds.maxZ} baseY={levels * 3.2} color={theme.roof} />
       </group>
-      <OrbitControls makeDefault target={[0, modelHeight / 2, 0]} enableDamping dampingFactor={0.1} minDistance={2} maxDistance={radius * 16} />
+      <OrbitControls makeDefault target={[0, modelHeight / 2, 0]} enableDamping dampingFactor={0.1} autoRotate={autoRotate} autoRotateSpeed={0.55} minDistance={2} maxDistance={radius * 16} />
     </Canvas>
-    <div className="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-white/70 bg-white/90 px-3 py-2 shadow-md backdrop-blur">
-      <label htmlFor="indocad-material-theme" className="text-[11px] font-medium text-slate-600">Exterior finish</label>
-      <select id="indocad-material-theme" value={themeId} onChange={(event) => setThemeId(event.target.value as MaterialThemeId)} className="max-w-[145px] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-blue-500">
+    <div className="absolute right-3 top-3 z-10 flex flex-wrap items-center justify-end gap-2 rounded-lg border border-white/70 bg-white/90 px-3 py-2 shadow-md backdrop-blur">
+      <label htmlFor="indocad-material-theme" className="text-[11px] font-medium text-slate-600">Finish</label>
+      <select id="indocad-material-theme" value={themeId} onChange={(event) => setThemeId(event.target.value as MaterialThemeId)} className="max-w-[125px] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-blue-500">
         {Object.entries(MATERIAL_THEMES).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}
       </select>
+      <label htmlFor="indocad-roof-type" className="text-[11px] font-medium text-slate-600">Roof</label>
+      <select id="indocad-roof-type" value={roofType} onChange={(event) => setRoofType(event.target.value as RoofType)} className="max-w-[105px] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-blue-500">
+        <option value="flat">Flat</option><option value="gable">Gable</option><option value="hip">Hip</option><option value="shed">Shed</option>
+      </select>
+      <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600"><input type="checkbox" checked={autoRotate} onChange={(event) => setAutoRotate(event.target.checked)} /> Auto rotate</label>
     </div>
     <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg border border-white/70 bg-white/85 px-3 py-2 text-[11px] text-slate-600 shadow-sm backdrop-blur">
       <b className="text-slate-800">Architectural 3D massing</b><span className="mx-2">·</span>{levels} floor(s)<span className="mx-2">·</span>{visibleEntities.length} visible objects<span className="mx-2">·</span>{document.units}
