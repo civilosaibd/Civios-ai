@@ -15,10 +15,19 @@ Deno.serve(async (req) => {
   const { data: auth, error: authError } = await caller.auth.getUser();
   if (authError || !auth.user) return reply({ error: "Invalid session" }, 401, origin);
   const db = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: allowed, error: roleError } = await db.rpc("has_role", { _user_id: auth.user.id, _role: "admin" });
-  if (roleError || allowed !== true) return reply({ error: "Admin access required" }, 403, origin);
+  const [{data:legacyAdmin},{data:superAdmin},{data:canViewAffiliate},{data:canManageAffiliate}] = await Promise.all([
+    caller.rpc("has_role",{_user_id:auth.user.id,_role:"admin"}),
+    caller.rpc("is_super_admin"),
+    caller.rpc("has_admin_permission",{_feature_key:"affiliate",_action:"view"}),
+    caller.rpc("has_admin_permission",{_feature_key:"affiliate",_action:"manage"}),
+  ]);
   let body: { action?: string; withdrawalId?: string; status?: string; adminNote?: string; transactionReference?: string };
   try { body = await req.json(); } catch { return reply({ error: "Invalid JSON body" }, 400, origin); }
+  const mayViewAffiliate=legacyAdmin===true||superAdmin===true||canViewAffiliate===true;
+  const mayManageAffiliate=legacyAdmin===true||superAdmin===true||canManageAffiliate===true;
+  if(body.action==="withdrawal-update" ? !mayManageAffiliate : !mayViewAffiliate) {
+    return reply({error:body.action==="withdrawal-update"?"Affiliate: Manage permission required":"Affiliate: View permission required"},403,origin);
+  }
 
   if (body.action === "list") {
     const [rr, cr, wr, er] = await Promise.all([
@@ -60,7 +69,7 @@ Deno.serve(async (req) => {
     });
     const audit = await db.from("admin_action_audit").insert({ admin_user_id: auth.user.id, action: "view_affiliate_control_center", target_type: "affiliate_directory", details: { affiliate_count: affiliates.length, referral_count: referrals.length, engagement_event_count: events.length } });
     if (audit.error) return reply({ error: "Unable to record privileged access; records were not returned" }, 500, origin);
-    return reply({ affiliates, commissions, withdrawals, totals: { affiliates: affiliates.length, referrals: referrals.length, conversions: referrals.filter((r) => r.status === "converted").length,
+    return reply({ affiliates, commissions, withdrawals, can_manage: mayManageAffiliate, totals: { affiliates: affiliates.length, referrals: referrals.length, conversions: referrals.filter((r) => r.status === "converted").length,
       commission_approved: totalAll(commissions, ["approved"]), commission_flagged: totalAll(commissions, ["flagged"]), withdrawals_paid: totalAll(withdrawals, ["paid"]) } }, 200, origin);
   }
   if (body.action === "withdrawal-update") {
