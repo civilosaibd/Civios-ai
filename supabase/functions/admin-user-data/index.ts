@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
       admin.from("admin_memberships").select("role").eq("user_id",userId).maybeSingle(),
     ]);
     if (roleError || membershipError) return json({error:"Unable to verify target account privileges"},500,origin);
-    if (targetRole?.role === "admin" || membership?.role === "super_admin") return json({error:"Administrator accounts are protected from this action"},403,origin);
+    if (targetRole?.role === "admin" || membership) return json({error:"Administrator and sub-admin accounts must be managed through the Super Admin team workspace"},403,origin);
     const action = status === "suspended" ? "suspend_account" : "reactivate_account";
     const {data:audit,error:auditError} = await admin.from("admin_account_status_audit").insert({
       admin_user_id:authData.user.id,target_user_id:userId,action,result:"requested",reason:reason || null,
