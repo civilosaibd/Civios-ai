@@ -129,13 +129,28 @@ export default function Cad3DPreview({ document, floorCount = 1 }: { document: C
           {level > 0 && <mesh position={[center[0], -0.025, center[2]]} receiveShadow><boxGeometry args={[width, 0.12, depth]} /><meshStandardMaterial color="#cbd5e1" roughness={0.85} /></mesh>}
           {visibleEntities.filter((entity) => level === 0 || (entity.type !== "text" && entity.type !== "dimension")).map((entity) => <Entity3D key={`${level}-${entity.id}`} entity={entity} factor={factor} color={document.layers.find((layer) => layer.id === entity.layerId)?.color ?? "#64748b"} />)}
         </group>)}
-        {levels > 1 && <mesh position={[center[0], levels * 3.2 - 0.02, center[2]]} receiveShadow><boxGeometry args={[width, 0.14, depth]} /><meshStandardMaterial color="#94a3b8" roughness={0.8} /></mesh>}
+        {/* Flat roof slab with a low parapet gives the generated massing a clear top-floor silhouette. */}
+        <mesh position={[center[0], levels * 3.2 + 0.04, center[2]]} castShadow receiveShadow>
+          <boxGeometry args={[width + 0.36, 0.18, depth + 0.36]} />
+          <meshStandardMaterial color="#d7dde5" roughness={0.78} />
+        </mesh>
+        {[
+          { position: [center[0], levels * 3.2 + 0.43, bounds.minZ - 0.12] as [number, number, number], size: [width + 0.36, 0.62, 0.16] as [number, number, number] },
+          { position: [center[0], levels * 3.2 + 0.43, bounds.maxZ + 0.12] as [number, number, number], size: [width + 0.36, 0.62, 0.16] as [number, number, number] },
+          { position: [bounds.minX - 0.12, levels * 3.2 + 0.43, center[2]] as [number, number, number], size: [0.16, 0.62, depth + 0.36] as [number, number, number] },
+          { position: [bounds.maxX + 0.12, levels * 3.2 + 0.43, center[2]] as [number, number, number], size: [0.16, 0.62, depth + 0.36] as [number, number, number] },
+        ].map((edge, index) => (
+          <mesh key={`roof-parapet-${index}`} position={edge.position} castShadow receiveShadow>
+            <boxGeometry args={edge.size} />
+            <meshStandardMaterial color="#e5e7eb" roughness={0.82} />
+          </mesh>
+        ))}
       </group>
       <OrbitControls makeDefault target={[0, modelHeight / 2, 0]} enableDamping dampingFactor={0.1} minDistance={2} maxDistance={radius * 16} />
     </Canvas>
     <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg border border-white/70 bg-white/85 px-3 py-2 text-[11px] text-slate-600 shadow-sm backdrop-blur">
-      <b className="text-slate-800">Live 3D preview</b><span className="mx-2">·</span>{levels} floor(s)<span className="mx-2">·</span>{visibleEntities.length} visible objects<span className="mx-2">·</span>{document.units}
-      <p className="mt-0.5 text-[10px] text-slate-500">Drag to orbit · scroll to zoom · right-drag to pan</p>
+      <b className="text-slate-800">Architectural 3D massing</b><span className="mx-2">·</span>{levels} floor(s)<span className="mx-2">·</span>{visibleEntities.length} visible objects<span className="mx-2">·</span>{document.units}
+      <p className="mt-0.5 text-[10px] text-slate-500">Concept preview, not a construction-ready facade · drag to orbit · scroll to zoom · right-drag to pan</p>
     </div>
     {!visibleEntities.length && <div className="pointer-events-none absolute inset-0 flex items-center justify-center"><div className="rounded-xl bg-white/90 px-5 py-4 text-center shadow"><p className="text-sm font-semibold text-slate-800">Your 3D model will appear here</p><p className="mt-1 text-xs text-slate-500">Draw walls, columns, doors or furniture in 2D to build the model.</p></div></div>}
   </div>;

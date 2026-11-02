@@ -105,9 +105,11 @@ function validatePlan(value: any) {
     });
     for (let i = 0; i < result.length; i++) for (let j = i + 1; j < result.length; j++) {
       const a = result[i], b = result[j];
+      // The wall's fixed coordinate is already compared with tolerance above.
+      // Do not require exact x/y equality: two openings can share a wall even
+      // when the model rounds their wall coordinates slightly differently.
       const sameWall = a.wall === b.wall && Math.abs(a._fixed - b._fixed) < 0.08;
-      const sameAxis = a.wall === "north" || a.wall === "south" ? a.y === b.y : a.x === b.x;
-      if (sameWall && sameAxis && Math.min(a._high, b._high) - Math.max(a._low, b._low) > 0.05) {
+      if (sameWall && Math.min(a._high, b._high) - Math.max(a._low, b._low) > 0.05) {
         throw new Error(`AI returned overlapping ${label} openings.`);
       }
     }
