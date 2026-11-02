@@ -12,6 +12,7 @@ import {
 import { snapPoint } from "@/lib/cad2d/snap";
 import { snapPointToWallNetwork } from "@/lib/cad2d/wall-network";
 import { documentToDxf, documentToSvg } from "@/lib/cad2d/export";
+import { importDxfDocument } from "@/lib/cad2d/dxf-import";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand, Upload } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import CadSelectionInspector from "@/components/cad/CadSelectionInspector";
@@ -810,6 +811,32 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
     };
     input.click();
   };
+  const importDxf = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".dxf,application/dxf,text/plain";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const imported = importDxfDocument(await file.text(), doc.units);
+        if (doc.entities.length > 0 && !window.confirm(`Import ${imported.document.entities.length} DXF object(s) and replace the current drawing?`)) return;
+        commit(imported.document);
+        setLayerName(imported.document.layers[0]?.name ?? "0");
+        setSelected([]);
+        setStart(null);
+        setPolylinePoints([]);
+        setModifyTargetId(null);
+        setView({ x: 60, y: 50, scale: 1 });
+        const skipped = imported.notes.length ? ` Unsupported entities: ${imported.notes.slice(0, 6).join(", ")}${imported.notes.length > 6 ? "…" : ""}.` : "";
+        toast.success(`Imported ${imported.document.entities.length} DXF object(s) across ${imported.document.layers.length} layer(s). Units: ${imported.document.units}.${skipped}`, { duration: 7000 });
+        fitToDrawing();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not import this DXF file.");
+      }
+    };
+    input.click();
+  };
   const loadTemplate = (templateId: IndoCadTemplateId) => {
     if (doc.entities.length > 0 && !window.confirm("Load this starter plan? It will replace the current drawing. Export a JSON backup first if you need to keep it.")) return;
     const next = createIndoCadTemplate(templateId);
@@ -907,6 +934,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
         <Button size="icon" variant="outline" className="rounded-lg" onClick={()=>setView((v)=>({...v,scale:Math.min(8,v.scale*1.25)}))} title="Zoom in"><ZoomIn className="h-4 w-4"/></Button>
         <Button size="icon" variant="outline" className="rounded-lg" onClick={()=>setView((v)=>({...v,scale:Math.max(.2,v.scale/1.25)}))} title="Zoom out"><ZoomOut className="h-4 w-4"/></Button>
         <Button size="sm" variant="outline" className="rounded-lg" onClick={importJson} title="Open a CivilOS AI JSON drawing backup"><Upload className="mr-1.5 h-4 w-4"/>Import JSON</Button>
+        <Button size="sm" variant="outline" className="rounded-lg" onClick={importDxf} title="Import common 2D entities from an ASCII DXF file"><Upload className="mr-1.5 h-4 w-4"/>Import DXF</Button>
         <Button size="sm" variant="outline" className="rounded-lg" onClick={()=>exportFile("svg")}><Download className="mr-1.5 h-4 w-4"/>Export SVG</Button>
         <Button size="sm" variant="outline" className="rounded-lg" onClick={()=>exportFile("dxf")}><Download className="mr-1.5 h-4 w-4"/>Export DXF</Button>
         <Button size="sm" className="rounded-lg bg-orange-500 text-white hover:bg-orange-600" onClick={()=>exportFile("json")}><FileJson className="mr-1.5 h-4 w-4"/>Backup JSON</Button>
