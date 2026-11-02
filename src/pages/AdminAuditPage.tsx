@@ -74,7 +74,8 @@ export default function AdminAuditPage() {
     "view_billing","approve_payment","reject_payment",
     "list_ai_usage","inspect_ai_usage","view_business_report",
     "update_system_settings","view_affiliate_directory","update_withdrawal_status",
-    "review_commission",
+    "review_commission","invite_created","invite_revoked","sub_admin_activated",
+    "sub_admin_suspended","sub_admin_removed","permission_granted","permission_revoked","role_changed",
   ];
   const hasNext = page * pageSize < total;
 
