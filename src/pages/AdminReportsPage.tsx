@@ -92,7 +92,7 @@ export default function AdminReportsPage() {
       ["Paid withdrawals (BDT)", metrics.withdrawals_paid_bdt],
       ["AI usage user-month records", metrics.ai_usage_records],
     ];
-    const csv = ["Metric,Value", ...rows.map(([key, value]) => `"${key.replace(/"/g, '""')}"," ${String(value).replace(/"/g, '""')}"`)].join("\n");
+    const csv = ["Metric,Value", ...rows.map(([key, value]) => `"${key.replace(/"/g, '""')}","${String(value).replace(/"/g, '""')}"`)].join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a"); a.href = url; a.download = `civilos-admin-report-${fromDate}-to-${toDate}.csv`; a.click(); URL.revokeObjectURL(url);
   };
