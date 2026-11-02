@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "project": "CivilOS AI realistic aerial city",
+  "status": "inventory-only",
+  "coordinateSystem": {
+    "unit": "meter",
+    "verticalAxis": "Y",
+    "forwardAxis": "asset-specific-normalized-on-import"
+  },
+  "policy": {
+    "requireCommercialUse": true,
+    "requireRedistributionRightsForBundledRuntimeAssets": true,
+    "requireLicenseEvidence": true,
+    "allowEditorialOnly": false,
+    "allowUnverifiedAssets": false,
+    "allowPlaceholderGeometryAsFinalAsset": false
+  },
+  "assets": [
+    {
+      "id": "VEG-TREE-SMALL-02",
+      "name": "Tree Small 02",
+      "source": "https://polyhaven.com/a/tree_small_02",
+      "creator": "Rico Cilliers",
+      "license": "CC0",
+      "sourceStatus": "candidate",
+      "runtimeStatus": "not-acquired",
+      "sourceTriangleCount": 5000000,
+      "sourceDownloadBytes": 263020000,
+      "optimizationRequired": ["generate-lods", "reduce-leaf-overdraw", "compress-textures"],
+      "runtimePath": null
+    },
+    {
+      "id": "VEG-JACARANDA-01",
+      "name": "Jacaranda Tree",
+      "source": "https://polyhaven.com/a/jacaranda_tree",
+      "creator": "Rico Cilliers; Rob Tuytel",
+      "license": "CC0",
+      "sourceStatus": "candidate",
+      "runtimeStatus": "not-acquired",
+      "sourceTriangleCount": 312000,
+      "sourceDownloadBytes": 584530000,
+      "optimizationRequired": ["generate-lods", "reduce-leaf-overdraw", "compress-textures"],
+      "runtimePath": null
+    },
+    {
+      "id": "STR-LAMP-01",
+      "name": "Street Lamp 01",
+      "source": "https://polyhaven.com/a/street_lamp_01",
+      "creator": "Josh Dean",
+      "license": "CC0",
+      "sourceStatus": "candidate",
+      "runtimeStatus": "not-acquired",
+      "sourceTriangleCount": 31000,
+      "sourceDownloadBytes": 31410000,
+      "optimizationRequired": ["generate-lods", "compress-textures"],
+      "runtimePath": null
+    },
+    {
+      "id": "VEH-COVERED-CAR-REJECTED",
+      "name": "Covered Car",
+      "source": "https://polyhaven.com/a/covered_car",
+      "creator": "MP",
+      "license": "CC0",
+      "sourceStatus": "rejected-for-traffic",
+      "runtimeStatus": "not-acquired",
+      "reason": "The model is a car beneath a fabric cover; it is not a suitable visible driving vehicle.",
+      "runtimePath": null
+    }
+  ],
+  "pendingFamilies": [
+    "landmark-building",
+    "residential-buildings",
+    "townhouses",
+    "commercial-buildings",
+    "skyline-buildings",
+    "passenger-cars",
+    "bus",
+    "delivery-van",
+    "rigged-pedestrians",
+    "sidewalk-props",
+    "asphalt-pbr",
+    "concrete-pbr",
+    "facade-pbr",
+    "daylight-environment"
+  ]
+}
