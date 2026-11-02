@@ -11,6 +11,7 @@ import {
 } from "@/lib/cad2d/geometry";
 import { snapPoint } from "@/lib/cad2d/snap";
 import { snapPointToWallNetwork } from "@/lib/cad2d/wall-network";
+import { fitOpeningToNearestWall, getWallVisibleSegments } from "@/lib/cad2d/wall-openings";
 import { documentToDxf, documentToSvg } from "@/lib/cad2d/export";
 import { importDxfDocument } from "@/lib/cad2d/dxf-import";
 import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand, Upload, Box } from "lucide-react";
@@ -468,7 +469,6 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
       const r=normalizeRect(a,b);
       entity=tool==="wall" ? {...base,type:"wall",start:a,end:b,thickness:wallThickness} : {...base,type:"rectangle",...r};
     } else if (tool==="circle") entity={...base,type:"circle",center:a,radius:Math.hypot(b.x-a.x,b.y-a.y)};
-    else if (tool==="polyline") entity={...base,type:"polyline",points:[a,b],closed:false};
     else if (tool==="polygon") {
       const radius=Math.hypot(b.x-a.x,b.y-a.y);
       if (radius > 0) entity={...base,type:"polygon",center:a,radius,sides:6,rotation:Math.atan2(b.y-a.y,b.x-a.x)};

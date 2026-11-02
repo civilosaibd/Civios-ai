@@ -185,7 +185,7 @@ function wallNetworkFaces(entities: CadEntity[]): Array<{ points: Point2D[]; met
 
 /** Detects explicit closed shapes plus bounded faces formed by connected wall centerlines. */
 export function detectRooms(entities: CadEntity[]): DetectedRoom[] {
-  const explicit = entities.flatMap((entity) => {
+  const explicit: { entity: CadEntity; boundaryType: "rectangle" | "closed-polyline" | "polygon"; points: Point2D[] }[] = entities.flatMap((entity) => {
     if (entity.type === "rectangle") {
       return [{ entity, boundaryType: "rectangle" as const, points: [entity.min, { x: entity.max.x, y: entity.min.y }, entity.max, { x: entity.min.x, y: entity.max.y }] }];
     }
