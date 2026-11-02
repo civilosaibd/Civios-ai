@@ -207,7 +207,125 @@ function ModernResidence({ motionEnabled }: { motionEnabled: boolean }) {
   );
 }
 
-function Scene({ motionEnabled }: { motionEnabled: boolean }) {
+
+function CityBuilding({ position, width, depth, height, tone, seed = 0 }: {
+  position: Vec3; width: number; depth: number; height: number; tone: string; seed?: number;
+}) {
+  const floors = Math.max(2, Math.floor(height / 1.15));
+  return (
+    <group position={position}>
+      <mesh position={[0, height / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[width, height, depth]} />
+        <meshStandardMaterial color={tone} roughness={0.82} />
+      </mesh>
+      {Array.from({ length: floors }, (_, floor) => (
+        <group key={floor} position={[0, 0.55 + floor * (height - 0.5) / floors, 0]}>
+          {Array.from({ length: Math.max(2, Math.floor(width / 0.7)) }, (_, i) => (
+            <mesh key={i} position={[-width / 2 + (i + 0.5) * width / Math.max(2, Math.floor(width / 0.7)), 0, depth / 2 + 0.006]}>
+              <boxGeometry args={[0.34, 0.42, 0.018]} />
+              <meshStandardMaterial color={seed % 3 === 0 ? "#78969a" : "#526d78"} roughness={0.22} metalness={0.12} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+      <mesh position={[0, height + 0.035, 0]} castShadow>
+        <boxGeometry args={[width + 0.12, 0.09, depth + 0.12]} />
+        <meshStandardMaterial color="#b9b7ae" roughness={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
+function MovingCar({ lane, speed, color, axis = "x", offset = 0 }: {
+  lane: number; speed: number; color: string; axis?: "x" | "z"; offset?: number;
+}) {
+  const car = useRef<Group>(null);
+  useFrame((state) => {
+    if (!car.current) return;
+    const travel = ((state.clock.elapsedTime * speed + offset + 32) % 64) - 32;
+    car.current.position.set(axis === "x" ? travel : lane, 0.28, axis === "x" ? lane : travel);
+  });
+  return (
+    <group ref={car}>
+      <mesh castShadow>
+        <boxGeometry args={axis === "x" ? [1.05, 0.34, 0.52] : [0.52, 0.34, 1.05]} />
+        <meshPhysicalMaterial color={color} roughness={0.32} metalness={0.35} clearcoat={0.8} />
+      </mesh>
+      <mesh position={[0, 0.22, 0]} castShadow>
+        <boxGeometry args={axis === "x" ? [0.58, 0.24, 0.43] : [0.43, 0.24, 0.58]} />
+        <meshPhysicalMaterial color="#a8c4ce" roughness={0.16} metalness={0.18} transparent opacity={0.82} />
+      </mesh>
+      {[-1, 1].flatMap((x) => [-1, 1].map((z) => (
+        <mesh key={x + ":" + z} position={[axis === "x" ? x * 0.31 : z * 0.31, -0.13, axis === "x" ? z * 0.25 : x * 0.25]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.105, 0.105, 0.07, 12]} />
+          <meshStandardMaterial color="#202629" roughness={0.95} />
+        </mesh>
+      )))}
+    </group>
+  );
+}
+
+function WalkingPerson({ start, speed, direction = 1, tone = "#d2a17d" }: {
+  start: Vec3; speed: number; direction?: 1 | -1; tone?: string;
+}) {
+  const person = useRef<Group>(null);
+  useFrame((state) => {
+    if (!person.current) return;
+    const t = state.clock.elapsedTime * speed * direction;
+    person.current.position.x = start[0] + Math.sin(t) * 1.8;
+    person.current.position.z = start[2] + Math.cos(t * 0.65) * 0.5;
+    person.current.rotation.y = Math.atan2(Math.cos(t) * direction, -Math.sin(t * 0.65));
+  });
+  return (
+    <group ref={person} position={start} scale={0.72}>
+      <mesh position={[0, 0.78, 0]} castShadow><capsuleGeometry args={[0.13, 0.48, 4, 8]} /><meshStandardMaterial color={tone} roughness={0.88} /></mesh>
+      <mesh position={[0, 1.22, 0]} castShadow><sphereGeometry args={[0.13, 12, 10]} /><meshStandardMaterial color="#c99572" roughness={0.9} /></mesh>
+      <mesh position={[-0.09, 0.28, 0]} castShadow><capsuleGeometry args={[0.055, 0.38, 3, 6]} /><meshStandardMaterial color="#303b4b" roughness={0.9} /></mesh>
+      <mesh position={[0.09, 0.28, 0]} castShadow><capsuleGeometry args={[0.055, 0.38, 3, 6]} /><meshStandardMaterial color="#303b4b" roughness={0.9} /></mesh>
+    </group>
+  );
+}
+
+function CityEnvironment() {
+  const blocks = useMemo(() => {
+    const items: { x: number; z: number; w: number; d: number; h: number; c: string; seed: number }[] = [];
+    const tones = ["#b9b5aa", "#c7c2b7", "#9da9a7", "#d0c8b8", "#aeb8b5", "#b8aaa0"];
+    let seed = 0;
+    for (const x of [-19, -11, 11, 19]) for (const z of [-19, -11, 11, 19]) {
+      seed++;
+      items.push({ x, z, w: 4.4 + (seed % 3) * 0.7, d: 4.2 + (seed % 2) * 0.8, h: 3.8 + (seed % 5) * 1.35, c: tones[seed % tones.length], seed });
+    }
+    return items;
+  }, []);
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.16, 0]} receiveShadow>
+        <planeGeometry args={[100, 100]} /><meshStandardMaterial color="#53634f" roughness={1} />
+      </mesh>
+      {/* Asphalt avenues, lane markings, pavements and junctions */}
+      <mesh position={[0, -0.105, -8]} receiveShadow><boxGeometry args={[100, 0.08, 5.8]} /><meshStandardMaterial color="#343b3d" roughness={0.96} /></mesh>
+      <mesh position={[0, -0.105, 8]} receiveShadow><boxGeometry args={[100, 0.08, 5.8]} /><meshStandardMaterial color="#343b3d" roughness={0.96} /></mesh>
+      <mesh position={[-8, -0.105, 0]} receiveShadow><boxGeometry args={[5.8, 0.08, 100]} /><meshStandardMaterial color="#343b3d" roughness={0.96} /></mesh>
+      <mesh position={[8, -0.105, 0]} receiveShadow><boxGeometry args={[5.8, 0.08, 100]} /><meshStandardMaterial color="#343b3d" roughness={0.96} /></mesh>
+      {[-8, 8].flatMap((z) => Array.from({ length: 25 }, (_, i) => (
+        <mesh key={z + ":" + i} position={[-48 + i * 4, -0.055, z]}><boxGeometry args={[2, 0.012, 0.09]} /><meshBasicMaterial color="#d9d4b9" /></mesh>
+      )))}
+      {blocks.map((b) => <CityBuilding key={b.seed} position={[b.x, -0.12, b.z]} width={b.w} depth={b.d} height={b.h} tone={b.c} seed={b.seed} />)}
+      {[-1.5, 1.5].map((lane) => <MovingCar key={"carx" + lane} lane={lane} speed={lane > 0 ? 4.2 : -3.4} color={lane > 0 ? "#d9e0e2" : "#c56b43"} axis="x" offset={lane * 8} />)}
+      {[-1.5, 1.5].map((lane) => <MovingCar key={"carz" + lane} lane={lane} speed={lane > 0 ? -3.1 : 3.7} color={lane > 0 ? "#355d7a" : "#d5bd77"} axis="z" offset={lane * 11} />)}
+      {Array.from({ length: 10 }, (_, i) => (
+        <WalkingPerson key={i} start={[-5.1 + (i % 5) * 2.5, 0.02, i < 5 ? -5.15 : 5.15]} speed={0.32 + (i % 3) * 0.08} direction={i % 2 ? 1 : -1} tone={["#c99a77", "#8d624c", "#d2ad8a"][i % 3]} />
+      ))}
+      {Array.from({ length: 12 }, (_, i) => (
+        <group key={"lamp" + i} position={[-24 + i * 4.35, 0, -11.3]}>
+          <mesh position={[0, 1.8, 0]}><cylinderGeometry args={[0.045, 0.06, 3.6, 8]} /><meshStandardMaterial color="#343d3d" metalness={0.55} roughness={0.4} /></mesh>
+          <mesh position={[0.18, 3.55, 0]}><boxGeometry args={[0.42, 0.1, 0.16]} /><meshStandardMaterial color="#f4dfac" emissive="#f4dfac" emissiveIntensity={0.35} /></mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+\nfunction Scene({ motionEnabled }: { motionEnabled: boolean }) {
   return (
     <>
       <hemisphereLight args={["#dce9f1", "#465348", 1.25]} />
@@ -221,10 +339,10 @@ function Scene({ motionEnabled }: { motionEnabled: boolean }) {
       />
       <directionalLight position={[-7, 6, -5]} intensity={1.1} color="#a8d6e6" />
       <pointLight position={[0, 3.8, 3.1]} intensity={18} distance={10} color="#ffd39a" />
-      <ModernResidence motionEnabled={motionEnabled} />
+      <CityEnvironment />\n      <ModernResidence motionEnabled={motionEnabled} />
       <ContactShadows position={[0, 0.22, 0]} opacity={0.34} scale={11} blur={2.8} far={5} />
       <OrbitControls
-        target={[0, 3.2, 0]} enableDamping dampingFactor={0.055}
+        target={[0, 2.2, 0]} enableDamping dampingFactor={0.055}
         enablePan={false} enableZoom={false}
         minPolarAngle={Math.PI / 3.35} maxPolarAngle={Math.PI / 2.12}
       />
@@ -241,14 +359,14 @@ export default function HeroBuilding3D() {
     <div
       className="relative isolate h-[340px] w-full overflow-visible sm:h-[430px] lg:h-[560px]"
       role="img"
-      aria-label="A photorealistic modern four-storey architectural residence with glass curtain walls, stone and timber facade, cantilevered balconies, rooftop pergola and landscaped grounds, rotating slowly in interactive 3D."
+      aria-label="An interactive miniature realistic modern town with a landmark glass-and-stone residence, surrounding buildings, asphalt roads, moving cars, walking pedestrians, streetlights and trees."
       style={{
         background: "transparent",
       }}
     >
       <Canvas
         shadows dpr={[1, 1.5]}
-        camera={{ position: [9.6, 7.1, 10.6], fov: 33, near: 0.1, far: 100 }}
+        camera={{ position: [23, 17, 27], fov: 38, near: 0.1, far: 150 }}
         gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
         fallback={<div className="flex h-full items-center justify-center text-sm text-white/70">3D preview is not available in this browser.</div>}
       >
@@ -257,16 +375,16 @@ export default function HeroBuilding3D() {
 
       <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-2 rounded-full border border-white/15 bg-slate-950/55 px-3 py-2 text-[9px] font-bold tracking-[0.2em] text-cyan-100 shadow-lg backdrop-blur-md sm:left-6 sm:top-6 sm:text-[10px]">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,.8)]" />
-        LIVE ARCHITECTURAL 3D
+        LIVE 3D CITY ENVIRONMENT
       </div>
       <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3 sm:bottom-6 sm:left-6 sm:right-6">
         <div className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2.5 text-white/90 shadow-lg backdrop-blur-md">
-          <p className="text-[9px] font-semibold tracking-[0.18em] text-cyan-100/80">CONTEMPORARY RESIDENCE</p>
-          <p className="mt-1 text-xs font-medium text-white/90">4 floors · glass facade · roof terrace</p>
+          <p className="text-[9px] font-semibold tracking-[0.18em] text-cyan-100/80">A LIVING MODERN CITY</p>
+          <p className="mt-1 text-xs font-medium text-white/90">Buildings · roads · moving traffic · pedestrians</p>
         </div>
         <div className="rounded-xl border border-cyan-100/20 bg-slate-950/60 px-3 py-2.5 text-right text-white/90 shadow-lg backdrop-blur-md">
           <p className="text-sm font-bold tracking-wide text-amber-200">360°</p>
-          <p className="text-[9px] tracking-wide text-white/65">DRAG TO EXPLORE</p>
+          <p className="text-[9px] tracking-wide text-white/65">DRAG TO EXPLORE CITY</p>
         </div>
       </div>
     </div>
