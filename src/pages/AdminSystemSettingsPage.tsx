@@ -16,6 +16,7 @@ import { Settings, Save, RefreshCw, ShieldAlert, Upload, Handshake, LockKeyhole,
 type SettingsData = {
   visualization: { max_file_mb: number; max_files: number };
   affiliate: { first_payment_rate: number; subsequent_payment_rate: number; editable: false };
+  can_manage: boolean;
 };
 
 export default function AdminSystemSettingsPage() {
@@ -34,7 +35,7 @@ export default function AdminSystemSettingsPage() {
     setLoading(true);
     const { data, error } = await supabase.rpc("admin_read_system_settings");
     if (error) {
-      if (error.message?.toLowerCase().includes("admin access")) setIsAdmin(false);
+      if (error.message?.toLowerCase().includes("permission required") || error.message?.toLowerCase().includes("admin access")) setIsAdmin(false);
       else toast.error(error.message || "Unable to load system settings. Apply the migration first.");
       setSettings(null);
     } else {
@@ -79,10 +80,10 @@ export default function AdminSystemSettingsPage() {
                 <section className="rounded-xl border bg-card p-5 space-y-4">
                   <div className="flex items-center gap-2"><Upload className="h-5 w-5 text-primary" /><div><h2 className="font-semibold">3D Visualization Upload Limits</h2><p className="text-xs text-muted-foreground">Controls the upload constraints used by the visualization workflow.</p></div></div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <label className="space-y-1"><span className="text-sm font-medium">Maximum file size (MB)</span><input type="number" min="1" max="50" step="1" value={maxFileMb} onChange={(e) => setMaxFileMb(e.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm" /><span className="text-xs text-muted-foreground">Allowed range: 1–50 MB</span></label>
-                    <label className="space-y-1"><span className="text-sm font-medium">Maximum files per visualization</span><input type="number" min="1" max="20" step="1" value={maxFiles} onChange={(e) => setMaxFiles(e.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm" /><span className="text-xs text-muted-foreground">Allowed range: 1–20 files</span></label>
+                    <label className="space-y-1"><span className="text-sm font-medium">Maximum file size (MB)</span><input type="number" min="1" max="50" step="1" value={maxFileMb} onChange={(e) => setMaxFileMb(e.target.value)} disabled={!settings.can_manage} className="h-10 w-full rounded-md border bg-background px-3 text-sm" /><span className="text-xs text-muted-foreground">Allowed range: 1–50 MB</span></label>
+                    <label className="space-y-1"><span className="text-sm font-medium">Maximum files per visualization</span><input type="number" min="1" max="20" step="1" value={maxFiles} onChange={(e) => setMaxFiles(e.target.value)} disabled={!settings.can_manage} className="h-10 w-full rounded-md border bg-background px-3 text-sm" /><span className="text-xs text-muted-foreground">Allowed range: 1–20 files</span></label>
                   </div>
-                  <div className="flex flex-wrap gap-2"><Button onClick={() => void save()} disabled={saving || loading}><Save className="h-4 w-4 mr-2" />{saving ? "Saving…" : "Save limits"}</Button><Button variant="outline" onClick={() => { setMaxFileMb(String(settings.visualization.max_file_mb)); setMaxFiles(String(settings.visualization.max_files)); }} disabled={saving}>Reset form</Button></div>
+                  <div className="flex flex-wrap gap-2">{settings.can_manage ? <><Button onClick={() => void save()} disabled={saving || loading}><Save className="h-4 w-4 mr-2" />{saving ? "Saving…" : "Save limits"}</Button><Button variant="outline" onClick={() => { setMaxFileMb(String(settings.visualization.max_file_mb)); setMaxFiles(String(settings.visualization.max_files)); }} disabled={saving}>Reset form</Button></> : <Badge variant="secondary">Read only · settings.view</Badge>}</div>
                   <p className="text-xs text-muted-foreground flex items-center gap-1"><History className="h-3.5 w-3.5" />Every successful change is written to a protected settings audit log.</p>
                 </section>
                 <section className="rounded-xl border bg-card p-5 space-y-3">
