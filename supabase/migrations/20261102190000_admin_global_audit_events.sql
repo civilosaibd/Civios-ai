@@ -30,7 +30,7 @@ BEGIN
   IF _action IS NOT NULL AND length(_action) > 100 THEN
     RAISE EXCEPTION 'Invalid action filter' USING ERRCODE = '22023';
   END IF;
-  IF _source IS NOT NULL AND _source NOT IN ('users','affiliate','projects','billing','ai_usage','reports','settings') THEN
+  IF _source IS NOT NULL AND _source NOT IN ('users','affiliate','projects','billing','ai_usage','reports','settings','team') THEN
     RAISE EXCEPTION 'Invalid audit source filter' USING ERRCODE = '22023';
   END IF;
 
@@ -101,6 +101,16 @@ BEGIN
       FROM public.admin_dashboard_access_audit
     $q$);
     sources := array_append(sources,'reports');
+  END IF;
+  IF to_regclass('public.admin_rbac_audit') IS NOT NULL THEN
+    queries := array_append(queries, $q$
+      SELECT id::text, actor_user_id::text AS admin_user_id, target_user_id::text AS target_id,
+        action, 'logged'::text AS result,
+        jsonb_build_object('feature_key',feature_key,'permission_action',permission_action,'metadata',metadata) AS details,
+        created_at, 'team'::text AS source
+      FROM public.admin_rbac_audit
+    $q$);
+    sources := array_append(sources,'team');
   END IF;
   IF to_regclass('public.admin_system_settings_audit') IS NOT NULL THEN
     queries := array_append(queries, $q$
