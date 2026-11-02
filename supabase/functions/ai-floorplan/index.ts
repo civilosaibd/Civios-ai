@@ -32,8 +32,9 @@ GEOMETRY RULES:
 - Keep every room completely inside the footprint. Room rectangles must not overlap. Place rooms adjacent where possible, with shared boundaries; do not leave unusable large gaps.
 - Use sensible practical room sizes and circulation for the requested plot. Include requested bedrooms, bathrooms, kitchen, dining, living/drawing, stair and balcony where feasible. Avoid implausibly narrow spaces.
 - The footprint is the BUILDABLE footprint, not the full plot. If plot size and road side are provided, infer reasonable conceptual setbacks, but explicitly list assumptions; never claim code compliance.
-- Door coordinates are the CENTER of the opening on the specified room boundary. For north/south walls x is along the wall and y is the boundary coordinate. For east/west walls y is along the wall and x is the boundary coordinate. Use 2.5–3.0 ft doors, bathroom doors 2.3–2.5 ft.
-- Window coordinates use the same convention; use 3–5 ft widths. Avoid putting windows on shared party walls.
+- Door coordinates are the CENTER of the opening on the specified boundary of the named room. Doors MUST connect rooms to adjacent rooms or circulation; place internal doors on shared room boundaries as well as entry doors on the exterior footprint. For north/south walls x is along the wall and y is the boundary coordinate. For east/west walls y is along the wall and x is the boundary coordinate. Use 2.5–3.0 ft doors, bathroom doors 2.3–2.5 ft.
+- Window coordinates use the same convention and MUST lie on an exterior footprint wall of the named room; use 3–5 ft widths. Never place windows on internal/shared walls.
+- Ensure each room has a sensible access route; do not place a door in the middle of a wall unless it is a valid opening. Avoid door/window collisions and keep adequate wall piers at opening ends.
 - Return 1 to 16 rooms, 1 to 24 doors, and 0 to 24 windows. Use only finite positive dimensions. Do not output structural column positions or structural sizing.
 - Do not output Markdown. Do not include explanations outside JSON.
 - If requirements cannot fit, return the best honest conceptual arrangement and put the constraints in warnings. This is not a permit-ready design.`;
@@ -70,20 +71,47 @@ function validatePlan(value: any) {
     if (overlapX > 0.08 && overlapY > 0.08) throw new Error("AI returned overlapping room geometry. Please refine the prompt and try again.");
   }
   const validSides = ["north", "south", "east", "west"];
+  type WallSegment = { side: string; fixed: number; low: number; high: number; room: string; exterior: boolean };
+  const roomWalls: WallSegment[] = [];
+  for (const room of rooms) {
+    const right = room.x + room.width, top = room.y + room.depth;
+    roomWalls.push(
+      { side: "south", fixed: room.y, low: room.x, high: right, room: room.name, exterior: Math.abs(room.y) < 0.15 },
+      { side: "north", fixed: top, low: room.x, high: right, room: room.name, exterior: Math.abs(top - footprint.depth) < 0.15 },
+      { side: "west", fixed: room.x, low: room.y, high: top, room: room.name, exterior: Math.abs(room.x) < 0.15 },
+      { side: "east", fixed: right, low: room.y, high: top, room: room.name, exterior: Math.abs(right - footprint.width) < 0.15 },
+    );
+  }
   const openings = (items: any, label: string, max: number) => {
     if (!Array.isArray(items) || items.length > max) throw new Error(`AI returned invalid ${label} data.`);
-    return items.map((item: any) => {
+    const result = items.map((item: any) => {
       if (!item || !isFiniteNumber(item.x) || !isFiniteNumber(item.y) || !isFiniteNumber(item.width)
-        || item.width < 1.8 || item.width > 6 || !validSides.includes(item.wall)) {
+        || item.width < 1.8 || item.width > 6 || !validSides.includes(item.wall)
+        || typeof item.room !== "string" || !item.room.trim()) {
         throw new Error(`AI returned an invalid ${label} location.`);
       }
-      const onBoundary = item.wall === "north" ? Math.abs(item.y - footprint.depth) < 0.15 && item.x - item.width / 2 >= 0 && item.x + item.width / 2 <= footprint.width
-        : item.wall === "south" ? Math.abs(item.y) < 0.15 && item.x - item.width / 2 >= 0 && item.x + item.width / 2 <= footprint.width
-        : item.wall === "east" ? Math.abs(item.x - footprint.width) < 0.15 && item.y - item.width / 2 >= 0 && item.y + item.width / 2 <= footprint.depth
-        : Math.abs(item.x) < 0.15 && item.y - item.width / 2 >= 0 && item.y + item.width / 2 <= footprint.depth;
-      if (!onBoundary) throw new Error(`AI returned a ${label} outside a valid wall boundary.`);
-      return { x: item.x, y: item.y, width: item.width, wall: item.wall, room: typeof item.room === "string" ? item.room.slice(0, 48) : "" };
+      const room = rooms.find((candidate) => candidate.name.toLowerCase() === item.room.trim().toLowerCase());
+      if (!room) throw new Error(`AI returned a ${label} assigned to an unknown room.`);
+      const along = item.wall === "north" || item.wall === "south" ? item.x : item.y;
+      const fixed = item.wall === "north" || item.wall === "south" ? item.y : item.x;
+      const low = along - item.width / 2, high = along + item.width / 2;
+      const segment = roomWalls.find((edge) => edge.room === room.name && edge.side === item.wall
+        && Math.abs(edge.fixed - fixed) < 0.08 && low >= edge.low + 0.08 && high <= edge.high - 0.08);
+      if (!segment) throw new Error(`AI returned a ${label} that does not fit on the named room's wall.`);
+      if (label === "window" && !segment.exterior) {
+        throw new Error("AI returned a window on an internal/shared wall.");
+      }
+      return { x: item.x, y: item.y, width: item.width, wall: item.wall, room: room.name, _fixed: fixed, _low: low, _high: high };
     });
+    for (let i = 0; i < result.length; i++) for (let j = i + 1; j < result.length; j++) {
+      const a = result[i], b = result[j];
+      const sameWall = a.wall === b.wall && Math.abs(a._fixed - b._fixed) < 0.08;
+      const sameAxis = a.wall === "north" || a.wall === "south" ? a.y === b.y : a.x === b.x;
+      if (sameWall && sameAxis && Math.min(a._high, b._high) - Math.max(a._low, b._low) > 0.05) {
+        throw new Error(`AI returned overlapping ${label} openings.`);
+      }
+    }
+    return result.map(({ _fixed, _low, _high, ...item }) => item);
   };
   const doors = openings(value.doors ?? [], "door", 24);
   const windows = openings(value.windows ?? [], "window", 24);
