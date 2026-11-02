@@ -14,6 +14,58 @@ ALTER TABLE public.admin_account_status_audit ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.admin_account_status_audit FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.admin_account_status_audit TO service_role;
 
+
+-- Payment review RPCs must enforce the same billing.manage permission as the Edge Function.
+CREATE OR REPLACE FUNCTION public.approve_payment(_payment_id uuid)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $fn$
+DECLARE
+  pay public.payments%ROWTYPE;
+  sub_id uuid;
+  renewal timestamptz;
+BEGIN
+  IF auth.uid() IS NULL OR NOT (
+    public.has_role(auth.uid(),'admin'::public.app_role)
+    OR public.has_admin_permission('billing','manage')
+  ) THEN
+    RAISE EXCEPTION 'Billing: Manage permission required' USING ERRCODE='42501';
+  END IF;
+  SELECT * INTO pay FROM public.payments WHERE id=_payment_id FOR UPDATE;
+  IF pay.id IS NULL THEN RAISE EXCEPTION 'Payment not found'; END IF;
+  IF pay.status<>'pending' THEN RAISE EXCEPTION 'Payment is already %',pay.status; END IF;
+  IF pay.plan_id IS NULL THEN RAISE EXCEPTION 'Payment has no plan'; END IF;
+  renewal:=CASE WHEN pay.billing_cycle='yearly' THEN now()+interval '1 year' ELSE now()+interval '1 month' END;
+  INSERT INTO public.subscriptions(user_id,plan_id,status,billing_cycle,start_date,renewal_date,cancelled_at,payment_provider)
+  VALUES(pay.user_id,pay.plan_id,'active',pay.billing_cycle,now(),renewal,NULL,'manual')
+  ON CONFLICT(user_id) DO UPDATE SET plan_id=EXCLUDED.plan_id,status='active',billing_cycle=EXCLUDED.billing_cycle,
+    start_date=EXCLUDED.start_date,renewal_date=EXCLUDED.renewal_date,cancelled_at=NULL,payment_provider='manual'
+  RETURNING id INTO sub_id;
+  UPDATE public.payments SET status='verified',verified_at=now(),subscription_id=sub_id WHERE id=pay.id;
+  RETURN sub_id;
+END;
+$fn$;
+
+CREATE OR REPLACE FUNCTION public.reject_payment(_payment_id uuid,_note text DEFAULT NULL)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $fn$
+BEGIN
+  IF auth.uid() IS NULL OR NOT (
+    public.has_role(auth.uid(),'admin'::public.app_role)
+    OR public.has_admin_permission('billing','manage')
+  ) THEN
+    RAISE EXCEPTION 'Billing: Manage permission required' USING ERRCODE='42501';
+  END IF;
+  UPDATE public.payments SET status='failed',admin_note=_note WHERE id=_payment_id AND status='pending';
+  IF NOT FOUND THEN RAISE EXCEPTION 'Payment not found or not pending'; END IF;
+END;
+$fn$;
+
 CREATE OR REPLACE FUNCTION public.admin_set_subadmin_permissions(_membership_id uuid, _actions text[])
 RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp
 AS $fn$
