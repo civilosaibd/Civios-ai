@@ -47,7 +47,7 @@ export default function AdminAuditPage() {
       _source: source === "all" ? null : source,
     });
     if (error) {
-      if (error.message?.toLowerCase().includes("admin access")) setIsAdmin(false);
+      if (error.message?.toLowerCase().includes("permission required") || error.message?.toLowerCase().includes("admin access")) setIsAdmin(false);
       else toast.error(error.message || "Unable to load audit history. Apply the audit migration first.");
       setEvents([]); setTotal(0);
     } else {
