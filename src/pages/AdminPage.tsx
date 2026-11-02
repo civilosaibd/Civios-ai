@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import {
   Loader2, Trash2, Star, Check, X, Crown, Users, FolderKanban, Building, MessageSquare,
-  Mail, Phone, Send, ExternalLink, Reply, Search, Eye, ShieldCheck,
+  Mail, Phone, Send, ExternalLink, Reply, Search, Eye, ShieldCheck, Ban, UserCheck,
 } from "lucide-react";
 
 const WHATSAPP_NUMBER = "8801832313998";
@@ -146,6 +146,24 @@ const AdminPage = () => {
     } finally {
       setAuditLoading(false);
     }
+  };
+
+  const setAccountStatus = async (account: any, status: "suspended" | "active") => {
+    const reason = status === "suspended"
+      ? window.prompt("Enter the reason for suspending this account (minimum 8 characters):")?.trim() || ""
+      : "";
+    if (status === "suspended" && reason.length < 8) return toast.error("A clear suspension reason is required.");
+    const verb = status === "suspended" ? "suspend" : "reactivate";
+    if (!window.confirm(`Are you sure you want to ${verb} ${account.email || account.id}?`)) return;
+    const { data, error } = await supabase.functions.invoke("admin-user-data", {
+      body: { action: "account-status", userId: account.id, status, reason },
+    });
+    if (error || data?.error) return toast.error(data?.error || `Could not ${verb} this account.`);
+    const isSuspended = data?.status === "suspended";
+    setAdminUsers((current) => current.map((item) => item.id === account.id
+      ? { ...item, banned_until: data.user?.banned_until || null, is_suspended: isSuspended }
+      : item));
+    toast.success(isSuspended ? "Account suspended" : "Account reactivated");
   };
 
   const openUserDetails = async (account: any) => {
@@ -334,6 +352,7 @@ ${replyText}
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <p className="text-sm text-muted-foreground">Registered account directory • {adminUsers.length} loaded (search covers loaded accounts)</p>
                 <Badge variant="outline" className="gap-1"><ShieldCheck className="h-3 w-3" />Privileged access is audited</Badge>
+                <p className="w-full text-xs text-amber-700 dark:text-amber-300">Suspension blocks new sign-ins. Existing access tokens may remain valid until their expiry; sensitive server actions must independently verify account status.</p>
               </div>
               <div className="relative">
                 <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -348,7 +367,11 @@ ${replyText}
                     <p className="text-xs text-muted-foreground">{u.subscription?.status ? `${u.subscription.status} • ${u.subscription.billing_cycle || ""}` : "No active subscription record"} · {u.role}</p>
                   </div>
                   <Badge variant={u.email_confirmed_at ? "default" : "secondary"}>{u.email_confirmed_at ? "Email verified" : "Unverified"}</Badge>
+                  <Badge variant={u.is_suspended ? "destructive" : "outline"}>{u.is_suspended ? "Suspended" : "Active"}</Badge>
                   <Button size="sm" variant="outline" onClick={() => openUserDetails(u)}><Eye className="h-3.5 w-3.5 mr-1" />Full details</Button>
+                  <Button size="sm" variant={u.is_suspended ? "default" : "destructive"} disabled={u.role === "admin" || u.id === user?.id} title={u.role === "admin" ? "Administrator accounts are protected" : u.id === user?.id ? "You cannot suspend your own account" : undefined} onClick={() => void setAccountStatus(u, u.is_suspended ? "active" : "suspended")}>
+                    {u.is_suspended ? <><UserCheck className="h-3.5 w-3.5 mr-1" />Reactivate</> : <><Ban className="h-3.5 w-3.5 mr-1" />Suspend</>}
+                  </Button>
                 </div>
               ))}
               {adminUsers.length === 0 && <p className="text-center text-sm text-muted-foreground py-8">No accounts loaded. Deploy the admin-user-data Edge Function to enable this directory.</p>}
@@ -411,7 +434,8 @@ ${replyText}
                 <p className="font-semibold break-all">{userDetails.user?.email || "No email"} · {userDetails.user?.phone || "No phone"}</p>
                 <p className="text-xs text-muted-foreground break-all">ID: {userDetails.user?.id}</p>
                 <p className="text-xs text-muted-foreground">Created: {userDetails.user?.created_at ? new Date(userDetails.user.created_at).toLocaleString() : "—"} · Last sign in: {userDetails.user?.last_sign_in_at ? new Date(userDetails.user.last_sign_in_at).toLocaleString() : "Never"}</p>
-                <p className="text-xs text-muted-foreground">Email verified: {userDetails.user?.email_confirmed_at ? "Yes" : "No"} · Providers: {(userDetails.user?.providers || []).join(", ") || "—"}</p>
+                <p className="text-xs text-muted-foreground">Email verified: {userDetails.user?.email_confirmed_at ? "Yes" : "No"} · Account: {userDetails.user?.is_suspended ? "Suspended" : "Active"} · Providers: {(userDetails.user?.providers || []).join(", ") || "—"}</p>
+                {userDetails.user?.is_suspended && <p className="text-xs text-destructive">Suspended until: {userDetails.user?.banned_until ? new Date(userDetails.user.banned_until).toLocaleString() : "—"}</p>}
               </div>
               {!!userDetails.unavailable_tables?.length && <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200">Some data sources could not be loaded: {userDetails.unavailable_tables.join(", ")}. Empty results for these sources do not mean the user has no records.</div>}
               {Object.entries(userDetails.records || {}).map(([table, rows]: [string, any]) => (

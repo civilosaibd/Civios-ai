@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
   });
   if (roleError || allowed !== true) return json({ error: "Admin access required" }, 403, origin);
 
-  let body: { action?: string; userId?: string; page?: number };
+  let body: { action?: string; userId?: string; page?: number; status?: string; reason?: string };
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON body" }, 400, origin); }
 
   if (body.action === "list") {
@@ -70,6 +70,8 @@ Deno.serve(async (req) => {
         id: u.id, email: u.email, phone: u.phone,
         email_confirmed_at: u.email_confirmed_at, phone_confirmed_at: u.phone_confirmed_at,
         created_at: u.created_at, last_sign_in_at: u.last_sign_in_at,
+        banned_until: u.banned_until || null,
+        is_suspended: !!u.banned_until && new Date(u.banned_until).getTime() > Date.now(),
         providers: u.app_metadata?.providers || [],
         display_name: profileMap.get(u.id)?.display_name || u.user_metadata?.full_name || u.user_metadata?.name || null,
         avatar_url: profileMap.get(u.id)?.avatar_url || null,
@@ -77,6 +79,43 @@ Deno.serve(async (req) => {
         role: roleMap.get(u.id) || "user",
       })),
       page, has_more: data.users.length === 100,
+    }, 200, origin);
+  }
+
+
+  if (body.action === "account-status") {
+    const userId = body.userId || "";
+    const status = body.status || "";
+    const reason = String(body.reason || "").trim().slice(0, 500);
+    if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) {
+      return json({ error: "A valid user ID is required" }, 400, origin);
+    }
+    if (!["suspended", "active"].includes(status)) return json({ error: "Unsupported account status" }, 400, origin);
+    if (userId === authData.user.id) return json({ error: "You cannot suspend or reactivate your own administrator account" }, 403, origin);
+    if (status === "suspended" && reason.length < 8) return json({ error: "A suspension reason of at least 8 characters is required" }, 400, origin);
+
+    const { data: targetRole, error: targetRoleError } = await admin.from("user_roles").select("role").eq("user_id", userId).maybeSingle();
+    if (targetRoleError) return json({ error: "Unable to verify target account role" }, 500, origin);
+    if (targetRole?.role === "admin") return json({ error: "Administrator accounts cannot be suspended or reactivated through this standard admin workflow" }, 403, origin);
+
+    const action = status === "suspended" ? "suspend_account" : "reactivate_account";
+    const { data: audit, error: auditInsertError } = await admin.from("admin_account_status_audit").insert({
+      admin_user_id: authData.user.id, target_user_id: userId, action, result: "requested", reason: reason || null,
+    }).select("id").single();
+    if (auditInsertError || !audit) return json({ error: "Could not create the required account-action audit record" }, 500, origin);
+
+    const { data: changed, error: changeError } = await admin.auth.admin.updateUserById(userId, {
+      ban_duration: status === "suspended" ? "876000h" : "none",
+    });
+    if (changeError || !changed.user) {
+      await admin.from("admin_account_status_audit").update({ result: "failed" }).eq("id", audit.id);
+      return json({ error: "Account status could not be changed" }, 409, origin);
+    }
+    const { error: auditUpdateError } = await admin.from("admin_account_status_audit").update({ result: "succeeded" }).eq("id", audit.id);
+    if (auditUpdateError) return json({ error: "Account status changed, but the audit result could not be finalized. Escalate this event for review." }, 500, origin);
+    return json({
+      user: { id: changed.user.id, banned_until: changed.user.banned_until || null },
+      status: changed.user.banned_until && new Date(changed.user.banned_until).getTime() > Date.now() ? "suspended" : "active",
     }, 200, origin);
   }
 
@@ -146,6 +185,8 @@ Deno.serve(async (req) => {
         id: u.id, email: u.email, phone: u.phone,
         email_confirmed_at: u.email_confirmed_at, phone_confirmed_at: u.phone_confirmed_at,
         created_at: u.created_at, updated_at: u.updated_at, last_sign_in_at: u.last_sign_in_at,
+        banned_until: u.banned_until || null,
+        is_suspended: !!u.banned_until && new Date(u.banned_until).getTime() > Date.now(),
         providers: u.app_metadata?.providers || [],
         metadata: {
           full_name: metadata.full_name || null,
@@ -162,20 +203,24 @@ Deno.serve(async (req) => {
   if (body.action === "audit-list") {
     const requestedLimit = Number((body as { limit?: number }).limit) || 50;
     const limit = Math.max(1, Math.min(100, requestedLimit));
-    const { data: events, error: auditListError } = await admin.from("admin_user_access_audit")
-      .select("id,admin_user_id,target_user_id,action,accessed_at")
-      .order("accessed_at", { ascending: false })
-      .limit(limit);
-    if (auditListError) return json({ error: "Unable to load access audit history" }, 500, origin);
+    const [{ data: accessEvents, error: accessError }, { data: statusEvents, error: statusError }] = await Promise.all([
+      admin.from("admin_user_access_audit").select("id,admin_user_id,target_user_id,action,accessed_at").order("accessed_at", { ascending: false }).limit(limit),
+      admin.from("admin_account_status_audit").select("id,admin_user_id,target_user_id,action,result,reason,created_at").order("created_at", { ascending: false }).limit(limit),
+    ]);
+    if (accessError || statusError) return json({ error: "Unable to load administrator audit history" }, 500, origin);
+    const events = [
+      ...(accessEvents || []),
+      ...(statusEvents || []).map((event) => ({ ...event, accessed_at: event.created_at })),
+    ].sort((a, b) => new Date(b.accessed_at).getTime() - new Date(a.accessed_at).getTime()).slice(0, limit);
 
-    const ids = [...new Set((events || []).flatMap((event) => [event.admin_user_id, event.target_user_id]))];
+    const ids = [...new Set(events.flatMap((event) => [event.admin_user_id, event.target_user_id]))];
     const emailById = new Map<string, string | null>();
     await Promise.all(ids.map(async (id) => {
       const { data, error } = await admin.auth.admin.getUserById(id);
       emailById.set(id, error ? null : data.user?.email || null);
     }));
     return json({
-      events: (events || []).map((event) => ({
+      events: events.map((event) => ({
         ...event,
         admin_email: emailById.get(event.admin_user_id) || null,
         target_email: emailById.get(event.target_user_id) || null,
