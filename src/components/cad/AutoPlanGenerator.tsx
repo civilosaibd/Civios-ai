@@ -37,7 +37,7 @@ function toCadDocument(plan: GeneratedPlan, units: CadDocument["units"]): CadDoc
   label(0,-4.2,`AI CONCEPT · ${plan.floors} FLOOR(S) · ROAD: ${plan.roadSide.toUpperCase()}`,0.85);
   return {version:2,units,entities,layers:[wallLayer,openingLayer,labelLayer]};
 }
-export default function AutoPlanGenerator({units,onGenerate}:{units:CadDocument["units"];onGenerate:(document:CadDocument)=>void}){
+export default function AutoPlanGenerator({units,onGenerate}:{units:CadDocument["units"];onGenerate:(document:CadDocument,floors:number)=>void}){
   const [prompt,setPrompt]=useState("40×60 ft plot, south road, 3 bedrooms, 2 bathrooms, 4 floors. Include living/drawing room, dining, kitchen, family space, staircase, balcony and good natural ventilation. Keep rooms practical and arrange them in a compact modern family house.");
   const [busy,setBusy]=useState(false);
   const [notes,setNotes]=useState<string[]>([]);
@@ -53,7 +53,7 @@ export default function AutoPlanGenerator({units,onGenerate}:{units:CadDocument[
       if(!data?.ok||!data.plan)throw new Error(data?.error||"AI did not return a valid floor plan.");
       const plan=data.plan as GeneratedPlan; const drawing=toCadDocument(plan,units);
       if(drawing.entities.length<10)throw new Error("The generated CAD geometry is incomplete. Please try a more detailed prompt.");
-      onGenerate(drawing);setNotes(plan.assumptions??[]);setWarnings(plan.warnings??[]);
+      onGenerate(drawing,plan.floors);setNotes(plan.assumptions??[]);setWarnings(plan.warnings??[]);
       setGeneratedMeta({rooms:plan.rooms.length,floors:plan.floors});
       toast.success(`AI generated ${plan.rooms.length} rooms and ${drawing.entities.length} editable CAD objects.`);
     }catch(error){toast.error(error instanceof Error?error.message:"AI floor-plan generation failed.");}
