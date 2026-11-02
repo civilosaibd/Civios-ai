@@ -322,8 +322,14 @@ GRANT EXECUTE ON FUNCTION public.admin_accept_invitation(text) TO authenticated,
     END IF;
   END IF;
 
-  UPDATE public.admin_invitations SET status = 'revoked'
-    WHERE lower(invited_email) = normalized_email AND status = 'pending';
+  WITH revoked AS (
+    UPDATE public.admin_invitations SET status = 'revoked'
+      WHERE lower(invited_email) = normalized_email AND status = 'pending'
+      RETURNING id,invited_email
+  )
+  INSERT INTO public.admin_rbac_audit(actor_user_id,action,metadata)
+    SELECT actor,'invite_revoked',jsonb_build_object('invitation_id',id,'invited_email',invited_email,'reason','replaced_by_new_invitation')
+    FROM revoked;
   INSERT INTO public.admin_invitations(invited_email,invited_by,role,status,token_hash,expires_at)
     VALUES (normalized_email,actor,'sub_admin','pending',_token_hash,_expires_at)
     RETURNING * INTO invitation;
