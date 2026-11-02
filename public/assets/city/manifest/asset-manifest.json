@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "project": "CivilOS AI realistic aerial city",
-  "status": "inventory-only",
+  "status": "source-verified-acquisition-pending",
   "coordinateSystem": {
     "unit": "meter",
     "verticalAxis": "Y",
@@ -26,7 +26,11 @@
       "runtimeStatus": "not-acquired",
       "sourceTriangleCount": 5000000,
       "sourceDownloadBytes": 263020000,
-      "optimizationRequired": ["generate-lods", "reduce-leaf-overdraw", "compress-textures"],
+      "optimizationRequired": [
+        "generate-lods",
+        "reduce-leaf-overdraw",
+        "compress-textures"
+      ],
       "runtimePath": null
     },
     {
@@ -39,7 +43,11 @@
       "runtimeStatus": "not-acquired",
       "sourceTriangleCount": 312000,
       "sourceDownloadBytes": 584530000,
-      "optimizationRequired": ["generate-lods", "reduce-leaf-overdraw", "compress-textures"],
+      "optimizationRequired": [
+        "generate-lods",
+        "reduce-leaf-overdraw",
+        "compress-textures"
+      ],
       "runtimePath": null
     },
     {
@@ -52,7 +60,10 @@
       "runtimeStatus": "not-acquired",
       "sourceTriangleCount": 31000,
       "sourceDownloadBytes": 31410000,
-      "optimizationRequired": ["generate-lods", "compress-textures"],
+      "optimizationRequired": [
+        "generate-lods",
+        "compress-textures"
+      ],
       "runtimePath": null
     },
     {
@@ -65,6 +76,98 @@
       "runtimeStatus": "not-acquired",
       "reason": "The model is a car beneath a fabric cover; it is not a suitable visible driving vehicle.",
       "runtimePath": null
+    },
+    {
+      "id": "VEH-COMPACT-SUV-01",
+      "name": "Generic compact SUV",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/generic-compact-suv-9f157ee5",
+      "creator": "Innerscene contributor",
+      "license": "CC0",
+      "sourceStatus": "license-and-format-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 4600000,
+      "notes": "Original unbranded model, approximately 4.493 x 2.174 x 1.730 m. Visual fidelity and mesh/material quality still require inspection.",
+      "optimizationRequired": [
+        "inspect-mesh-and-materials",
+        "normalize-axis-and-origin",
+        "generate-lods",
+        "compress-textures"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "VEH-HATCHBACK-01",
+      "name": "Silver five-door compact hatchback",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/silver-five-door-compact-hatchback-6bf4a878",
+      "creator": "Innerscene contributor",
+      "license": "CC0",
+      "sourceStatus": "license-and-format-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 4800000,
+      "notes": "Original unbranded model, approximately 4.281 x 2.160 x 1.490 m. Visual fidelity and mesh/material quality still require inspection.",
+      "optimizationRequired": [
+        "inspect-mesh-and-materials",
+        "normalize-axis-and-origin",
+        "generate-lods",
+        "compress-textures"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "VEH-SUV-02",
+      "name": "SUV",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/suv-dc972cab",
+      "creator": "Innerscene contributor",
+      "license": "CC0",
+      "sourceStatus": "license-and-format-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 623000,
+      "notes": "Original unbranded exterior visualization model, approximately 4.72 x 1.92 x 1.75 m. Cabin, suspension and powertrain omitted.",
+      "optimizationRequired": [
+        "inspect-mesh-and-materials",
+        "normalize-axis-and-origin",
+        "generate-lods"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "PED-SAM-WALK-01",
+      "name": "Relaxed walk - Sam",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/relaxed-walk-sam-3d-person-animated-732f1206",
+      "creator": "Innerscene (adapted from MakeHuman/MPFB CC0 assets)",
+      "license": "CC0",
+      "sourceStatus": "license-format-and-animation-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 20000000,
+      "notes": "Rigged skinned character with seamless 2-second relaxed-walk loop at 30 fps; approx. 1.3 m/s in-place travel equivalent.",
+      "optimizationRequired": [
+        "inspect-skeleton-and-animation",
+        "reduce-texture-memory",
+        "test-instancing-or-animation-sharing"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "PED-MAYA-LOCOMOTION-01",
+      "name": "Locomotion collection - Maya",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/locomotion-collection-maya-3d-person-animated-1499b2fd",
+      "creator": "Innerscene (adapted from MakeHuman/MPFB CC0 assets)",
+      "license": "CC0",
+      "sourceStatus": "license-format-and-animation-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 20300000,
+      "notes": "Rigged character with idle, relaxed walk, brisk walk, jog, run, carry walk and sit/stand clips. Requires animation compatibility test.",
+      "optimizationRequired": [
+        "inspect-skeleton-and-animation",
+        "reduce-texture-memory",
+        "test-animation-sharing"
+      ],
+      "runtimePath": null
     }
   ],
   "pendingFamilies": [
@@ -73,14 +176,26 @@
     "townhouses",
     "commercial-buildings",
     "skyline-buildings",
-    "passenger-cars",
     "bus",
     "delivery-van",
-    "rigged-pedestrians",
+    "motorcycle",
     "sidewalk-props",
     "asphalt-pbr",
     "concrete-pbr",
     "facade-pbr",
     "daylight-environment"
-  ]
+  ],
+  "acquisitionGate": {
+    "note": "Source pages and stated CC0 licensing were checked; no binary is marked acquired until the GLB is downloaded, opened, inspected, optimized, hashed, and committed.",
+    "requiredChecks": [
+      "download-binary",
+      "verify-license-at-download-time",
+      "inspect-in-3d-viewer-or-blender",
+      "check-triangle-count-and-textures",
+      "check-scale-axis-origin",
+      "optimize-and-generate-lods",
+      "record-sha256",
+      "commit-runtime-file"
+    ]
+  }
 }
