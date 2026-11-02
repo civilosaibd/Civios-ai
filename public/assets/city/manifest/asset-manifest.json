@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "project": "CivilOS AI realistic aerial city",
-  "status": "source-verified-acquisition-pending",
+  "status": "source-catalog-expanded-acquisition-pending",
   "coordinateSystem": {
     "unit": "meter",
     "verticalAxis": "Y",
@@ -168,6 +168,120 @@
         "test-animation-sharing"
       ],
       "runtimePath": null
+    },
+    {
+      "id": "VEH-SEDAN-WHITE-01",
+      "name": "White four-door sedan",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/white-four-door-sedan-1f271353",
+      "creator": "Innerscene contributor",
+      "license": "CC0",
+      "sourceStatus": "license-format-and-description-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 4800000,
+      "notes": "4.867 x 2.230 x 1.450 m; original unbranded exterior GLB.",
+      "optimizationRequired": [
+        "inspect-mesh-materials-and-textures",
+        "verify-scale-axis-origin",
+        "generate-lods",
+        "compress-textures"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "VEH-VAN-PASSENGER-01",
+      "name": "Passenger van with side windows",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/passenger-van-with-side-windows-474dd4a2",
+      "creator": "Innerscene contributor",
+      "license": "CC0",
+      "sourceStatus": "license-format-and-description-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 5600000,
+      "notes": "5.675 x 2.420 x 2.480 m; suitable visual candidate for vans/minibuses, verify body styling.",
+      "optimizationRequired": [
+        "inspect-mesh-materials-and-textures",
+        "verify-scale-axis-origin",
+        "generate-lods",
+        "compress-textures"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "VEH-BUS-CITY-12M-01",
+      "name": "12 m low-floor city bus",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/12-m-low-floor-city-bus-8e3c7229",
+      "creator": "Innerscene contributor",
+      "license": "CC0",
+      "sourceStatus": "license-format-and-description-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 6100000,
+      "notes": "12.138 x 2.880 x 3.415 m; original unbranded city-bus exterior, interior and working door mechanisms omitted.",
+      "optimizationRequired": [
+        "inspect-mesh-materials-and-textures",
+        "verify-scale-axis-origin",
+        "generate-lods",
+        "compress-textures"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "VEH-MOTORCYCLE-ROAD-01",
+      "name": "Road motorcycle",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/road-motorcycle-f2519759",
+      "creator": "Innerscene contributor",
+      "license": "CC0",
+      "sourceStatus": "license-format-and-description-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 627000,
+      "notes": "0.8 x 2.1 x 1.4 m; original unbranded static visualization model.",
+      "optimizationRequired": [
+        "inspect-mesh-materials-and-textures",
+        "verify-scale-axis-origin",
+        "generate-lods",
+        "compress-textures"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "PROP-BUS-SHELTER-01",
+      "name": "Bus shelter",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/bus-shelter-90077332",
+      "creator": "Innerscene contributor",
+      "license": "CC0",
+      "sourceStatus": "license-format-and-description-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 2100000,
+      "notes": "4.84 x 1.77 x 3.04 m; glass shelter with bench and signage props.",
+      "optimizationRequired": [
+        "inspect-mesh-materials-and-textures",
+        "verify-scale-axis-origin",
+        "generate-lods",
+        "compress-textures"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "PED-HARPER-WALK-01",
+      "name": "Relaxed walk - Harper",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/relaxed-walk-harper-3d-person-animated-b504cbac",
+      "creator": "Innerscene contributor",
+      "license": "CC0",
+      "sourceStatus": "license-format-and-description-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 17900000,
+      "notes": "Rigged character in business clothes with seamless 2-second relaxed-walk loop at 30 fps.",
+      "optimizationRequired": [
+        "inspect-mesh-materials-and-textures",
+        "verify-scale-axis-origin",
+        "generate-lods",
+        "compress-textures"
+      ],
+      "runtimePath": null
     }
   ],
   "pendingFamilies": [
@@ -176,17 +290,15 @@
     "townhouses",
     "commercial-buildings",
     "skyline-buildings",
-    "bus",
-    "delivery-van",
-    "motorcycle",
-    "sidewalk-props",
     "asphalt-pbr",
     "concrete-pbr",
     "facade-pbr",
-    "daylight-environment"
+    "daylight-environment",
+    "traffic-lights-and-signage",
+    "street-furniture-benches-bins"
   ],
   "acquisitionGate": {
-    "note": "Source pages and stated CC0 licensing were checked; no binary is marked acquired until the GLB is downloaded, opened, inspected, optimized, hashed, and committed.",
+    "note": "Source pages state CC0 and GLB availability; this is source-level screening only. No binary is marked acquired until downloaded, opened, inspected, optimized, hashed, and committed.",
     "requiredChecks": [
       "download-binary",
       "verify-license-at-download-time",
