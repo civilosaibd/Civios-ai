@@ -73,6 +73,9 @@ const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage.tsx"));
 const ModulesPage = lazy(() => import("./pages/ModulesPage.tsx"));
 const BillingPage = lazy(() => import("./pages/BillingPage.tsx"));
 const AdminBillingPage = lazy(() => import("./pages/AdminBillingPage.tsx"));
+const AdminTeamPage = lazy(() => import("./pages/AdminTeamPage.tsx"));
+const AdminUsersPage = lazy(() => import("./pages/AdminUsersPage.tsx"));
+const AdminAcceptInvitePage = lazy(() => import("./pages/AdminAcceptInvitePage.tsx"));
 const FinancePage = lazy(() => import("./pages/FinancePage.tsx"));
 const DefectDetectionPage = lazy(() => import("./pages/DefectDetectionPage.tsx"));
 const KnowledgeLibraryPage = lazy(
@@ -255,12 +258,15 @@ const App = () => (
                         element={<AdminAffiliatePage />}
                       />
                       <Route path="/invite" element={<InviteAcceptPage />} />
+                      <Route path="/admin/accept-invite" element={<AdminAcceptInvitePage />} />
 
                       <Route path="/billing" element={<BillingPage />} />
                       <Route
                         path="/admin/billing"
                         element={<AdminBillingPage />}
                       />
+                      <Route path="/admin/team" element={<AdminTeamPage />} />
+                      <Route path="/admin/users" element={<AdminUsersPage />} />
 
                       <Route
                         path="/share/:token"
