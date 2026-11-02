@@ -1,4 +1,4 @@
-import { dimensionLength, polygonVertices, type CadDocument, type CadEntity, type CadLayer, type Point2D } from "./geometry";
+import { dimensionLength, entityBounds, polygonVertices, type CadDocument, type CadEntity, type CadLayer, type Point2D } from "./geometry";
 import { getWallVisibleSegments } from "./wall-openings";
 
 const INSUNITS: Record<CadDocument["units"], number> = { in: 1, ft: 2, mm: 4, cm: 5, m: 6 };
