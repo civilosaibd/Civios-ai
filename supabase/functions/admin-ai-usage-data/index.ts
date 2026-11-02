@@ -46,6 +46,7 @@ Deno.serve(async (req) => {
   const page = Math.max(1, Math.min(10000, Number(body.page) || 1));
   const pageSize = 25;
   const search = String(body.search || "").trim().slice(0, 80);
+  if (search && !isUuid(search)) return json({ error: "Search must be an exact user UUID" }, 400, origin);
   const summaryPromise = caller.rpc("admin_ai_usage_summary", { _period: period });
   let query = admin.from("usage_records")
     .select("id,user_id,period,ai_credits,projects,boq_generations,bbs_generations,drawings,reports,storage_mb,created_at,updated_at", { count: "exact" })
