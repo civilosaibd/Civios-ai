@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       if (event.event_type === "link_click") count.link_clicks += 1;
       eventCounts.set(event.referrer_id, count);
     }
-    const ids = [...new Set([...referrals.flatMap((r) => [r.referrer_id, r.referred_user_id]), ...withdrawals.map((w) => w.user_id)])].filter(Boolean);
+    const ids = [...new Set([...referrals.flatMap((r) => [r.referrer_id, r.referred_user_id]), ...withdrawals.map((w) => w.user_id), ...eventCounts.keys()])].filter(Boolean);
     const { data: profiles, error: profileError } = ids.length ? await db.from("profiles").select("id,display_name,avatar_url,referral_code").in("id", ids) : { data: [], error: null };
     if (profileError) return reply({ error: "Unable to load affiliate profiles" }, 500, origin);
     const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
       for (const u of data.users) contacts.set(u.id, { email: u.email || null, phone: u.phone || null });
       if (data.users.length < 1000) break;
     }
-    const affiliates = [...new Set(referrals.map((r) => r.referrer_id))].map((id) => {
+    const affiliates = [...new Set([...referrals.map((r) => r.referrer_id), ...withdrawals.map((w) => w.user_id), ...eventCounts.keys()])].map((id) => {
       const ownRefs = referrals.filter((r) => r.referrer_id === id), ownComms = commissions.filter((c) => c.referrer_id === id), ownWithdrawals = withdrawals.filter((w) => w.user_id === id);
       const total = (rows: any[], statuses: string[], field: string) => rows.filter((x) => statuses.includes(x.status)).reduce((s, x) => s + Number(x[field] || 0), 0);
       return { user_id: id, name: profileMap.get(id)?.display_name || null, ...(contacts.get(id) || { email: null, phone: null }), referral_code: profileMap.get(id)?.referral_code || null,
