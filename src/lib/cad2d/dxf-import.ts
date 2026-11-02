@@ -2,6 +2,8 @@ import type { CadDocument, CadEntity, CadLayer, Point2D } from "./geometry";
 
 type Pair = { code: number; value: string };
 type RecordEntity = { type: string; pairs: Pair[] };
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+type CadEntityDraft = DistributiveOmit<CadEntity, "id" | "layerId">;
 
 const finite = (value: string | undefined, fallback = NaN) => {
   const n = Number(value);
@@ -99,7 +101,7 @@ export function importDxfDocument(source: string, fallbackUnits: CadDocument["un
   const entities: CadEntity[] = [];
   const notes: string[] = [];
   let id = 0;
-  const push = (entity: Omit<CadEntity, "id" | "layerId"> & { type: CadEntity["type"] }, layerId: string) => {
+  const push = (entity: CadEntityDraft, layerId: string) => {
     entities.push({ ...entity, id: `dxf-import-${id++}`, layerId } as CadEntity);
   };
   for (let i = 0; i < records.length; i++) {

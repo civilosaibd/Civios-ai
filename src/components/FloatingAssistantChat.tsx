@@ -38,7 +38,7 @@ export default function FloatingAssistantChat({ userId, isBangla }: { userId: st
   const send = async (value = input) => {
     const content = value.trim();
     if (!content || busy) return;
-    const history: Message[] = [...messages, { role: "user", content }].slice(-30);
+    const history: Message[] = [...messages, { role: "user" as const, content }].slice(-30);
     setMessages([...history, { role: "assistant", content: "" }]);
     setInput("");
     setBusy(true);

@@ -185,18 +185,16 @@ function wallNetworkFaces(entities: CadEntity[]): Array<{ points: Point2D[]; met
 
 /** Detects explicit closed shapes plus bounded faces formed by connected wall centerlines. */
 export function detectRooms(entities: CadEntity[]): DetectedRoom[] {
-  const explicit = entities.flatMap((entity) => {
+  const explicit: { entity: CadEntity; boundaryType: "rectangle" | "closed-polyline" | "polygon"; points: Point2D[] }[] = [];
+  for (const entity of entities) {
     if (entity.type === "rectangle") {
-      return [{ entity, boundaryType: "rectangle" as const, points: [entity.min, { x: entity.max.x, y: entity.min.y }, entity.max, { x: entity.min.x, y: entity.max.y }] }];
+      explicit.push({ entity, boundaryType: "rectangle", points: [entity.min, { x: entity.max.x, y: entity.min.y }, entity.max, { x: entity.min.x, y: entity.max.y }] });
+    } else if (entity.type === "polyline" && entity.closed) {
+      explicit.push({ entity, boundaryType: "closed-polyline", points: entity.points });
+    } else if (entity.type === "polygon") {
+      explicit.push({ entity, boundaryType: "polygon", points: polygonVertices(entity) });
     }
-    if (entity.type === "polyline" && entity.closed) {
-      return [{ entity, boundaryType: "closed-polyline" as const, points: entity.points }];
-    }
-    if (entity.type === "polygon") {
-      return [{ entity, boundaryType: "polygon" as const, points: polygonVertices(entity) }];
-    }
-    return [];
-  });
+  }
 
   const rooms: DetectedRoom[] = explicit.flatMap(({ entity, boundaryType, points }) => {
     const metrics = polygonMetrics(points);
