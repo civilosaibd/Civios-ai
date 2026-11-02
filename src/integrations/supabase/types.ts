@@ -1789,10 +1789,6 @@ export type Database = {
         Returns: boolean
       }
       my_affiliate_stats: { Args: never; Returns: Json }
-      track_referral_event: {
-        Args: { _event_id: string; _event_type: string; _referral_code: string }
-        Returns: boolean
-      }
       record_referral_commission: {
         Args: { _payment_id: string }
         Returns: undefined
