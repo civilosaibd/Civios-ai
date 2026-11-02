@@ -22,13 +22,18 @@ import { createIndoCadTemplate, type IndoCadTemplateId } from "@/lib/cad2d/templ
 
 type DraftEntity = CadEntity & { id: string; layerId: string };
 
-type FurnitureKind = "bed" | "sofa" | "dining-table" | "toilet" | "kitchen-counter";
+type FurnitureKind = "bed" | "sofa" | "dining-table" | "toilet" | "kitchen-counter" | "wardrobe" | "refrigerator" | "shower" | "bathtub" | "washbasin";
 const furnitureLabels: { id: FurnitureKind; label: string; size: string }[] = [
   { id: "bed", label: "Bed", size: "6.5 × 5 ft" },
   { id: "sofa", label: "Sofa", size: "7 × 3 ft" },
   { id: "dining-table", label: "Dining set", size: "5 × 3 ft" },
   { id: "toilet", label: "Toilet", size: "2.5 × 4 ft" },
   { id: "kitchen-counter", label: "Kitchen counter", size: "8 × 2 ft" },
+  { id: "wardrobe", label: "Wardrobe", size: "6 × 2 ft" },
+  { id: "refrigerator", label: "Refrigerator", size: "2.5 × 2.5 ft" },
+  { id: "shower", label: "Shower", size: "3 × 3 ft" },
+  { id: "bathtub", label: "Bathtub", size: "5.5 × 2.5 ft" },
+  { id: "washbasin", label: "Washbasin", size: "2 × 1.5 ft" },
 ];
 function buildFurniture(kind: FurnitureKind, at: Point2D, layerId: string, units: CadDocument["units"]): CadEntity[] {
   const unitScale = ({ ft: 1, in: 12, m: 0.3048, cm: 30.48, mm: 304.8 } as const)[units];
@@ -54,6 +59,11 @@ function buildFurniture(kind: FurnitureKind, at: Point2D, layerId: string, units
     case "dining-table": return [rect(0, 0, 5, 3), ...[[-2.7,-1.5],[0,-1.5],[2.7,-1.5],[-2.7,1.5],[0,1.5],[2.7,1.5]].map(([x,y]) => ellipse(x,y,0.42,0.42))];
     case "toilet": return [rect(0, -1.45, 2.5, 0.85), ellipse(0, 0.25, 1.05, 1.45), ellipse(0, 0.25, 0.68, 1.05)];
     case "kitchen-counter": return [rect(0, 0, 8, 2), rect(-2.3, 0, 1.5, 1.2), ellipse(-2.3, 0, 0.55, 0.4), line(-3.8, -0.75, 3.8, -0.75), line(-3.8, 0.75, 3.8, 0.75)];
+    case "wardrobe": return [rect(0, 0, 6, 2), line(0, -1, 0, 1), ellipse(-0.2, 0, 0.06, 0.06), ellipse(0.2, 0, 0.06, 0.06)];
+    case "refrigerator": return [rect(0, 0, 2.5, 2.5), line(-1.25, -0.35, 1.25, -0.35), line(0.8, -0.95, 0.8, -0.55), line(0.8, 0.05, 0.8, 0.4)];
+    case "shower": return [rect(0, 0, 3, 3), line(-1.5, -1.5, 1.5, 1.5), line(1.5, -1.5, -1.5, 1.5), ellipse(0, 0, 0.18, 0.18)];
+    case "bathtub": return [rect(0, 0, 5.5, 2.5), rect(0, 0, 4.9, 1.9), ellipse(2.35, 0, 0.12, 0.12)];
+    case "washbasin": return [rect(0, 0, 2, 1.5), ellipse(0, 0, 0.68, 0.48), ellipse(0, 0, 0.08, 0.08)];
   }
 }
 
@@ -933,6 +943,6 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
         <div><p className="mb-1 text-xs font-medium">Command line</p><form className="flex gap-1" onSubmit={(e)=>{e.preventDefault();runCommand();}}><Input value={command} onChange={(e)=>setCommand(e.target.value)} placeholder="LINE / RECTANG / CIRCLE"/><Button size="sm" type="submit">Run</Button></form><p className="mt-1 text-[10px] text-muted-foreground">Command aliases select the corresponding tool; geometry handlers are enabled for the initial draw tools.</p></div>
       </aside>
     </div>
-    <p className="text-xs leading-relaxed text-muted-foreground">Current working tools: select, measure, line, rectangle, circle, arc, wall, polygon, move, copy, rotate, mirror and erase. Offset supports current geometry entities; Trim and Extend currently support straight lines/walls with guided two-click workflows. Other tools are organized for the planned CAD workflow but are not yet implemented. Drawings auto-save in this browser on this device. Export JSON for a portable editable backup; SVG is for sharing/printing.</p>
+    <p className="text-xs leading-relaxed text-muted-foreground">Working tools include selection, measurement, line/rectangle/circle/arc, wall, door/window openings, columns, dimensions, furniture symbols, move/copy/rotate/mirror/erase, offset, and guided Trim/Extend for straight lines and walls. Furniture and architectural symbols are editable CAD primitives/entities. Drawings auto-save in this browser on this device. Export JSON for an editable backup; SVG is for sharing/printing.</p>
   </section>;
 }
