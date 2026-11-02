@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
 
   if (body.action === "list") {
     const page = Math.max(1, Math.min(10000, Number(body.page) || 1)), pageSize = 25;
-    const term = String(body.search || "").trim().slice(0, 100);
+    const term = String(body.search || "").replace(/[,%()]/g, " ").trim().slice(0, 100);
     let query = db.from("projects").select("id,user_id,name,file_name,is_public,share_token,created_at,updated_at,status,client_name,location,project_type,budget,start_date,end_date", { count: "exact" });
     if (term) query = query.or(`name.ilike.%${term}%,file_name.ilike.%${term}%,client_name.ilike.%${term}%,location.ilike.%${term}%`);
     const { data: projects, error, count } = await query.order("updated_at", { ascending: false }).range((page - 1) * pageSize, page * pageSize - 1);
