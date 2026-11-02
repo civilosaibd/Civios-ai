@@ -677,3 +677,26 @@ test("billing.manage sub-admin can verify payments through the atomic audited wo
   const [audit] = await q("SELECT actor_user_id,action FROM public.admin_billing_audit WHERE payment_id=$1", [paymentId]);
   assert.deepEqual(audit, {actor_user_id:BOB,action:"payment_verified"});
 });
+
+
+test("billing.view-only sub-admin cannot verify or reject a pending payment", async () => {
+  const [membership] = await q(
+    "INSERT INTO public.admin_memberships(user_id,role,status,assigned_by) VALUES ($1,'sub_admin','active',$2) RETURNING id",
+    [ALICE, ADMIN]
+  );
+  await db.query(
+    "INSERT INTO public.admin_feature_permissions(membership_id,feature_key,action,granted_by) VALUES ($1,'billing','view',$2)",
+    [membership.id, ADMIN]
+  );
+  const [{ id: plan }] = await q("SELECT id FROM public.plans WHERE code='professional'");
+  let paymentId;
+  await bob(async () => {
+    const [row] = await q("INSERT INTO public.payments(user_id,plan_id,amount,billing_cycle,transaction_id) VALUES ($1,$2,1,'yearly','TX-SUBADMIN-VIEW-ONLY') RETURNING id", [BOB, plan]);
+    paymentId = row.id;
+  });
+  await alice(() => rejects(
+    () => db.query("SELECT public.admin_process_payment($1,'verify',NULL)", [paymentId]),
+    /Billing: Manage permission required/
+  ));
+  assert.equal((await q("SELECT status FROM public.payments WHERE id=$1", [paymentId]))[0].status, "pending");
+});
