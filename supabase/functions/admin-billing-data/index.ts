@@ -77,9 +77,14 @@ Deno.serve(async (req) => {
   if (status && status !== "all") query = query.eq("status", status);
   if (search) {
     const safe = search.replace(/[%(),]/g, " ").trim();
-    if (safe) query = query.or(kind === "payments"
-      ? `invoice_number.ilike.%${safe}%,transaction_id.ilike.%${safe}%,user_id.eq.${safe}`
-      : `user_id.eq.${safe},plan_id.eq.${safe}`);
+    if (safe) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(safe);
+      const filters = kind === "payments"
+        ? [`invoice_number.ilike.%${safe}%`, `transaction_id.ilike.%${safe}%`]
+        : [];
+      if (isUuid) filters.push(`user_id.eq.${safe}`);
+      if (filters.length) query = query.or(filters.join(","));
+    }
   }
   const { data, error, count } = await query.range(from, to);
   if (error) return reply({ error: "Unable to load billing records" }, 500, origin);
