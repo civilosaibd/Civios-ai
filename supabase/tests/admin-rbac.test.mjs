@@ -41,6 +41,20 @@ before(async()=>{
   await db.query("INSERT INTO auth.users(id,email,email_confirmed_at) VALUES ($1,'subadmin@example.com',now()),($2,'other@example.com',now())",[SUB,OTHER]);
 });
 
+test("Super Admin invitation creation and revocation are atomic and audited",async()=>{
+  const tokenHash="dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+  let invitationId;
+  await admin(async()=>{
+    const [created]=await q("SELECT public.admin_create_invitation($1,$2,now()+interval '7 days') AS value",["new-subadmin@example.com",tokenHash]);
+    invitationId=created.value.id;
+    assert.equal(created.value.status,"pending");
+    await db.query("SELECT public.admin_revoke_invitation($1)",[invitationId]);
+  });
+  assert.equal((await q("SELECT status FROM public.admin_invitations WHERE id=$1",[invitationId]))[0].status,"revoked");
+  const actions=(await q("SELECT action FROM public.admin_rbac_audit WHERE metadata->>'invitation_id'=$1 ORDER BY created_at",[invitationId])).map(x=>x.action);
+  assert.deepEqual(actions,["invite_created","invite_revoked"]);
+});
+
 test("Super Admin invitation acceptance creates only a sub-admin membership for the invited email",async()=>{
   await db.query("INSERT INTO public.admin_invitations(invited_email,invited_by,role,status,token_hash,expires_at) VALUES ('subadmin@example.com',$1,'sub_admin','pending','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',now()+interval '7 days')",[ADMIN]);
   await sub(async()=>{
