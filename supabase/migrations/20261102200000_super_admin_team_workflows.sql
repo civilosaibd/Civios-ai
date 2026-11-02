@@ -156,6 +156,9 @@ BEGIN
   IF lower(trim(invitation.invited_email)) <> caller_email THEN
     RAISE EXCEPTION 'This invitation belongs to another email address' USING ERRCODE = '42501';
   END IF;
+  IF public.has_role(caller,'admin'::public.app_role) AND NOT public.is_super_admin() THEN
+    RAISE EXCEPTION 'Legacy full-admin accounts cannot accept sub-admin invitations' USING ERRCODE = '42501';
+  END IF;
   INSERT INTO public.admin_memberships(user_id,role,status,assigned_by)
     VALUES (caller,'sub_admin','active',invitation.invited_by)
     ON CONFLICT (user_id) DO UPDATE
