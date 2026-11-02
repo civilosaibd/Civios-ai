@@ -34,8 +34,14 @@ Deno.serve(async (req) => {
   if (authError || !auth.user) return json({ error: "Invalid session" }, 401, origin);
 
   const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: allowed, error: roleError } = await admin.rpc("has_role", { _user_id: auth.user.id, _role: "admin" });
-  if (roleError || allowed !== true) return json({ error: "Admin access required" }, 403, origin);
+  const [{ data: legacyAdmin }, { data: superAdmin }, { data: canViewUsage }] = await Promise.all([
+    caller.rpc("has_role", { _user_id: auth.user.id, _role: "admin" }),
+    caller.rpc("is_super_admin"),
+    caller.rpc("has_admin_permission", { _feature_key: "ai_usage", _action: "view" }),
+  ]);
+  if (legacyAdmin !== true && superAdmin !== true && canViewUsage !== true) {
+    return json({ error: "AI Usage: View permission required" }, 403, origin);
+  }
 
   let body: { action?: string; period?: string; page?: number; search?: string };
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON body" }, 400, origin); }
