@@ -28,15 +28,43 @@ function Entity3D({ entity, color, factor }: { entity: CadEntity; color: string;
     </mesh>;
   }
   if (entity.type === "door") {
+    const doorWidth = Math.max(0.65, entity.width * factor);
+    const frame = 0.075;
     return <group position={point3(entity.at, factor)} rotation={[0, -entity.rotation, 0]}>
-      <mesh position={[0, 1.05, 0]} castShadow><boxGeometry args={[Math.max(0.04, entity.width * factor), 2.1, 0.07]} /><meshStandardMaterial color="#b77942" roughness={0.6} /></mesh>
-      <mesh position={[0, 2.12, 0]}><boxGeometry args={[entity.width * factor + 0.12, 0.08, 0.14]} /><meshStandardMaterial color="#e6c79e" /></mesh>
+      <mesh position={[0, 1.05, 0.015]} castShadow>
+        <boxGeometry args={[doorWidth, 2.1, 0.055]} />
+        <meshStandardMaterial color="#805333" roughness={0.48} />
+      </mesh>
+      {[-1, 1].map((side) => <mesh key={side} position={[side * (doorWidth / 2 + frame / 2), 1.08, 0]}>
+        <boxGeometry args={[frame, 2.22, 0.13]} />
+        <meshStandardMaterial color="#e5e7eb" roughness={0.62} />
+      </mesh>)}
+      <mesh position={[0, 2.18, 0]}><boxGeometry args={[doorWidth + frame * 2, 0.12, 0.13]} /><meshStandardMaterial color="#e5e7eb" roughness={0.62} /></mesh>
+      <mesh position={[0, 0.035, 0.04]}><boxGeometry args={[doorWidth + frame * 2, 0.07, 0.18]} /><meshStandardMaterial color="#cbd5e1" roughness={0.7} /></mesh>
+      <mesh position={[doorWidth * 0.34, 1.05, 0.055]}><sphereGeometry args={[0.035, 12, 12]} /><meshStandardMaterial color="#d6b36a" metalness={0.72} roughness={0.25} /></mesh>
     </group>;
   }
   if (entity.type === "window") {
+    const windowWidth = Math.max(0.5, entity.width * factor);
+    const windowHeight = 1.15;
+    const frame = 0.055;
+    const frameColor = "#334155";
     return <group position={point3(entity.at, factor)} rotation={[0, -entity.rotation, 0]}>
-      <mesh position={[0, 1.35, 0]}><boxGeometry args={[Math.max(0.04, entity.width * factor), 1.1, 0.08]} /><meshStandardMaterial color="#60a5fa" metalness={0.12} roughness={0.18} transparent opacity={0.72} /></mesh>
-      <mesh position={[0, 1.35, 0.06]}><boxGeometry args={[0.045, 1.1, 0.04]} /><meshStandardMaterial color="#e2e8f0" /></mesh>
+      <mesh position={[0, 1.38, -0.012]}>
+        <boxGeometry args={[windowWidth, windowHeight, 0.035]} />
+        <meshPhysicalMaterial color="#8fc8e8" metalness={0.18} roughness={0.12} transmission={0.12} transparent opacity={0.82} />
+      </mesh>
+      {[-1, 1].map((side) => <mesh key={side} position={[side * (windowWidth / 2 + frame / 2), 1.38, 0.025]}>
+        <boxGeometry args={[frame, windowHeight + frame * 2, 0.09]} />
+        <meshStandardMaterial color={frameColor} metalness={0.48} roughness={0.34} />
+      </mesh>)}
+      {[-1, 1].map((side) => <mesh key={side} position={[0, 1.38 + side * (windowHeight / 2 + frame / 2), 0.025]}>
+        <boxGeometry args={[windowWidth + frame * 2, frame, 0.09]} />
+        <meshStandardMaterial color={frameColor} metalness={0.48} roughness={0.34} />
+      </mesh>)}
+      <mesh position={[0, 1.38, 0.035]}><boxGeometry args={[0.035, windowHeight, 0.095]} /><meshStandardMaterial color="#64748b" metalness={0.5} roughness={0.35} /></mesh>
+      <mesh position={[0, 0.76, 0.06]}><boxGeometry args={[windowWidth + 0.2, 0.09, 0.24]} /><meshStandardMaterial color="#e2e8f0" roughness={0.65} /></mesh>
+      <mesh position={[0, 2.02, 0.045]}><boxGeometry args={[windowWidth + 0.14, 0.08, 0.18]} /><meshStandardMaterial color="#e2e8f0" roughness={0.65} /></mesh>
     </group>;
   }
   if (entity.type === "rectangle") {
@@ -128,6 +156,21 @@ export default function Cad3DPreview({ document, floorCount = 1 }: { document: C
         {Array.from({ length: levels }, (_, level) => <group key={`floor-${level}`} position={[0, level * 3.2, 0]}>
           {level > 0 && <mesh position={[center[0], -0.025, center[2]]} receiveShadow><boxGeometry args={[width, 0.12, depth]} /><meshStandardMaterial color="#cbd5e1" roughness={0.85} /></mesh>}
           {visibleEntities.filter((entity) => level === 0 || (entity.type !== "text" && entity.type !== "dimension")).map((entity) => <Entity3D key={`${level}-${entity.id}`} entity={entity} factor={factor} color={document.layers.find((layer) => layer.id === entity.layerId)?.color ?? "#64748b"} />)}
+          {/* Continuous horizontal facade bands make each storey legible in the massing view. */}
+          <mesh position={[center[0], 3.02, bounds.minZ - 0.045]} castShadow><boxGeometry args={[width + 0.18, 0.12, 0.18]} /><meshStandardMaterial color="#d6dde6" roughness={0.58} /></mesh>
+          <mesh position={[center[0], 3.02, bounds.maxZ + 0.045]} castShadow><boxGeometry args={[width + 0.18, 0.12, 0.18]} /><meshStandardMaterial color="#d6dde6" roughness={0.58} /></mesh>
+          <mesh position={[bounds.minX - 0.045, 3.02, center[2]]} castShadow><boxGeometry args={[0.18, 0.12, depth + 0.18]} /><meshStandardMaterial color="#d6dde6" roughness={0.58} /></mesh>
+          <mesh position={[bounds.maxX + 0.045, 3.02, center[2]]} castShadow><boxGeometry args={[0.18, 0.12, depth + 0.18]} /><meshStandardMaterial color="#d6dde6" roughness={0.58} /></mesh>
+          {/* Slim corner fins add depth without inventing balcony or structural elements. */}
+          {[
+            [bounds.minX - 0.035, 1.5, bounds.minZ - 0.035],
+            [bounds.minX - 0.035, 1.5, bounds.maxZ + 0.035],
+            [bounds.maxX + 0.035, 1.5, bounds.minZ - 0.035],
+            [bounds.maxX + 0.035, 1.5, bounds.maxZ + 0.035],
+          ].map((position, index) => <mesh key={`facade-fin-${level}-${index}`} position={position as [number, number, number]} castShadow>
+            <boxGeometry args={[0.14, 3.0, 0.14]} />
+            <meshStandardMaterial color="#94a3b8" metalness={0.16} roughness={0.42} />
+          </mesh>)}
         </group>)}
         {/* Flat roof slab with a low parapet gives the generated massing a clear top-floor silhouette. */}
         <mesh position={[center[0], levels * 3.2 + 0.04, center[2]]} castShadow receiveShadow>
