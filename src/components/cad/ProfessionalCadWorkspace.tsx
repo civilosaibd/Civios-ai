@@ -917,7 +917,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
       <div className="flex flex-wrap items-center gap-2 border-t border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] text-slate-400 md:px-4"><span className="inline-flex items-center gap-1.5"><Command className="h-3.5 w-3.5"/>Shortcuts: L line · C circle · R rectangle · P polyline · S select · E erase</span><span className="hidden text-slate-600 sm:inline">•</span><span className="inline-flex items-center gap-1.5"><Hand className="h-3.5 w-3.5"/>Wheel zoom · middle/right drag pan</span></div>
     </div>
     <AutoPlanGenerator units={doc.units} onGenerate={(generated, floors) => {
-      if (doc.entities.length > 0 && !window.confirm("Generate a new AI floor plan and replace the current drawing? Export a JSON backup first if needed.")) return;
+      if (doc.entities.length > 0 && !window.confirm("Generate a new AI floor plan and replace the current drawing? Export a JSON backup first if needed.")) return false;
       setBuildingFloors(floors);
       commit(generated);
       setLayerName(generated.layers[0]?.name ?? "AI Generated Walls");
@@ -929,6 +929,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
       const width = Math.max(maxX - minX, 1); const height = Math.max(maxY - minY, 1);
       const scale = Math.max(0.2, Math.min(8, 900 / width, 540 / height));
       setView({ x: (1000 - width * scale) / 2 - minX * scale, y: (640 - height * scale) / 2 - minY * scale, scale });
+      return true;
     }} />
     <div className="shrink-0 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
       <div className="flex items-center gap-2 px-1"><div className="rounded-lg bg-orange-50 p-2 text-orange-600"><Wrench className="h-4 w-4"/></div><div><p className="text-xs font-semibold text-slate-800">Quick controls</p><p className="text-[10px] text-slate-500">Manage your drawing</p></div></div>
