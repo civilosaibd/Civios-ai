@@ -12,6 +12,14 @@ const MATERIAL_THEMES: Record<MaterialThemeId, { label: string; wall: string; co
   concrete: { label: "Exposed Concrete", wall: "#a8adb3", column: "#858c94", frame: "#3f4852", trim: "#d1d5db", roof: "#9ca3af", glass: "#9bc7df", ground: "#d4d8dc" },
 };
 
+type MaterialThemeId = "modern" | "warm" | "glass" | "concrete";
+const MATERIAL_THEMES: Record<MaterialThemeId, { label: string; wall: string; column: string; frame: string; trim: string; roof: string; glass: string; ground: string }> = {
+  modern: { label: "Modern White", wall: "#e8edf2", column: "#cbd5e1", frame: "#334155", trim: "#f8fafc", roof: "#d7dde5", glass: "#8fc8e8", ground: "#dce5ed" },
+  warm: { label: "Warm Stone", wall: "#c8b59b", column: "#9a8062", frame: "#493b30", trim: "#e9dcc8", roof: "#b9a68f", glass: "#a6cbd8", ground: "#e3d9ca" },
+  glass: { label: "Glass & Steel", wall: "#9fb4c3", column: "#475569", frame: "#1e293b", trim: "#cbd5e1", roof: "#64748b", glass: "#77bde0", ground: "#d9e3ea" },
+  concrete: { label: "Exposed Concrete", wall: "#a8adb3", column: "#858c94", frame: "#3f4852", trim: "#d1d5db", roof: "#9ca3af", glass: "#9bc7df", ground: "#d4d8dc" },
+};
+
 const unitToMetres: Record<CadDocument["units"], number> = { mm: 0.001, cm: 0.01, m: 1, in: 0.0254, ft: 0.3048 };
 const DEFAULT_WALL_HEIGHT = 3;
 const point3 = (p: Point2D, factor: number, y = 0): [number, number, number] => [p.x * factor, y, -p.y * factor];
@@ -47,7 +55,7 @@ function Entity3D({ entity, color, factor, theme }: { entity: CadEntity; color: 
         <boxGeometry args={[frame, 2.22, 0.13]} />
         <meshStandardMaterial color={theme.trim} roughness={0.62} />
       </mesh>)}
-      <mesh position={[0, 2.18, 0]}><boxGeometry args={[doorWidth + frame * 2, 0.12, 0.13]} /><meshStandardMaterial color="#e5e7eb" roughness={0.62} /></mesh>
+      <mesh position={[0, 2.18, 0]}><boxGeometry args={[doorWidth + frame * 2, 0.12, 0.13]} /><meshStandardMaterial color={theme.trim} roughness={0.62} /></mesh>
       <mesh position={[0, 0.035, 0.04]}><boxGeometry args={[doorWidth + frame * 2, 0.07, 0.18]} /><meshStandardMaterial color={theme.trim} roughness={0.7} /></mesh>
       <mesh position={[doorWidth * 0.34, 1.05, 0.055]}><sphereGeometry args={[0.035, 12, 12]} /><meshStandardMaterial color="#d6b36a" metalness={0.72} roughness={0.25} /></mesh>
     </group>;
@@ -123,7 +131,7 @@ function Entity3D({ entity, color, factor, theme }: { entity: CadEntity; color: 
   return null;
 }
 
-export default function Cad3DPreview({ document, floorCount = 1 }: { document: CadDocument; floorCount?: number }) {\n  const [themeId, setThemeId] = useState<MaterialThemeId>("modern");\n  const theme = MATERIAL_THEMES[themeId];
+export default function Cad3DPreview({ document, floorCount = 1 }: { document: CadDocument; floorCount?: number }) {\n  const [themeId, setThemeId] = useState<MaterialThemeId>("modern");\n  const theme = MATERIAL_THEMES[themeId];\n  const [themeId, setThemeId] = useState<MaterialThemeId>("modern");\n  const theme = MATERIAL_THEMES[themeId];
   const levels = Math.max(1, Math.min(20, Math.round(floorCount)));
   const factor = unitToMetres[document.units];
   const visibleEntities = useMemo(() => document.entities.filter((entity) => document.layers.find((layer) => layer.id === entity.layerId)?.visible !== false), [document]);
@@ -199,6 +207,12 @@ export default function Cad3DPreview({ document, floorCount = 1 }: { document: C
       </group>
       <OrbitControls makeDefault target={[0, modelHeight / 2, 0]} enableDamping dampingFactor={0.1} minDistance={2} maxDistance={radius * 16} />
     </Canvas>
+    <div className="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-white/70 bg-white/90 px-3 py-2 shadow-md backdrop-blur">
+      <label htmlFor="indocad-material-theme" className="text-[11px] font-medium text-slate-600">Exterior finish</label>
+      <select id="indocad-material-theme" value={themeId} onChange={(event) => setThemeId(event.target.value as MaterialThemeId)} className="max-w-[145px] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-blue-500">
+        {Object.entries(MATERIAL_THEMES).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}
+      </select>
+    </div>
     <div className="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-white/70 bg-white/90 px-3 py-2 shadow-md backdrop-blur">
       <label htmlFor="indocad-material-theme" className="text-[11px] font-medium text-slate-600">Exterior finish</label>
       <select id="indocad-material-theme" value={themeId} onChange={(event) => setThemeId(event.target.value as MaterialThemeId)} className="max-w-[145px] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-blue-500">
