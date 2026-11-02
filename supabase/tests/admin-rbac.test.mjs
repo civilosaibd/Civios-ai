@@ -90,6 +90,17 @@ test("Super Admin can grant project permissions and project manage implies view"
   });
 });
 
+test("Super Admin can grant billing permissions and billing manage implies view",async()=>{
+  const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
+  await admin(async()=>{ await db.query("SELECT public.admin_set_subadmin_billing_permissions($1,ARRAY['manage']::text[])",[membership.id]); });
+  const actions=(await q("SELECT action FROM public.admin_feature_permissions WHERE membership_id=$1 AND feature_key='billing' ORDER BY action",[membership.id])).map(x=>x.action);
+  assert.deepEqual(actions,["manage","view"]);
+  await sub(async()=>{
+    assert.equal((await db.query("SELECT public.has_admin_permission('billing','view') AS allowed")).rows[0].allowed,true);
+    assert.equal((await db.query("SELECT public.has_admin_permission('billing','manage') AS allowed")).rows[0].allowed,true);
+  });
+});
+
 test("Sub-admin cannot grant permissions or manage other sub-admins",async()=>{
   const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
   await sub(()=>rejects(()=>db.query("SELECT public.admin_set_subadmin_permissions($1,ARRAY['view']::text[])",[membership.id]),/Super Admin access required/));
