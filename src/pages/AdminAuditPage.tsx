@@ -20,7 +20,7 @@ type AuditEvent = {
 
 const sourceLabels: Record<string,string> = {
   users: "Users", affiliate: "Affiliate", projects: "Projects", billing: "Billing",
-  ai_usage: "AI Usage", reports: "Reports", settings: "Settings",
+  ai_usage: "AI Usage", reports: "Reports", settings: "Settings", team: "Admin Team",
 };
 const label = (value: string) => value.replaceAll("_"," ").replace(/\b\w/g, (s) => s.toUpperCase());
 
