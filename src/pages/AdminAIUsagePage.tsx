@@ -36,7 +36,7 @@ export default function AdminAIUsagePage(){
  const [total,setTotal]=useState(0);const [hasMore,setHasMore]=useState(false);const [metricNote,setMetricNote]=useState("");
 
  useEffect(()=>{if(!authLoading&&!user)navigate("/auth?redirect=/admin/ai-usage");},[user,authLoading,navigate]);
- useEffect(()=>{if(!user)return;let cancelled=false;void(async()=>{const {data,error}=await supabase.rpc("has_role",{_user_id:user.id,_role:"admin"});if(cancelled)return;setIsAdmin(!error&&data===true);if(error||data!==true)setLoading(false);})();return()=>{cancelled=true;};},[user]);
+ useEffect(()=>{if(!user)return;let cancelled=false;void(async()=>{const [{data:legacyAdmin},{data:superAdmin},{data:canViewUsage}]=await Promise.all([supabase.rpc("has_role",{_user_id:user.id,_role:"admin"}),supabase.rpc("is_super_admin"),supabase.rpc("has_admin_permission",{_feature_key:"ai_usage",_action:"view"})]);if(cancelled)return;const allowed=legacyAdmin===true||superAdmin===true||canViewUsage===true;setIsAdmin(allowed);if(!allowed)setLoading(false);})();return()=>{cancelled=true;};},[user]);
  const load=useCallback(async(targetPage=1)=>{
   setLoading(true);
   const {data,error}=await supabase.functions.invoke("admin-ai-usage-data",{body:{action:"list",period,page:targetPage,search}});
