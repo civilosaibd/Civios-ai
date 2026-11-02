@@ -79,7 +79,7 @@ const ExcelLibraryPage = () => {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!authLoading && !user) navigate("/auth?redirect=/admin/excel-library");
+    if (!authLoading && !user) navigate("/auth?redirect=" + encodeURIComponent(window.location.pathname));
   }, [authLoading, user, navigate]);
 
   useEffect(() => {
