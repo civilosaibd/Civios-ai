@@ -210,8 +210,6 @@ function ModernResidence({ motionEnabled }: { motionEnabled: boolean }) {
 function Scene({ motionEnabled }: { motionEnabled: boolean }) {
   return (
     <>
-      <color attach="background" args={["#10202a"]} />
-      <fog attach="fog" args={["#10202a", 13, 27]} />
       <hemisphereLight args={["#dce9f1", "#465348", 1.25]} />
       <ambientLight intensity={0.45} />
       <directionalLight
@@ -241,15 +239,13 @@ export default function HeroBuilding3D() {
 
   return (
     <div
-      className="relative isolate h-[310px] w-full overflow-hidden rounded-[28px] sm:h-[390px] lg:h-[500px]"
+      className="relative isolate h-[340px] w-full overflow-visible sm:h-[430px] lg:h-[560px]"
       role="img"
       aria-label="A photorealistic modern four-storey architectural residence with glass curtain walls, stone and timber facade, cantilevered balconies, rooftop pergola and landscaped grounds, rotating slowly in interactive 3D."
       style={{
-        background: "radial-gradient(ellipse at 50% 42%, rgba(108, 151, 164, .28), transparent 58%), linear-gradient(145deg, #0b1a25, #1b3037)",
+        background: "transparent",
       }}
     >
-      <div className="pointer-events-none absolute inset-0 rounded-[28px] border border-white/10" />
-      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[76%] w-[86%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/10 [transform:translate(-50%,-50%)_rotateX(68deg)]" />
       <Canvas
         shadows dpr={[1, 1.5]}
         camera={{ position: [9.6, 7.1, 10.6], fov: 33, near: 0.1, far: 100 }}
@@ -273,7 +269,6 @@ export default function HeroBuilding3D() {
           <p className="text-[9px] tracking-wide text-white/65">DRAG TO EXPLORE</p>
         </div>
       </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-[#071727]/35 to-transparent" />
     </div>
   );
 }
