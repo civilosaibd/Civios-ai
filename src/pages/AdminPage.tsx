@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import {
   Loader2, Trash2, Star, Check, X, Crown, Users, FolderKanban, Building, MessageSquare,
-  Mail, Phone, Send, ExternalLink, Reply, Search, Eye, ShieldCheck,
+  Mail, Phone, Send, ExternalLink, Reply, Search, Eye, ShieldCheck, UserCog, UsersRound,
 } from "lucide-react";
 
 const WHATSAPP_NUMBER = "8801832313998";
@@ -205,6 +205,10 @@ ${replyText}
             <div className="flex-1">
               <h1 className="font-heading text-2xl md:text-3xl font-bold">Admin Panel</h1>
               <p className="text-sm text-muted-foreground">Sponsors • Ratings • Users • Projects • Messages</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => navigate("/admin/users")}><UsersRound className="h-4 w-4 mr-2" />User Accounts</Button>
+              <Button size="sm" variant="outline" onClick={() => navigate("/admin/team")}><UserCog className="h-4 w-4 mr-2" />Team & Permissions</Button>
             </div>
             {(newMsgCount > 0 || pendingSponsors > 0) && (
               <div className="flex gap-2">
