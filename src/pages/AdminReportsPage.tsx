@@ -65,7 +65,7 @@ export default function AdminReportsPage() {
       _from: start.toISOString(), _to: end.toISOString(),
     });
     if (error) {
-      if (error.message?.toLowerCase().includes("admin access")) setIsAdmin(false);
+      if (error.message?.toLowerCase().includes("permission required") || error.message?.toLowerCase().includes("admin access")) setIsAdmin(false);
       else toast.error(error.message || "Unable to load admin business metrics. Apply the migration first.");
       setMetrics(null);
     } else {
