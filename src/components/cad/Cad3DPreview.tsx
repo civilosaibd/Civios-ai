@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Grid, Line, OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
-import type { CadDocument, CadEntity, Point2D } from "@/lib/cad2d/geometry";
+import { entityBounds as entityBoundsForPreview, type CadDocument, type CadEntity, type Point2D } from "@/lib/cad2d/geometry";
 import { getWallOpeningIntervals, getWallVisibleSegments } from "@/lib/cad2d/wall-openings";
 
 type MaterialThemeId = "modern" | "warm" | "glass" | "concrete";
@@ -57,6 +57,17 @@ function Entity3D({ entity, color, factor, theme, entities }: { entity: CadEntit
         </group>;
       })}
     </group>;
+  }
+  if (entity.type === "stair") {
+    const count=Math.max(3,Math.min(30,Math.round(entity.steps))), run=(entity.direction==="x"?entity.width:entity.depth)*factor, cross=(entity.direction==="x"?entity.depth:entity.width)*factor, tread=run/count, riser=entity.floorHeight*factor/count;
+    return <group position={point3(entity.at,factor)} rotation={[0,-entity.rotation,0]}>{Array.from({length:count},(_,i)=>{const along=-run/2+(i+0.5)*tread, position:[number,number,number]=entity.direction==="x"?[along,(i+1)*riser/2,0]:[0,(i+1)*riser/2,-along], size:[number,number,number]=entity.direction==="x"?[tread,(i+1)*riser,cross]:[cross,(i+1)*riser,tread];return <mesh key={i} position={position} castShadow receiveShadow><boxGeometry args={size}/><meshStandardMaterial color={theme.column} roughness={0.78}/></mesh>;})}</group>;
+  }
+  if (entity.type === "balcony") {
+    const slabY=entity.slabThickness*factor/2, width=entity.width*factor, depth=entity.depth*factor, railH=entity.railingHeight*factor, railT=0.045;
+    const xMin=-width/2,xMax=width/2,zMin=-depth/2,zMax=depth/2;
+    const edge=entity.railingSide==="x-min"?{position:[xMin,slabY+railH-0.04,0] as [number,number,number],size:[railT,0.08,depth] as [number,number,number],axis:"z"}:entity.railingSide==="x-max"?{position:[xMax,slabY+railH-0.04,0] as [number,number,number],size:[railT,0.08,depth] as [number,number,number],axis:"z"}:entity.railingSide==="y-min"?{position:[0,slabY+railH-0.04,zMax] as [number,number,number],size:[width,0.08,railT] as [number,number,number],axis:"x"}:{position:[0,slabY+railH-0.04,zMin] as [number,number,number],size:[width,0.08,railT] as [number,number,number],axis:"x"};
+    const count=Math.max(2,Math.floor((edge.axis==="x"?width:depth)/0.9));
+    return <group position={point3(entity.at,factor)} rotation={[0,-entity.rotation,0]}><mesh position={[0,slabY,0]} castShadow receiveShadow><boxGeometry args={[width,Math.max(0.08,entity.slabThickness*factor),depth]}/><meshStandardMaterial color={theme.column} roughness={0.72}/></mesh><mesh position={edge.position} castShadow><boxGeometry args={edge.size}/><meshStandardMaterial color={theme.frame} metalness={0.55} roughness={0.35}/></mesh>{Array.from({length:count+1},(_,i)=>{const t=i/count;const pos: [number,number,number]=edge.axis==="x"?[xMin+t*width,slabY+railH/2,edge.position[2]]:[edge.position[0],slabY+railH/2,zMin+t*depth];return <mesh key={i} position={pos}><boxGeometry args={edge.axis==="x"?[0.045,railH,0.045]:[0.045,railH,0.045]}/><meshStandardMaterial color={theme.frame} metalness={0.5} roughness={0.38}/></mesh>;})}</group>;
   }
   if (entity.type === "column") {
     return <mesh position={point3(entity.at, factor, height / 2)} rotation={[0, -entity.rotation, 0]} castShadow receiveShadow>
@@ -165,6 +176,7 @@ export default function Cad3DPreview({ document, floorCount = 1 }: { document: C
       if (entity.type === "line" || entity.type === "wall") points.push(entity.start, entity.end);
       else if (entity.type === "polyline") points.push(...entity.points);
       else if (entity.type === "rectangle") points.push(entity.min, entity.max);
+      else if (entity.type === "stair" || entity.type === "balcony") { const b=entityBoundsForPreview(entity); points.push(b.min,b.max); }
       else if (entity.type === "dimension") points.push(entity.a, entity.b);
       else if ("center" in entity) points.push(entity.center);
       else if ("at" in entity) points.push(entity.at);

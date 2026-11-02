@@ -1,4 +1,4 @@
-import { dimensionLength, polygonVertices, type CadDocument, type CadEntity, type CadLayer, type Point2D } from "./geometry";
+import { dimensionLength, entityBounds, polygonVertices, type CadDocument, type CadEntity, type CadLayer, type Point2D } from "./geometry";
 import { getWallVisibleSegments } from "./wall-openings";
 
 const INSUNITS: Record<CadDocument["units"], number> = { in: 1, ft: 2, mm: 4, cm: 5, m: 6 };
@@ -64,6 +64,14 @@ export function documentToDxf(doc: CadDocument): string {
         body += lineEntity(layer, { x: b.x - nx * jamb, y: b.y - ny * jamb }, { x: b.x + nx * jamb, y: b.y + ny * jamb });
       }
     }
+    else if (entity.type === "stair") {
+      const b=entityBounds(entity); body += polyEntity(layer,[b.min,{x:b.max.x,y:b.min.y},b.max,{x:b.min.x,y:b.max.y}],true);
+      for(let i=1;i<entity.steps;i++){const f=i/entity.steps;if(entity.direction==="x"){const x=entity.at.x-entity.width/2+entity.width*f;body+=lineEntity(layer,{x,y:entity.at.y-entity.depth/2},{x,y:entity.at.y+entity.depth/2});}else{const y=entity.at.y-entity.depth/2+entity.depth*f;body+=lineEntity(layer,{x:entity.at.x-entity.width/2,y},{x:entity.at.x+entity.width/2,y});}}
+    }
+    else if (entity.type === "balcony") {
+      const b=entityBounds(entity); body+=polyEntity(layer,[b.min,{x:b.max.x,y:b.min.y},b.max,{x:b.min.x,y:b.max.y}],true);
+      if(entity.railingSide==="x-min"||entity.railingSide==="x-max"){const x=entity.at.x+(entity.railingSide==="x-min"?-1:1)*entity.width/2;body+=lineEntity(layer,{x,y:entity.at.y-entity.depth/2},{x,y:entity.at.y+entity.depth/2});}else{const y=entity.at.y+(entity.railingSide==="y-min"?-1:1)*entity.depth/2;body+=lineEntity(layer,{x:entity.at.x-entity.width/2,y},{x:entity.at.x+entity.width/2,y});}
+    }
     else if (entity.type === "column") {
       const hx = entity.width / 2, hy = entity.depth / 2;
       body += polyEntity(layer, [
@@ -111,6 +119,7 @@ export function documentToSvg(doc: CadDocument): string {
     if (entity.type === "line" || entity.type === "wall") { touch(entity.start.x, entity.start.y); touch(entity.end.x, entity.end.y); }
     else if (entity.type === "circle" || entity.type === "arc") { touch(entity.center.x - entity.radius, entity.center.y - entity.radius); touch(entity.center.x + entity.radius, entity.center.y + entity.radius); }
     else if (entity.type === "polygon") polygonVertices(entity).forEach((p) => touch(p.x, p.y));
+    else if (entity.type === "stair" || entity.type === "balcony") { const b=entityBounds(entity); touch(b.min.x,b.min.y); touch(b.max.x,b.max.y); }
     else if ("at" in entity && entity.at) touch(entity.at.x, entity.at.y);
     else if (entity.type === "dimension") { touch(entity.a.x, entity.a.y); touch(entity.b.x, entity.b.y); }
     else if (entity.type === "rectangle") { touch(entity.min.x, entity.min.y); touch(entity.max.x, entity.max.y); }
@@ -139,6 +148,11 @@ export function documentToSvg(doc: CadDocument): string {
     }
     else if (entity.type === "text") parts.push(`<text x="${entity.at.x}" y="${entity.at.y}" font-size="${entity.height}" fill="${stroke}">${esc(entity.text)}</text>`);
     else if (entity.type === "dimension") parts.push(`<line x1="${entity.a.x}" y1="${entity.a.y}" x2="${entity.b.x}" y2="${entity.b.y}" stroke="${stroke}" fill="none"/><text x="${(entity.a.x + entity.b.x) / 2}" y="${(entity.a.y + entity.b.y) / 2}" font-size="1" fill="${stroke}">${fmt(dimensionLength(entity))}</text>`);
+    else if (entity.type === "stair") {
+      const b=entityBounds(entity),pts=[b.min,{x:b.max.x,y:b.min.y},b.max,{x:b.min.x,y:b.max.y}];parts.push(`<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(" ")}" stroke="${stroke}" fill="${stroke}" fill-opacity="0.06"/>`);
+      for(let i=1;i<entity.steps;i++){const f=i/entity.steps;if(entity.direction==="x"){const x=entity.at.x-entity.width/2+entity.width*f;parts.push(`<line x1="${x}" y1="${entity.at.y-entity.depth/2}" x2="${x}" y2="${entity.at.y+entity.depth/2}" stroke="${stroke}"/>`);}else{const y=entity.at.y-entity.depth/2+entity.depth*f;parts.push(`<line x1="${entity.at.x-entity.width/2}" y1="${y}" x2="${entity.at.x+entity.width/2}" y2="${y}" stroke="${stroke}"/>`);}}
+    }
+    else if (entity.type === "balcony") { const b=entityBounds(entity),pts=[b.min,{x:b.max.x,y:b.min.y},b.max,{x:b.min.x,y:b.max.y}];parts.push(`<polyline points="${pts.map(p=>`${p.x},${p.y}`).join(" ")}" stroke="${stroke}" fill="${stroke}" fill-opacity="0.12"/>`); }
     else if (entity.type === "polyline" || entity.type === "polygon" || entity.type === "rectangle" || entity.type === "column") {
       const points = entity.type === "polyline" ? entity.points
         : entity.type === "polygon" ? polygonVertices(entity)

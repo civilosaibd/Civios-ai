@@ -10,7 +10,7 @@ import type { Point2D, CadLayer, CadEntity } from "./geometry";
 export type CadToolId =
   | "select" | "line" | "polyline" | "mline" | "rectangle" | "circle" | "arc"
   | "ellipse" | "spline" | "polygon" | "point" | "ray" | "xline" | "hatch"
-  | "boundary" | "wall" | "door" | "window" | "column" | "beam" | "stair"
+  | "boundary" | "wall" | "door" | "window" | "column" | "beam" | "stair" | "balcony"
   | "move" | "copy" | "rotate" | "mirror" | "scale" | "offset" | "trim"
   | "extend" | "fillet" | "chamfer" | "stretch" | "break" | "join" | "explode"
   | "array" | "align" | "erase" | "measure" | "dimension" | "text" | "leader"
@@ -148,6 +148,7 @@ export const CAD_COMMANDS: CadCommandDefinition[] = [
   { id: "column", label: "Column", aliases: ["COLUMN", "COL"], category: "architectural" },
   { id: "beam", label: "Beam", aliases: ["BEAM", "BM"], category: "architectural" },
   { id: "stair", label: "Staircase", aliases: ["STAIR", "ST"], category: "architectural" },
+  { id: "balcony", label: "Balcony", aliases: ["BALCONY", "BAL"], category: "architectural" },
   { id: "move", label: "Move", aliases: ["MOVE", "M"], category: "modify", shortcut: "M", requiresSelection: true },
   { id: "copy", label: "Copy", aliases: ["COPY", "CO", "CP"], category: "modify", shortcut: "CO", requiresSelection: true },
   { id: "rotate", label: "Rotate", aliases: ["ROTATE", "RO"], category: "modify", shortcut: "RO", requiresSelection: true },
