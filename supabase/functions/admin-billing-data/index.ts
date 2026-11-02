@@ -27,12 +27,20 @@ Deno.serve(async (req) => {
   const token = authorization.replace(/^Bearer\s+/i, "");
   const { data: authData, error: authError } = await caller.auth.getUser(token);
   if (authError || !authData.user) return reply({ error: "Invalid session" }, 401, origin);
-  const { data: isAdmin, error: roleError } = await caller.rpc("has_role", { _user_id: authData.user.id, _role: "admin" });
-  if (roleError || isAdmin !== true) return reply({ error: "Admin access required" }, 403, origin);
-
+  const [{data: legacyAdmin},{data: superAdmin},{data: canViewBilling},{data: canManageBilling}] = await Promise.all([
+    caller.rpc("has_role", { _user_id: authData.user.id, _role: "admin" }),
+    caller.rpc("is_super_admin"),
+    caller.rpc("has_admin_permission", { _feature_key: "billing", _action: "view" }),
+    caller.rpc("has_admin_permission", { _feature_key: "billing", _action: "manage" }),
+  ]);
   const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   let body: { action?: string; kind?: string; status?: string; search?: string; page?: number; paymentId?: string; note?: string };
   try { body = await req.json(); } catch { return reply({ error: "Invalid JSON body" }, 400, origin); }
+  const mayViewBilling = legacyAdmin === true || superAdmin === true || canViewBilling === true;
+  const mayManageBilling = legacyAdmin === true || superAdmin === true || canManageBilling === true;
+  if (body.action === "review-payment" ? !mayManageBilling : !mayViewBilling) {
+    return reply({ error: body.action === "review-payment" ? "Billing: Manage permission required" : "Billing: View permission required" }, 403, origin);
+  }
 
   if (body.action === "review-payment") {
     const paymentId = String(body.paymentId || "");
@@ -105,5 +113,5 @@ Deno.serve(async (req) => {
     return { ...row, owner_name: profile?.display_name || auth?.user_metadata?.full_name || auth?.user_metadata?.name || null, owner_email: auth?.email || null, plan_name: (planMap.get(row.plan_id) as any)?.name || null, plan_code: (planMap.get(row.plan_id) as any)?.code || null };
   });
   await admin.from("admin_billing_audit").insert({ admin_user_id: authData.user.id, action: "view_billing", result: "succeeded", note: kind });
-  return reply({ rows: enriched, total: count || 0, page, page_size: pageSize, has_more: from + rows.length < (count || 0) }, 200, origin);
+  return reply({ rows: enriched, total: count || 0, page, page_size: pageSize, has_more: from + rows.length < (count || 0), can_manage: mayManageBilling }, 200, origin);
 });
