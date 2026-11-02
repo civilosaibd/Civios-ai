@@ -13,10 +13,11 @@ import { snapPoint } from "@/lib/cad2d/snap";
 import { snapPointToWallNetwork } from "@/lib/cad2d/wall-network";
 import { documentToDxf, documentToSvg } from "@/lib/cad2d/export";
 import { importDxfDocument } from "@/lib/cad2d/dxf-import";
-import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand, Upload } from "lucide-react";
+import { Download, Grid3X3, MousePointer2, Undo2, Redo2, ZoomIn, ZoomOut, Maximize2, Layers3, Wrench, DraftingCompass, Ruler, Shapes, House, Save, FileJson, Eye, CheckCircle2, Command, Move, Hand, Upload, Box } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import CadSelectionInspector from "@/components/cad/CadSelectionInspector";
 import CadRoomSchedule from "@/components/cad/CadRoomSchedule";
+import Cad3DPreview from "@/components/cad/Cad3DPreview";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { createIndoCadTemplate, type IndoCadTemplateId } from "@/lib/cad2d/templates";
@@ -100,6 +101,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
     return createEmptyDocument("ft");
   });
   const [tool, setTool] = useState<CadToolId>("select");
+  const [show3D, setShow3D] = useState(false);
   const [grid, setGrid] = useState<CadGridSettings>(DEFAULT_CAD_GRID);
   const [wallThickness, setWallThickness] = useState(0.5);
   const [view, setView] = useState<View>({ x: 60, y: 50, scale: 1 });
@@ -943,14 +945,16 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
     <div className="grid min-h-0 min-w-0 flex-1 gap-2 overflow-y-auto md:grid-cols-[176px_minmax(0,1fr)] xl:grid-cols-[196px_minmax(0,1fr)_248px] xl:overflow-hidden">
       <aside className="hidden min-h-0 space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 md:block">{ToolPalette}</aside>
       <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5"><div className="flex items-center gap-2"><div className="rounded-md bg-orange-50 p-1.5 text-orange-600"><Ruler className="h-4 w-4"/></div><div><p className="text-xs font-semibold text-slate-800">Drawing canvas</p><p className="text-[10px] text-slate-500">Infinite-feel workspace · grid & precision controls</p></div></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-600">{doc.entities.length} objects</span></div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5"><div className="flex items-center gap-2"><div className="rounded-md bg-orange-50 p-1.5 text-orange-600"><Ruler className="h-4 w-4"/></div><div><p className="text-xs font-semibold text-slate-800">Drawing canvas</p><p className="text-[10px] text-slate-500">Infinite-feel workspace · grid & precision controls</p></div></div><div className="flex items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-600">{doc.entities.length} objects</span><Button size="sm" variant={show3D ? "default" : "outline"} className="h-8 text-xs" onClick={() => setShow3D((value) => !value)}><Box className="mr-1.5 h-3.5 w-3.5"/>{show3D ? "Back to 2D" : "3D Preview"}</Button></div></div>
+        {show3D ? <Cad3DPreview document={doc}/> : (
         <svg ref={svgRef} viewBox="0 0 1000 640" className="min-h-[360px] w-full flex-1 touch-none bg-slate-50" role="img" aria-label="2D CAD drafting canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerCancel} onLostPointerCapture={handleLostPointerCapture} onDoubleClick={(event)=>{if(tool==="polyline"){event.preventDefault();finishPolyline();}}} onWheel={handleWheel} onContextMenu={(event)=>event.preventDefault()}>
           <defs><pattern id="cad-grid-small" width={Math.max(2,grid.gridSpacing*view.scale)} height={Math.max(2,grid.gridSpacing*view.scale)} patternUnits="userSpaceOnUse" x={view.x%Math.max(2,grid.gridSpacing*view.scale)} y={view.y%Math.max(2,grid.gridSpacing*view.scale)}><path d={`M ${Math.max(2,grid.gridSpacing*view.scale)} 0 L 0 0 0 ${Math.max(2,grid.gridSpacing*view.scale)}`} fill="none" stroke="#e5e7eb" strokeWidth=".7"/></pattern></defs>
           {grid.enabled&&<rect width="1000" height="640" fill="url(#cad-grid-small)"/>}
           {selectionWindow && tool === "select" && <rect x={Math.min(selectionWindow.start.x, selectionWindow.end.x)} y={Math.min(selectionWindow.start.y, selectionWindow.end.y)} width={Math.abs(selectionWindow.end.x - selectionWindow.start.x)} height={Math.abs(selectionWindow.end.y - selectionWindow.start.y)} fill="#2563eb" fillOpacity={0.08} stroke="#2563eb" strokeDasharray="5 3" strokeWidth={1 / view.scale} pointerEvents="none" transform={`translate(${view.x},${view.y}) scale(${view.scale})`} />}
           <g transform={`translate(${view.x},${view.y}) scale(${view.scale})`}>{doc.entities.map(renderEntity)}{tool==="polyline"&&polylinePoints.length>0&&<polyline points={[...polylinePoints,...(cursor?[cursor]:[])].map((p)=>`${p.x},${p.y}`).join(" ")} fill="none" stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}{start&&cursor&&tool!=="select"&&tool!=="move"&&tool!=="copy"&&tool!=="polyline"&&<line x1={start.x} y1={start.y} x2={cursor.x} y2={cursor.y} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1/view.scale}/>}</g>
         </svg>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>Tool: {tool.toUpperCase()} · Objects: {doc.entities.length} · Selected: {selected.length} · Units: {doc.units}</span><span>Cursor: {cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"} · Wheel: zoom · Middle/right drag: pan</span></div>
+        )}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>{show3D ? "3D Preview" : `Tool: ${tool.toUpperCase()}`} · Objects: {doc.entities.length} · Selected: {selected.length} · Units: {doc.units}</span><span>{show3D ? "Drag to orbit · Scroll to zoom · Right-drag to pan" : `Cursor: ${cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"} · Wheel: zoom · Middle/right drag: pan`}</span></div>
       </div>
       <aside className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-white p-2 shadow-sm md:col-span-2 xl:col-span-1 xl:row-start-1 xl:max-h-full xl:overflow-y-auto">
         <CadSelectionInspector
