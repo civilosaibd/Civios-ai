@@ -24,16 +24,19 @@ if [[ "$INPUT" -ef "$OUTPUT" ]]; then
   exit 1
 fi
 if ! command -v gltf-transform >/dev/null 2>&1; then
-  echo "Install the reviewed CLI first: npm install --save-dev @gltf-transform/cli" >&2
+  echo "Install the reviewed CLI first: npm install --global @gltf-transform/cli" >&2
   exit 1
 fi
 
 mkdir -p "$OUT_DIR"
 
-echo "[1/4] Inspecting source model..."
+echo "[1/5] Validating source model..."
+gltf-transform validate "$INPUT"
+
+echo "[2/5] Inspecting source model..."
 gltf-transform inspect "$INPUT" > "$REPORT"
 
-echo "[2/4] Creating optimized copy (static asset profile)..."
+echo "[3/5] Creating optimized copy (static asset profile)..."
 # Keep the original untouched. Optimize uses meshopt by default and allows
 # explicit geometry/texture settings. WebP targets transfer size; validate
 # the output in the actual Three.js renderer before approving it.
@@ -42,10 +45,11 @@ gltf-transform optimize "$INPUT" "$OUTPUT" \
   --texture-compress webp \
   --texture-size 2048
 
-echo "[3/4] Inspecting optimized model..."
+echo "[4/5] Validating and inspecting optimized model..."
+gltf-transform validate "$OUTPUT"
 gltf-transform inspect "$OUTPUT" > "${OUTPUT%.*}.optimized.inspect.txt"
 
-echo "[4/4] Checksums..."
+echo "[5/5] Checksums..."
 if command -v sha256sum >/dev/null 2>&1; then
   sha256sum "$INPUT" "$OUTPUT"
 else
