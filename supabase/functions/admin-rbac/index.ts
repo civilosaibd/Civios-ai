@@ -68,26 +68,12 @@ Deno.serve(async (req) => {
 
   if (body.action === "invite") {
     const email = String(body.email || "").trim().toLowerCase();
-    if (email.length < 5 || email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return reply({error:"Enter a valid email address"},400,origin);
-    const users = await admin.auth.admin.listUsers({page:1,perPage:1000});
-    const existing = (users.data?.users || []).find((u:any)=>u.email?.toLowerCase()===email);
-    if (existing) {
-      const [{data: membership},{data: legacyRole}] = await Promise.all([
-        admin.from("admin_memberships").select("id,role,status").eq("user_id",existing.id).maybeSingle(),
-        admin.from("user_roles").select("role").eq("user_id",existing.id).maybeSingle(),
-      ]);
-      if (membership?.role === "super_admin") return reply({error:"This account is already a Super Admin"},409,origin);
-      if (legacyRole?.role === "admin") return reply({error:"Legacy full-admin accounts cannot be converted into sub-admin invitations. Use a separate standard user account."},409,origin);
-      if (membership?.status === "active") return reply({error:"This account already has active admin access"},409,origin);
-    }
-    await admin.from("admin_invitations").update({status:"revoked"}).eq("status","pending").ilike("invited_email",email);
+    if (email.length < 5 || email.length > 320 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return reply({error:"Enter a valid email address"},400,origin);
     const token = newToken(), tokenHash = await hashToken(token);
-    const {data:invitation,error} = await admin.from("admin_invitations").insert({
-      invited_email:email,invited_by:authData.user.id,role:"sub_admin",status:"pending",
-      token_hash:tokenHash,expires_at:new Date(Date.now()+7*24*60*60*1000).toISOString(),
-    }).select("id,invited_email,expires_at,status").single();
-    if (error || !invitation) return reply({error:"Could not create invitation"},500,origin);
-    await admin.from("admin_rbac_audit").insert({actor_user_id:authData.user.id,action:"invite_created",metadata:{invitation_id:invitation.id,invited_email:email}});
+    const {data:invitation,error} = await caller.rpc("admin_create_invitation",{
+      _email:email,_token_hash:tokenHash,_expires_at:new Date(Date.now()+7*24*60*60*1000).toISOString(),
+    });
+    if (error || !invitation) return reply({error:error?.message || "Could not create invitation"},409,origin);
     const base = origin && allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
     const inviteUrl = new URL("/admin/accept-invite",base); inviteUrl.searchParams.set("token",token);
     return reply({invitation,invite_url:inviteUrl.toString()},200,origin);
@@ -95,9 +81,8 @@ Deno.serve(async (req) => {
 
   if (body.action === "revoke-invitation") {
     if (!uuid(String(body.invitationId || ""))) return reply({error:"Valid invitation ID required"},400,origin);
-    const {data:inv,error} = await admin.from("admin_invitations").update({status:"revoked"}).eq("id",body.invitationId).eq("status","pending").select("id,invited_email").maybeSingle();
-    if (error || !inv) return reply({error:"Pending invitation not found"},404,origin);
-    await admin.from("admin_rbac_audit").insert({actor_user_id:authData.user.id,action:"invite_revoked",metadata:{invitation_id:inv.id,invited_email:inv.invited_email}});
+    const {data,error} = await caller.rpc("admin_revoke_invitation",{_invitation_id:body.invitationId});
+    if (error || data !== true) return reply({error:error?.message || "Pending invitation not found"},409,origin);
     return reply({success:true},200,origin);
   }
 
