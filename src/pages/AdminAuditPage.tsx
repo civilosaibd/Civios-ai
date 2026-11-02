@@ -68,7 +68,14 @@ export default function AdminAuditPage() {
     const a = document.createElement("a"); a.href = url; a.download = `civilos-admin-audit-page-${page}.csv`; a.click(); URL.revokeObjectURL(url);
   };
 
-  const actions = [...new Set(events.map((event) => event.action))].sort();
+  const actions = [
+    "view_user_details","suspend_account","reactivate_account",
+    "view_project_details","update_project_status",
+    "view_billing","approve_payment","reject_payment",
+    "list_ai_usage","inspect_ai_usage","view_business_report",
+    "update_system_settings","view_affiliate_directory","update_withdrawal_status",
+    "review_commission",
+  ];
   const hasNext = page * pageSize < total;
 
   return <>
