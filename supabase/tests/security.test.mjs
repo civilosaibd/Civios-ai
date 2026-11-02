@@ -596,3 +596,32 @@ test("SECURITY DEFINER authorization helpers pin their search_path", async () =>
     );
   }
 });
+
+
+test("admin_ai_usage_summary: only admins can read monthly aggregate counters", async () => {
+  const period = (await q("SELECT to_char(now(),'YYYY-MM') AS period"))[0].period;
+  const previous = (await q("SELECT to_char((now() - interval '1 month'),'YYYY-MM') AS period"))[0].period;
+  await db.query(
+    "INSERT INTO public.usage_records(user_id,period,ai_credits,projects,boq_generations,bbs_generations,drawings,reports,storage_mb) VALUES ($1,$2,12,2,3,4,5,6,7),($3,$2,8,1,2,1,0,1,3),($1,$4,99,99,99,99,99,99,99)",
+    [ALICE,period,BOB,previous]
+  );
+  const [{ summary }] = await admin(async () => q(
+    "SELECT public.admin_ai_usage_summary($1) AS summary", [period]
+  ));
+  assert.equal(summary.accounts, 2);
+  assert.equal(summary.ai_credits, 20);
+  assert.equal(summary.projects, 3);
+  assert.equal(summary.boq_generations, 5);
+  assert.equal(summary.bbs_generations, 5);
+  assert.equal(summary.drawings, 5);
+  assert.equal(summary.reports, 7);
+  assert.equal(Number(summary.storage_mb), 10);
+  await alice(() => rejects(
+    () => db.query("SELECT public.admin_ai_usage_summary($1)", [period]),
+    /Admin access required/
+  ));
+});
+
+test("admin AI usage access audit is not readable by authenticated users", async () => {
+  assert.equal((await q("SELECT has_table_privilege('authenticated','public.admin_ai_usage_audit','SELECT') AS allowed"))[0].allowed, false);
+});
