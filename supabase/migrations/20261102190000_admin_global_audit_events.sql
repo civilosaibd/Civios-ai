@@ -24,8 +24,11 @@ DECLARE
   safe_limit integer := least(greatest(coalesce(_limit,50),1),200);
   safe_offset integer := least(greatest(coalesce(_offset,0),0),50000);
 BEGIN
-  IF caller_id IS NULL OR NOT public.has_role(caller_id, 'admin'::public.app_role) THEN
-    RAISE EXCEPTION 'Admin access required' USING ERRCODE = '42501';
+  IF caller_id IS NULL OR NOT (
+    public.has_role(caller_id, 'admin'::public.app_role)
+    OR public.has_admin_permission('audit','view')
+  ) THEN
+    RAISE EXCEPTION 'Audit: View permission required' USING ERRCODE = '42501';
   END IF;
   IF _action IS NOT NULL AND length(_action) > 100 THEN
     RAISE EXCEPTION 'Invalid action filter' USING ERRCODE = '22023';
