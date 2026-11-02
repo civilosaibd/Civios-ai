@@ -100,10 +100,20 @@ export default function AffiliatePage() {
     toast.success("Affiliate report exported");
   };
 
+  const recordShareAction = () => {
+    if (!profile?.referral_code || !user?.id) return;
+    void supabase.rpc("track_referral_event", {
+      _referral_code: profile.referral_code,
+      _event_type: "share_action",
+      _event_id: crypto.randomUUID(),
+    });
+  };
+
   const copy = async () => {
     if (!referralLink) return toast.error("Your referral link is not available yet.");
     try {
       await navigator.clipboard.writeText(referralLink);
+      recordShareAction();
       toast.success("Referral link copied!");
     } catch {
       toast.error("Could not copy automatically. Please select and copy the link.");
@@ -111,6 +121,8 @@ export default function AffiliatePage() {
   };
 
   const share = (net: string) => {
+    if (!referralLink) return toast.error("Your referral link is not available yet.");
+    recordShareAction();
     const text = encodeURIComponent(`CivilOS AI ব্যবহার করুন — Bangladesh এর #1 AI Civil Engineering platform! ${referralLink}`);
     const urls: Record<string,string> = {
       fb: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}`,
