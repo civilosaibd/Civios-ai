@@ -98,6 +98,8 @@ test("Super Admin can grant billing permissions and billing manage implies view"
   await sub(async()=>{
     assert.equal((await db.query("SELECT public.has_admin_permission('billing','view') AS allowed")).rows[0].allowed,true);
     assert.equal((await db.query("SELECT public.has_admin_permission('billing','manage') AS allowed")).rows[0].allowed,true);
+    await rejects(()=>db.query("SELECT public.approve_payment('00000000-0000-4000-8000-000000000099')"),/Payment not found/);
+    await rejects(()=>db.query("SELECT public.reject_payment('00000000-0000-4000-8000-000000000099','test rejection')"),/Payment not found or not pending/);
   });
 });
 
