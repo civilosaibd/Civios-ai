@@ -100,17 +100,19 @@ Deno.serve(async (req) => {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 100 });
     if (error) return json({ error: "Unable to load users" }, 500, origin);
     const ids = data.users.map((u) => u.id);
-    const [{ data: profiles, error: profileError }, { data: subs, error: subError }, { data: roles, error: roleListError }] = await Promise.all([
+    const [{ data: profiles, error: profileError }, { data: subs, error: subError }, { data: roles, error: roleListError }, { data: memberships, error: membershipError }] = await Promise.all([
       admin.from("profiles").select("id,display_name,avatar_url,created_at,referral_code").in("id", ids),
       admin.from("subscriptions").select("user_id,plan_id,status,billing_cycle,start_date,renewal_date").in("user_id", ids),
       admin.from("user_roles").select("user_id,role").in("user_id", ids),
+      admin.from("admin_memberships").select("user_id,role,status").in("user_id", ids),
     ]);
-    if (profileError || subError || roleListError) {
+    if (profileError || subError || roleListError || membershipError) {
       return json({ error: "Unable to load complete account directory" }, 500, origin);
     }
     const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
     const subMap = new Map((subs || []).map((s) => [s.user_id, s]));
     const roleMap = new Map((roles || []).map((r) => [r.user_id, r.role]));
+    const membershipMap = new Map((memberships || []).map((m) => [m.user_id, m]));
     return json({
       users: data.users.map((u) => ({
         id: u.id, email: u.email, phone: u.phone,
@@ -122,7 +124,8 @@ Deno.serve(async (req) => {
         display_name: profileMap.get(u.id)?.display_name || u.user_metadata?.full_name || u.user_metadata?.name || null,
         avatar_url: profileMap.get(u.id)?.avatar_url || null,
         subscription: subMap.get(u.id) || null,
-        role: roleMap.get(u.id) || "user",
+        role: membershipMap.get(u.id)?.role || roleMap.get(u.id) || "user",
+        admin_membership_status: membershipMap.get(u.id)?.status || null,
       })),
       page, has_more: data.users.length === 100,
     }, 200, origin);
