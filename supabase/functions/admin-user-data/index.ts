@@ -185,6 +185,8 @@ Deno.serve(async (req) => {
         id: u.id, email: u.email, phone: u.phone,
         email_confirmed_at: u.email_confirmed_at, phone_confirmed_at: u.phone_confirmed_at,
         created_at: u.created_at, updated_at: u.updated_at, last_sign_in_at: u.last_sign_in_at,
+        banned_until: u.banned_until || null,
+        is_suspended: !!u.banned_until && new Date(u.banned_until).getTime() > Date.now(),
         providers: u.app_metadata?.providers || [],
         metadata: {
           full_name: metadata.full_name || null,
