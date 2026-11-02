@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import {
   Loader2, Trash2, Star, Check, X, Crown, Users, FolderKanban, Building, MessageSquare,
-  Mail, Phone, Send, ExternalLink, Reply, Search, Eye, ShieldCheck,
+  Mail, Phone, Send, ExternalLink, Reply, Search, Eye, ShieldCheck, FileSpreadsheet,
 } from "lucide-react";
 
 const WHATSAPP_NUMBER = "8801832313998";
@@ -222,6 +222,24 @@ ${replyText}
             <StatCard icon={Building} label="Sponsors" value={sponsors.length} accent="bg-green-500" />
             <StatCard icon={MessageSquare} label="Messages" value={messages.length} accent="bg-pink-500" />
           </div>
+
+          <Link
+            to="/admin/excel-library"
+            className="group flex flex-col gap-3 rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/10 via-card to-accent/10 p-4 shadow-sm transition-all hover:border-primary/40 hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                <FileSpreadsheet className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold">Excel Template Library Management</p>
+                <p className="text-sm text-muted-foreground">ZIP / folder থেকে bulk Excel upload, categories, search, individual download ও file management.</p>
+              </div>
+            </div>
+            <span className="inline-flex shrink-0 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-transform group-hover:translate-x-0.5">
+              Manage Library →
+            </span>
+          </Link>
 
           <Tabs defaultValue="messages" onValueChange={(value) => { if (value === "audit") void loadAccessAudit(); }}>
             <TabsList className="flex-wrap h-auto bg-card shadow-sm">
