@@ -1,11 +1,14 @@
+import { useEffect, useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { Badge } from "@/components/ui/badge";
-import { DraftingCompass, ShieldCheck } from "lucide-react";
+import { DraftingCompass, ShieldCheck, Clock3, LockKeyhole } from "lucide-react";
 import SEO from "@/components/SEO";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useActiveProjectId } from "@/lib/projectSelection";
 import ProfessionalCadWorkspace from "@/components/cad/ProfessionalCadWorkspace";
+import { useAuth } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
 
 /**
  * IndoCAD is a dedicated, full-page drafting workspace.
@@ -15,6 +18,28 @@ import ProfessionalCadWorkspace from "@/components/cad/ProfessionalCadWorkspace"
 export default function IndoCADPage() {
   const activeProjectId = useActiveProjectId();
   const storageKey = `civilos-indocad:v1:${activeProjectId ?? "personal"}`;
+  const { user, loading: authLoading } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [roleLoading, setRoleLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      setIsAdmin(false);
+      setRoleLoading(false);
+      return () => { active = false; };
+    }
+    setRoleLoading(true);
+    supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle()
+      .then(({ data, error }) => {
+        if (!active) return;
+        setIsAdmin(!error && !!data);
+        setRoleLoading(false);
+      });
+    return () => { active = false; };
+  }, [user]);
+
+  const canAccessWorkspace = !authLoading && !roleLoading && !!user && isAdmin;
 
   return (
     <SidebarProvider>
@@ -37,17 +62,33 @@ export default function IndoCADPage() {
               </p>
             </div>
             <div className="ml-auto flex items-center gap-2">
-              <Badge variant="outline" className="hidden border-emerald-500/40 text-emerald-600 sm:inline-flex">
-                <ShieldCheck className="mr-1 h-3 w-3" /> Dedicated workspace
+              <Badge variant="outline" className={isAdmin ? "hidden border-emerald-500/40 text-emerald-600 sm:inline-flex" : "border-amber-500/40 text-amber-600"}>
+                {isAdmin ? <><ShieldCheck className="mr-1 h-3 w-3" /> Admin preview</> : <><Clock3 className="mr-1 h-3 w-3" /> Coming Soon</>}
               </Badge>
               <ThemeToggle />
             </div>
           </header>
 
           <main className="flex min-h-0 flex-1 overflow-hidden">
-            <div className="h-full min-h-0 w-full">
-              <ProfessionalCadWorkspace key={storageKey} storageKey={storageKey} />
-            </div>
+            {canAccessWorkspace ? (
+              <div className="h-full min-h-0 w-full">
+                <ProfessionalCadWorkspace key={storageKey} storageKey={storageKey} />
+              </div>
+            ) : (
+              <div className="flex min-h-full w-full items-center justify-center bg-gradient-to-br from-background via-muted/30 to-amber-500/5 p-6">
+                <div className="w-full max-w-xl rounded-3xl border bg-card/90 p-8 text-center shadow-xl backdrop-blur">
+                  <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600">
+                    {authLoading || roleLoading ? <Clock3 className="h-8 w-8 animate-pulse" /> : <LockKeyhole className="h-8 w-8" />}
+                  </div>
+                  <Badge variant="outline" className="mb-4 border-amber-500/40 text-amber-600">Coming Soon</Badge>
+                  <h2 className="mb-3 text-2xl font-bold tracking-tight">IndoCAD is under development</h2>
+                  <p className="mx-auto max-w-md text-sm leading-6 text-muted-foreground">
+                    We are preparing the professional 2D drafting workspace for release. IndoCAD will become available to users after development and quality testing are complete.
+                  </p>
+                  <p className="mt-5 text-xs text-muted-foreground">Admin preview access only · Public launch pending</p>
+                </div>
+              </div>
+            )}
           </main>
         </div>
       </div>
