@@ -182,6 +182,69 @@ BEGIN
 END;
 $fn$;
 
+
+CREATE OR REPLACE FUNCTION public.admin_set_subadmin_affiliate_permissions(_membership_id uuid, _actions text[])
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp
+AS $fn$
+DECLARE actor uuid:=auth.uid(); target public.admin_memberships%ROWTYPE; old_actions text[]; new_actions text[]; permission_item text;
+BEGIN
+  IF actor IS NULL OR NOT public.is_super_admin() THEN RAISE EXCEPTION 'Super Admin access required' USING ERRCODE='42501'; END IF;
+  SELECT * INTO target FROM public.admin_memberships WHERE id=_membership_id FOR UPDATE;
+  IF target.id IS NULL OR target.role<>'sub_admin' THEN RAISE EXCEPTION 'Sub-admin membership not found' USING ERRCODE='P0002'; END IF;
+  IF EXISTS(SELECT 1 FROM unnest(coalesce(_actions,ARRAY[]::text[])) AS requested(action) WHERE action NOT IN ('view','manage')) THEN
+    RAISE EXCEPTION 'Only affiliate.view and affiliate.manage permissions are currently supported' USING ERRCODE='22023';
+  END IF;
+  IF cardinality(coalesce(_actions,ARRAY[]::text[]))<>cardinality(ARRAY(SELECT DISTINCT action FROM unnest(coalesce(_actions,ARRAY[]::text[])) AS requested(action))) THEN
+    RAISE EXCEPTION 'Duplicate permission actions are not allowed' USING ERRCODE='22023';
+  END IF;
+  SELECT coalesce(array_agg(action ORDER BY action),ARRAY[]::text[]) INTO old_actions
+    FROM public.admin_feature_permissions WHERE membership_id=_membership_id AND feature_key='affiliate';
+  SELECT coalesce(array_agg(action ORDER BY action),ARRAY[]::text[]) INTO new_actions
+    FROM unnest(coalesce(_actions,ARRAY[]::text[])) AS requested(action);
+  IF 'manage'=ANY(new_actions) AND NOT ('view'=ANY(new_actions)) THEN new_actions:=array_append(new_actions,'view'); END IF;
+  DELETE FROM public.admin_feature_permissions WHERE membership_id=_membership_id AND feature_key='affiliate';
+  INSERT INTO public.admin_feature_permissions(membership_id,feature_key,action,granted_by)
+    SELECT _membership_id,'affiliate',permission_action,actor FROM unnest(new_actions) AS permissions(permission_action);
+  FOREACH permission_item IN ARRAY old_actions LOOP
+    IF NOT(permission_item=ANY(new_actions)) THEN
+      INSERT INTO public.admin_rbac_audit(actor_user_id,target_user_id,action,feature_key,permission_action,metadata)
+      VALUES(actor,target.user_id,'permission_revoked','affiliate',permission_item,jsonb_build_object('actions',to_jsonb(new_actions)));
+    END IF;
+  END LOOP;
+  FOREACH permission_item IN ARRAY new_actions LOOP
+    IF NOT(permission_item=ANY(old_actions)) THEN
+      INSERT INTO public.admin_rbac_audit(actor_user_id,target_user_id,action,feature_key,permission_action,metadata)
+      VALUES(actor,target.user_id,'permission_granted','affiliate',permission_item,jsonb_build_object('previous_actions',to_jsonb(old_actions)));
+    END IF;
+  END LOOP;
+  RETURN jsonb_build_object('membership_id',_membership_id,'feature_key','affiliate','actions',to_jsonb(new_actions));
+END;
+$fn$;
+
+-- Commission review RPC must use the same affiliate.manage permission as its Edge Function.
+CREATE OR REPLACE FUNCTION public.review_commission(_commission_id uuid,_approve boolean,_note text DEFAULT NULL)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp
+AS $fn$
+DECLARE commission_row public.referral_commissions%ROWTYPE;
+BEGIN
+  IF auth.uid() IS NULL OR NOT (
+    public.has_role(auth.uid(),'admin'::public.app_role)
+    OR public.has_admin_permission('affiliate','manage')
+  ) THEN
+    RAISE EXCEPTION 'Affiliate: Manage permission required' USING ERRCODE='42501';
+  END IF;
+  SELECT * INTO commission_row FROM public.referral_commissions WHERE id=_commission_id FOR UPDATE;
+  IF commission_row.id IS NULL THEN RAISE EXCEPTION 'Commission not found'; END IF;
+  IF commission_row.status<>'flagged' THEN RAISE EXCEPTION 'Only flagged commissions can be reviewed (status is %)',commission_row.status; END IF;
+  UPDATE public.referral_commissions
+    SET status=CASE WHEN _approve THEN 'approved' ELSE 'rejected' END,
+        flag_reason=coalesce(nullif(trim(_note),''),flag_reason),
+        reviewed_by=auth.uid(),reviewed_at=now()
+    WHERE id=commission_row.id;
+  PERFORM public.refresh_referral_totals(commission_row.referral_id);
+END;
+$fn$;
+
 CREATE OR REPLACE FUNCTION public.admin_set_subadmin_status(_membership_id uuid,_status text)
 RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp
 AS $fn$
@@ -311,6 +374,7 @@ $fn$;
 
 REVOKE ALL ON FUNCTION public.admin_set_subadmin_permissions(uuid,text[]) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.admin_set_subadmin_status(uuid,text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_set_subadmin_affiliate_permissions(uuid,text[]) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.admin_set_subadmin_billing_permissions(uuid,text[]) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.admin_set_subadmin_project_permissions(uuid,text[]) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.admin_remove_subadmin(uuid) FROM PUBLIC, anon;
@@ -319,6 +383,7 @@ REVOKE ALL ON FUNCTION public.admin_revoke_invitation(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.admin_accept_invitation(text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_permissions(uuid,text[]) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_status(uuid,text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_affiliate_permissions(uuid,text[]) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_billing_permissions(uuid,text[]) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_project_permissions(uuid,text[]) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_remove_subadmin(uuid) TO authenticated, service_role;
