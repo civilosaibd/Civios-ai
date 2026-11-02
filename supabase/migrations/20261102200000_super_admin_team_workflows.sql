@@ -245,6 +245,42 @@ BEGIN
 END;
 $fn$;
 
+
+CREATE OR REPLACE FUNCTION public.admin_set_subadmin_ai_usage_permissions(_membership_id uuid, _actions text[])
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp
+AS $fn$
+DECLARE actor uuid:=auth.uid(); target public.admin_memberships%ROWTYPE; old_actions text[]; new_actions text[]; permission_item text;
+BEGIN
+  IF actor IS NULL OR NOT public.is_super_admin() THEN RAISE EXCEPTION 'Super Admin access required' USING ERRCODE='42501'; END IF;
+  SELECT * INTO target FROM public.admin_memberships WHERE id=_membership_id FOR UPDATE;
+  IF target.id IS NULL OR target.role<>'sub_admin' THEN RAISE EXCEPTION 'Sub-admin membership not found' USING ERRCODE='P0002'; END IF;
+  IF EXISTS(SELECT 1 FROM unnest(coalesce(_actions,ARRAY[]::text[])) AS requested(action) WHERE action<>'view') THEN
+    RAISE EXCEPTION 'AI Usage is read-only; only ai_usage.view is supported' USING ERRCODE='22023';
+  END IF;
+  IF cardinality(coalesce(_actions,ARRAY[]::text[]))>1 THEN RAISE EXCEPTION 'Duplicate permission actions are not allowed' USING ERRCODE='22023'; END IF;
+  SELECT coalesce(array_agg(action ORDER BY action),ARRAY[]::text[]) INTO old_actions
+    FROM public.admin_feature_permissions WHERE membership_id=_membership_id AND feature_key='ai_usage';
+  SELECT coalesce(array_agg(action ORDER BY action),ARRAY[]::text[]) INTO new_actions
+    FROM unnest(coalesce(_actions,ARRAY[]::text[])) AS requested(action);
+  DELETE FROM public.admin_feature_permissions WHERE membership_id=_membership_id AND feature_key='ai_usage';
+  INSERT INTO public.admin_feature_permissions(membership_id,feature_key,action,granted_by)
+    SELECT _membership_id,'ai_usage',permission_action,actor FROM unnest(new_actions) AS permissions(permission_action);
+  FOREACH permission_item IN ARRAY old_actions LOOP
+    IF NOT(permission_item=ANY(new_actions)) THEN
+      INSERT INTO public.admin_rbac_audit(actor_user_id,target_user_id,action,feature_key,permission_action,metadata)
+      VALUES(actor,target.user_id,'permission_revoked','ai_usage',permission_item,jsonb_build_object('actions',to_jsonb(new_actions)));
+    END IF;
+  END LOOP;
+  FOREACH permission_item IN ARRAY new_actions LOOP
+    IF NOT(permission_item=ANY(old_actions)) THEN
+      INSERT INTO public.admin_rbac_audit(actor_user_id,target_user_id,action,feature_key,permission_action,metadata)
+      VALUES(actor,target.user_id,'permission_granted','ai_usage',permission_item,jsonb_build_object('previous_actions',to_jsonb(old_actions)));
+    END IF;
+  END LOOP;
+  RETURN jsonb_build_object('membership_id',_membership_id,'feature_key','ai_usage','actions',to_jsonb(new_actions));
+END;
+$fn$;
+
 CREATE OR REPLACE FUNCTION public.admin_set_subadmin_status(_membership_id uuid,_status text)
 RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp
 AS $fn$
@@ -374,6 +410,7 @@ $fn$;
 
 REVOKE ALL ON FUNCTION public.admin_set_subadmin_permissions(uuid,text[]) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.admin_set_subadmin_status(uuid,text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_set_subadmin_ai_usage_permissions(uuid,text[]) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.admin_set_subadmin_affiliate_permissions(uuid,text[]) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.admin_set_subadmin_billing_permissions(uuid,text[]) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.admin_set_subadmin_project_permissions(uuid,text[]) FROM PUBLIC, anon;
@@ -383,6 +420,7 @@ REVOKE ALL ON FUNCTION public.admin_revoke_invitation(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.admin_accept_invitation(text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_permissions(uuid,text[]) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_status(uuid,text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_ai_usage_permissions(uuid,text[]) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_affiliate_permissions(uuid,text[]) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_billing_permissions(uuid,text[]) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_project_permissions(uuid,text[]) TO authenticated, service_role;
