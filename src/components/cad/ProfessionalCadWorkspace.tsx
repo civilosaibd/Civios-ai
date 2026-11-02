@@ -26,6 +26,8 @@ import { createIndoCadTemplate, type IndoCadTemplateId } from "@/lib/cad2d/templ
 
 type DraftEntity = CadEntity & { id: string; layerId: string };
 
+const metresToDrawingUnits: Record<CadDocument["units"], number> = { mm: 1000, cm: 100, m: 1, in: 39.3701, ft: 3.28084 };
+
 type FurnitureKind = "bed" | "sofa" | "dining-table" | "toilet" | "kitchen-counter" | "wardrobe" | "refrigerator" | "shower" | "bathtub" | "washbasin";
 const furnitureLabels: { id: FurnitureKind; label: string; size: string }[] = [
   { id: "bed", label: "Bed", size: "6.5 × 5 ft" },
@@ -488,10 +490,10 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
       if (width>1e-8 && depth>1e-8) entity={...base,type:"column",at:{x:(r.min.x+r.max.x)/2,y:(r.min.y+r.max.y)/2},width,depth,rotation:0};
     } else if (tool==="stair") {
       const r=normalizeRect(a,b), width=r.max.x-r.min.x, depth=r.max.y-r.min.y;
-      if(width>1e-8&&depth>1e-8) entity={...base,type:"stair",at:{x:(r.min.x+r.max.x)/2,y:(r.min.y+r.max.y)/2},width,depth,rotation:0,steps:Math.max(3,Math.min(30,Math.round(Math.max(width,depth)/1.1))),floorHeight:3.2,direction:depth>=width?"y":"x"};
+      if(width>1e-8&&depth>1e-8) entity={...base,type:"stair",at:{x:(r.min.x+r.max.x)/2,y:(r.min.y+r.max.y)/2},width,depth,rotation:0,steps:Math.max(3,Math.min(30,Math.round(Math.max(width,depth)/1.1))),floorHeight:3.2*metresToDrawingUnits[doc.units],direction:depth>=width?"y":"x"};
     } else if (tool==="balcony") {
       const r=normalizeRect(a,b), width=r.max.x-r.min.x, depth=r.max.y-r.min.y;
-      if(width>1e-8&&depth>1e-8) entity={...base,type:"balcony",at:{x:(r.min.x+r.max.x)/2,y:(r.min.y+r.max.y)/2},width,depth,rotation:0,slabThickness:0.15,railingHeight:1.05,railingSide:"y-max"};
+      if(width>1e-8&&depth>1e-8) entity={...base,type:"balcony",at:{x:(r.min.x+r.max.x)/2,y:(r.min.y+r.max.y)/2},width,depth,rotation:0,slabThickness:0.15*metresToDrawingUnits[doc.units],railingHeight:1.05*metresToDrawingUnits[doc.units],railingSide:"y-max"};
     }
     else if (tool==="dimension") {
       if (Math.hypot(b.x-a.x,b.y-a.y) > 1e-8) entity={...base,type:"dimension",a,b,offset:Math.max(grid.snapSpacing,1)};
