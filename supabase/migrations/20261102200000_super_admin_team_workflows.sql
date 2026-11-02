@@ -184,6 +184,181 @@ BEGIN
 END;
 $$;
 
+
+CREATE OR REPLACE FUNCTION public.admin_create_invitation(_email text, _token_hash text, _expires_at timestamptz)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $
+DECLARE
+  actor uuid := auth.uid();
+  normalized_email text := lower(trim(_email));
+  invitation public.admin_invitations%ROWTYPE;
+  existing_user uuid;
+BEGIN
+  IF actor IS NULL OR NOT public.is_super_admin() THEN
+    RAISE EXCEPTION 'Super Admin access required' USING ERRCODE = '42501';
+  END IF;
+  IF normalized_email IS NULL OR length(normalized_email) NOT BETWEEN 5 AND 320
+     OR normalized_email !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+(uuid,text[]) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_set_subadmin_status(uuid,text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_remove_subadmin(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_accept_invitation(text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_create_invitation(text,text,timestamptz) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_revoke_invitation(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_permissions(uuid,text[]) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_status(uuid,text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_remove_subadmin(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_accept_invitation(text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_create_invitation(text,text,timestamptz) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_revoke_invitation(uuid) TO authenticated, service_role;
+ THEN
+    RAISE EXCEPTION 'Invitation token is invalid' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO invitation FROM public.admin_invitations
+    WHERE token_hash = _token_hash FOR UPDATE;
+  IF invitation.id IS NULL OR invitation.status <> 'pending' OR invitation.expires_at <= now() THEN
+    RAISE EXCEPTION 'Invitation is invalid, revoked, or expired' USING ERRCODE = '22023';
+  END IF;
+  IF lower(trim(invitation.invited_email)) <> caller_email THEN
+    RAISE EXCEPTION 'This invitation belongs to another email address' USING ERRCODE = '42501';
+  END IF;
+  IF public.has_role(caller,'admin'::public.app_role) AND NOT public.is_super_admin() THEN
+    RAISE EXCEPTION 'Legacy full-admin accounts cannot accept sub-admin invitations' USING ERRCODE = '42501';
+  END IF;
+  INSERT INTO public.admin_memberships(user_id,role,status,assigned_by)
+    VALUES (caller,'sub_admin','active',invitation.invited_by)
+    ON CONFLICT (user_id) DO UPDATE
+      SET role = CASE WHEN public.admin_memberships.role = 'super_admin' THEN 'super_admin' ELSE 'sub_admin' END,
+          status = CASE WHEN public.admin_memberships.role = 'super_admin' THEN public.admin_memberships.status ELSE 'active' END,
+          assigned_by = CASE WHEN public.admin_memberships.role = 'super_admin' THEN public.admin_memberships.assigned_by ELSE EXCLUDED.assigned_by END,
+          updated_at = now()
+    RETURNING id INTO membership_id;
+  UPDATE public.admin_invitations SET status = 'accepted', accepted_user_id = caller, accepted_at = now()
+    WHERE id = invitation.id;
+  INSERT INTO public.admin_rbac_audit(actor_user_id,target_user_id,action,metadata)
+    VALUES (caller,caller,'sub_admin_activated',jsonb_build_object('invitation_id',invitation.id,'invited_by',invitation.invited_by));
+  RETURN jsonb_build_object('membership_id',membership_id,'status','active');
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_set_subadmin_permissions(uuid,text[]) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_set_subadmin_status(uuid,text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_remove_subadmin(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_accept_invitation(text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_permissions(uuid,text[]) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_status(uuid,text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_remove_subadmin(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_accept_invitation(text) TO authenticated, service_role;
+ THEN
+    RAISE EXCEPTION 'Invalid invitation email address' USING ERRCODE = '22023';
+  END IF;
+  IF _token_hash IS NULL OR _token_hash !~ '^[a-f0-9]{64}(uuid,text[]) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_set_subadmin_status(uuid,text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_remove_subadmin(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_accept_invitation(text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_permissions(uuid,text[]) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_status(uuid,text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_remove_subadmin(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_accept_invitation(text) TO authenticated, service_role;
+ THEN
+    RAISE EXCEPTION 'Invitation token is invalid' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO invitation FROM public.admin_invitations
+    WHERE token_hash = _token_hash FOR UPDATE;
+  IF invitation.id IS NULL OR invitation.status <> 'pending' OR invitation.expires_at <= now() THEN
+    RAISE EXCEPTION 'Invitation is invalid, revoked, or expired' USING ERRCODE = '22023';
+  END IF;
+  IF lower(trim(invitation.invited_email)) <> caller_email THEN
+    RAISE EXCEPTION 'This invitation belongs to another email address' USING ERRCODE = '42501';
+  END IF;
+  IF public.has_role(caller,'admin'::public.app_role) AND NOT public.is_super_admin() THEN
+    RAISE EXCEPTION 'Legacy full-admin accounts cannot accept sub-admin invitations' USING ERRCODE = '42501';
+  END IF;
+  INSERT INTO public.admin_memberships(user_id,role,status,assigned_by)
+    VALUES (caller,'sub_admin','active',invitation.invited_by)
+    ON CONFLICT (user_id) DO UPDATE
+      SET role = CASE WHEN public.admin_memberships.role = 'super_admin' THEN 'super_admin' ELSE 'sub_admin' END,
+          status = CASE WHEN public.admin_memberships.role = 'super_admin' THEN public.admin_memberships.status ELSE 'active' END,
+          assigned_by = CASE WHEN public.admin_memberships.role = 'super_admin' THEN public.admin_memberships.assigned_by ELSE EXCLUDED.assigned_by END,
+          updated_at = now()
+    RETURNING id INTO membership_id;
+  UPDATE public.admin_invitations SET status = 'accepted', accepted_user_id = caller, accepted_at = now()
+    WHERE id = invitation.id;
+  INSERT INTO public.admin_rbac_audit(actor_user_id,target_user_id,action,metadata)
+    VALUES (caller,caller,'sub_admin_activated',jsonb_build_object('invitation_id',invitation.id,'invited_by',invitation.invited_by));
+  RETURN jsonb_build_object('membership_id',membership_id,'status','active');
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_set_subadmin_permissions(uuid,text[]) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_set_subadmin_status(uuid,text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_remove_subadmin(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_accept_invitation(text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_permissions(uuid,text[]) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_set_subadmin_status(uuid,text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_remove_subadmin(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_accept_invitation(text) TO authenticated, service_role;
+ THEN
+    RAISE EXCEPTION 'Invalid invitation token hash' USING ERRCODE = '22023';
+  END IF;
+  IF _expires_at IS NULL OR _expires_at <= now() OR _expires_at > now() + interval '8 days' THEN
+    RAISE EXCEPTION 'Invitation expiry must be within the next eight days' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT id INTO existing_user FROM auth.users WHERE lower(trim(email)) = normalized_email LIMIT 1;
+  IF existing_user IS NOT NULL THEN
+    IF EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = existing_user AND role = 'admin'::public.app_role)
+       AND NOT EXISTS (SELECT 1 FROM public.admin_memberships WHERE user_id = existing_user AND role = 'super_admin') THEN
+      RAISE EXCEPTION 'Legacy full-admin accounts cannot be converted into sub-admin invitations' USING ERRCODE = '22023';
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.admin_memberships WHERE user_id = existing_user AND role = 'super_admin') THEN
+      RAISE EXCEPTION 'This account is already a Super Admin' USING ERRCODE = '22023';
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.admin_memberships WHERE user_id = existing_user AND status = 'active') THEN
+      RAISE EXCEPTION 'This account already has active admin access' USING ERRCODE = '23505';
+    END IF;
+  END IF;
+
+  UPDATE public.admin_invitations SET status = 'revoked'
+    WHERE lower(invited_email) = normalized_email AND status = 'pending';
+  INSERT INTO public.admin_invitations(invited_email,invited_by,role,status,token_hash,expires_at)
+    VALUES (normalized_email,actor,'sub_admin','pending',_token_hash,_expires_at)
+    RETURNING * INTO invitation;
+  INSERT INTO public.admin_rbac_audit(actor_user_id,action,metadata)
+    VALUES (actor,'invite_created',jsonb_build_object('invitation_id',invitation.id,'invited_email',normalized_email));
+  RETURN jsonb_build_object('id',invitation.id,'invited_email',invitation.invited_email,'expires_at',invitation.expires_at,'status',invitation.status);
+END;
+$;
+
+CREATE OR REPLACE FUNCTION public.admin_revoke_invitation(_invitation_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $
+DECLARE
+  actor uuid := auth.uid();
+  invitation public.admin_invitations%ROWTYPE;
+BEGIN
+  IF actor IS NULL OR NOT public.is_super_admin() THEN
+    RAISE EXCEPTION 'Super Admin access required' USING ERRCODE = '42501';
+  END IF;
+  UPDATE public.admin_invitations SET status = 'revoked'
+    WHERE id = _invitation_id AND status = 'pending'
+    RETURNING * INTO invitation;
+  IF invitation.id IS NULL THEN
+    RAISE EXCEPTION 'Pending invitation not found' USING ERRCODE = 'P0002';
+  END IF;
+  INSERT INTO public.admin_rbac_audit(actor_user_id,action,metadata)
+    VALUES (actor,'invite_revoked',jsonb_build_object('invitation_id',invitation.id,'invited_email',invitation.invited_email));
+  RETURN true;
+END;
+$;
+
 REVOKE ALL ON FUNCTION public.admin_set_subadmin_permissions(uuid,text[]) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.admin_set_subadmin_status(uuid,text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.admin_remove_subadmin(uuid) FROM PUBLIC, anon;
