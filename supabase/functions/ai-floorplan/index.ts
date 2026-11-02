@@ -77,11 +77,11 @@ function validatePlan(value: any) {
         || item.width < 1.8 || item.width > 6 || !validSides.includes(item.wall)) {
         throw new Error(`AI returned an invalid ${label} location.`);
       }
-      const onBoundary = item.wall === "north" ? Math.abs(item.y - footprint.depth) < 0.15
-        : item.wall === "south" ? Math.abs(item.y) < 0.15
-        : item.wall === "east" ? Math.abs(item.x - footprint.width) < 0.15
-        : Math.abs(item.x) < 0.15;
-      if (!onBoundary) throw new Error(`AI returned a ${label} that is not on a valid footprint boundary.`);
+      const onBoundary = item.wall === "north" ? Math.abs(item.y - footprint.depth) < 0.15 && item.x - item.width / 2 >= 0 && item.x + item.width / 2 <= footprint.width
+        : item.wall === "south" ? Math.abs(item.y) < 0.15 && item.x - item.width / 2 >= 0 && item.x + item.width / 2 <= footprint.width
+        : item.wall === "east" ? Math.abs(item.x - footprint.width) < 0.15 && item.y - item.width / 2 >= 0 && item.y + item.width / 2 <= footprint.depth
+        : Math.abs(item.x) < 0.15 && item.y - item.width / 2 >= 0 && item.y + item.width / 2 <= footprint.depth;
+      if (!onBoundary) throw new Error(`AI returned a ${label} outside a valid wall boundary.`);
       return { x: item.x, y: item.y, width: item.width, wall: item.wall, room: typeof item.room === "string" ? item.room.slice(0, 48) : "" };
     });
   };
