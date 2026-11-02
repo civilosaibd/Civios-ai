@@ -43,7 +43,10 @@ echo "[3/5] Creating optimized copy (static asset profile)..."
 gltf-transform optimize "$INPUT" "$OUTPUT" \
   --compress meshopt \
   --texture-compress webp \
-  --texture-size 2048
+  --texture-size 2048 \\
+  --no-simplify \\
+  --no-flatten \\
+  --no-join
 
 echo "[4/5] Validating and inspecting optimized model..."
 gltf-transform validate "$OUTPUT"
