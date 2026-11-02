@@ -27,3 +27,7 @@ verify_jwt = true
 
 [functions.admin-affiliate-data]
 verify_jwt = true
+
+[functions.track-referral-event]
+# Anonymous link clicks are accepted; authenticated share actions are validated by the handler.
+verify_jwt = false
