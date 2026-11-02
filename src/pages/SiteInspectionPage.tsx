@@ -65,6 +65,9 @@ export default function SiteInspectionPage() {
   useEffect(() => {
     let cancelled = false;
     setProjectReady(false); setProjectArtifactId(undefined); setProjectError(null); setProjectRecords([]);
+    // Never carry an edit target from the previous project into the newly selected workspace.
+    setActiveId(null);
+    setProject(""); setInspector(""); setDate(today()); setStatus(freshStatus()); setNotes(freshNotes());
     if (!projectId) return;
     void listProjectArtifacts(projectId).then((items) => {
       if (cancelled) return;
