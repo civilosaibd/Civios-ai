@@ -45,7 +45,13 @@ BEGIN
   SELECT coalesce(array_agg(DISTINCT action ORDER BY action), ARRAY[]::text[])
     INTO new_actions FROM unnest(coalesce(_actions, ARRAY[]::text[])) AS action
     WHERE action IN ('view','manage');
-  IF cardinality(coalesce(_actions, ARRAY[]::text[])) <> cardinality(new_actions)
+  IF 'manage' = ANY(new_actions) AND NOT ('view' = ANY(new_actions)) THEN
+    new_actions := array_append(new_actions,'view');
+  END IF;
+  IF cardinality(coalesce(_actions, ARRAY[]::text[])) <> cardinality((
+       SELECT array_agg(DISTINCT a) FROM unnest(coalesce(_actions, ARRAY[]::text[])) AS a
+       WHERE a IN ('view','manage')
+     ))
      AND cardinality(coalesce(_actions, ARRAY[]::text[])) <> 0 THEN
     RAISE EXCEPTION 'Only users.view and users.manage are currently supported' USING ERRCODE = '22023';
   END IF;
