@@ -834,7 +834,13 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
         const skipped = imported.notes.length ? ` Unsupported entities: ${imported.notes.slice(0, 6).join(", ")}${imported.notes.length > 6 ? "…" : ""}.` : "";
         toast.success(`Imported ${imported.document.entities.length} DXF object(s) across ${imported.document.layers.length} layer(s). Units: ${imported.document.units}.${skipped}`, { duration: 7000 });
         const bounds = imported.document.entities.map(entityBounds);
-        const minX = Math.min(...bounds.map((item) => item.min.x));\n        const minY = Math.min(...bounds.map((item) => item.min.y));\n        const maxX = Math.max(...bounds.map((item) => item.max.x));\n        const maxY = Math.max(...bounds.map((item) => item.max.y));\n        const width = Math.max(maxX - minX, 1), height = Math.max(maxY - minY, 1);\n        const scale = Math.max(0.2, Math.min(8, 900 / width, 540 / height));\n        setView({ x: (1000 - width * scale) / 2 - minX * scale, y: (640 - height * scale) / 2 - minY * scale, scale });
+        const minX = Math.min(...bounds.map((item) => item.min.x));
+        const minY = Math.min(...bounds.map((item) => item.min.y));
+        const maxX = Math.max(...bounds.map((item) => item.max.x));
+        const maxY = Math.max(...bounds.map((item) => item.max.y));
+        const width = Math.max(maxX - minX, 1), height = Math.max(maxY - minY, 1);
+        const scale = Math.max(0.2, Math.min(8, 900 / width, 540 / height));
+        setView({ x: (1000 - width * scale) / 2 - minX * scale, y: (640 - height * scale) / 2 - minY * scale, scale });
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not import this DXF file.");
       }
