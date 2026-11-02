@@ -111,9 +111,10 @@ export default function Cad3DPreview({ document, floorCount = 1 }: { document: C
   const width = Math.max(4, bounds.maxX - bounds.minX);
   const depth = Math.max(4, bounds.maxZ - bounds.minZ);
   const center: [number, number, number] = [(bounds.minX + bounds.maxX) / 2, 0, (bounds.minZ + bounds.maxZ) / 2];
-  const radius = Math.max(width, depth, 3);
+  const modelHeight = levels * 3.2;
+  const radius = Math.max(width, depth, modelHeight * 0.75, 3);
   return <div className="relative min-h-[360px] w-full flex-1 bg-slate-100" data-testid="indocad-3d-preview">
-    <Canvas shadows dpr={[1, 1.75]} camera={{ position: [radius * 1.35, radius * 1.1, radius * 1.35], fov: 42, near: 0.1, far: radius * 30 }}>
+    <Canvas shadows dpr={[1, 1.75]} camera={{ position: [radius * 1.35, modelHeight / 2 + radius * 1.1, radius * 1.35], fov: 42, near: 0.1, far: radius * 40 }}>
       <color attach="background" args={["#eaf0f7"]} />
       <ambientLight intensity={0.72} />
       <hemisphereLight args={["#ffffff", "#64748b", 0.55]} />
@@ -130,7 +131,7 @@ export default function Cad3DPreview({ document, floorCount = 1 }: { document: C
         </group>)}
         {levels > 1 && <mesh position={[center[0], levels * 3.2 - 0.02, center[2]]} receiveShadow><boxGeometry args={[width, 0.14, depth]} /><meshStandardMaterial color="#94a3b8" roughness={0.8} /></mesh>}
       </group>
-      <OrbitControls makeDefault enableDamping dampingFactor={0.1} minDistance={2} maxDistance={radius * 12} />
+      <OrbitControls makeDefault target={[0, modelHeight / 2, 0]} enableDamping dampingFactor={0.1} minDistance={2} maxDistance={radius * 16} />
     </Canvas>
     <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg border border-white/70 bg-white/85 px-3 py-2 text-[11px] text-slate-600 shadow-sm backdrop-blur">
       <b className="text-slate-800">Live 3D preview</b><span className="mx-2">·</span>{levels} floor(s)<span className="mx-2">·</span>{visibleEntities.length} visible objects<span className="mx-2">·</span>{document.units}
