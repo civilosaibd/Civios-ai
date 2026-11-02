@@ -2,7 +2,7 @@
 // Limits are per user and endpoint: 10 requests/minute, 100 requests/rolling 24 hours.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-export type AiEndpoint = "ai-analyze" | "ai-chat" | "ai-structured" | "defect-detect" | "viz-analyze";
+export type AiEndpoint = "ai-analyze" | "ai-chat" | "ai-structured" | "ai-floorplan" | "defect-detect" | "viz-analyze";
 export type AiRateLimitResult = { status: 429 | 503; message: string } | null;
 
 export async function checkAiEndpointRateLimit(userId: string, endpoint: AiEndpoint): Promise<AiRateLimitResult> {

@@ -103,6 +103,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
   });
   const [tool, setTool] = useState<CadToolId>("select");
   const [show3D, setShow3D] = useState(false);
+  const [buildingFloors, setBuildingFloors] = useState(1);
   const [grid, setGrid] = useState<CadGridSettings>(DEFAULT_CAD_GRID);
   const [wallThickness, setWallThickness] = useState(0.5);
   const [view, setView] = useState<View>({ x: 60, y: 50, scale: 1 });
@@ -915,8 +916,9 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 md:px-4"><div className="flex min-w-0 items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500 shadow-md shadow-orange-950/30"><DraftingCompass className="h-6 w-6 text-white"/></div><div className="min-w-0"><div className="mb-1 flex flex-wrap items-center gap-2"><h2 className="text-lg font-bold tracking-tight md:text-xl">Professional 2D Studio</h2><span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300"><CheckCircle2 className="mr-1 inline h-3 w-3"/>Workspace ready</span></div><p className="text-xs text-slate-400">CivilOS AI · precision drafting workspace</p></div></div><div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs"><span className="h-2 w-2 rounded-full bg-emerald-400"/><span className="text-slate-300">Auto-save</span><span className="font-semibold text-white">On this device</span></div></div>
       <div className="flex flex-wrap items-center gap-2 border-t border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] text-slate-400 md:px-4"><span className="inline-flex items-center gap-1.5"><Command className="h-3.5 w-3.5"/>Shortcuts: L line · C circle · R rectangle · P polyline · S select · E erase</span><span className="hidden text-slate-600 sm:inline">•</span><span className="inline-flex items-center gap-1.5"><Hand className="h-3.5 w-3.5"/>Wheel zoom · middle/right drag pan</span></div>
     </div>
-    <AutoPlanGenerator units={doc.units} onGenerate={(generated) => {
-      if (doc.entities.length > 0 && !window.confirm("Generate a new AI floor plan and replace the current drawing? Export a JSON backup first if needed.")) return;
+    <AutoPlanGenerator units={doc.units} onGenerate={(generated, floors) => {
+      if (doc.entities.length > 0 && !window.confirm("Generate a new AI floor plan and replace the current drawing? Export a JSON backup first if needed.")) return false;
+      setBuildingFloors(floors);
       commit(generated);
       setLayerName(generated.layers[0]?.name ?? "AI Generated Walls");
       setSelected([]); setStart(null); setPolylinePoints([]); setModifyTargetId(null); setFurnitureKind(null);
@@ -927,6 +929,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
       const width = Math.max(maxX - minX, 1); const height = Math.max(maxY - minY, 1);
       const scale = Math.max(0.2, Math.min(8, 900 / width, 540 / height));
       setView({ x: (1000 - width * scale) / 2 - minX * scale, y: (640 - height * scale) / 2 - minY * scale, scale });
+      return true;
     }} />
     <div className="shrink-0 rounded-xl border border-slate-200 bg-white p-1.5 shadow-sm">
       <div className="flex items-center gap-2 px-1"><div className="rounded-lg bg-orange-50 p-2 text-orange-600"><Wrench className="h-4 w-4"/></div><div><p className="text-xs font-semibold text-slate-800">Quick controls</p><p className="text-[10px] text-slate-500">Manage your drawing</p></div></div>
@@ -967,7 +970,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
       <aside className="hidden min-h-0 space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 md:block">{ToolPalette}</aside>
       <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5"><div className="flex items-center gap-2"><div className="rounded-md bg-orange-50 p-1.5 text-orange-600"><Ruler className="h-4 w-4"/></div><div><p className="text-xs font-semibold text-slate-800">Drawing canvas</p><p className="text-[10px] text-slate-500">Infinite-feel workspace · grid & precision controls</p></div></div><div className="flex items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-600">{doc.entities.length} objects</span><Button size="sm" variant={show3D ? "default" : "outline"} className="h-8 text-xs" onClick={() => setShow3D((value) => !value)}><Box className="mr-1.5 h-3.5 w-3.5"/>{show3D ? "Back to 2D" : "3D Preview"}</Button></div></div>
-        {show3D ? <Cad3DPreview document={doc}/> : (
+        {show3D ? <Cad3DPreview document={doc} floorCount={buildingFloors}/> : (
         <svg ref={svgRef} viewBox="0 0 1000 640" className="min-h-[360px] w-full flex-1 touch-none bg-slate-50" role="img" aria-label="2D CAD drafting canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerCancel} onLostPointerCapture={handleLostPointerCapture} onDoubleClick={(event)=>{if(tool==="polyline"){event.preventDefault();finishPolyline();}}} onWheel={handleWheel} onContextMenu={(event)=>event.preventDefault()}>
           <defs><pattern id="cad-grid-small" width={Math.max(2,grid.gridSpacing*view.scale)} height={Math.max(2,grid.gridSpacing*view.scale)} patternUnits="userSpaceOnUse" x={view.x%Math.max(2,grid.gridSpacing*view.scale)} y={view.y%Math.max(2,grid.gridSpacing*view.scale)}><path d={`M ${Math.max(2,grid.gridSpacing*view.scale)} 0 L 0 0 0 ${Math.max(2,grid.gridSpacing*view.scale)}`} fill="none" stroke="#e5e7eb" strokeWidth=".7"/></pattern></defs>
           {grid.enabled&&<rect width="1000" height="640" fill="url(#cad-grid-small)"/>}

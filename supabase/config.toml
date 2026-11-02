@@ -20,3 +20,7 @@ verify_jwt = true
 # The handler validates user JWTs and the server-only x-cron-key for scheduled runs.
 # Keep gateway JWT verification off so scheduler requests can reach the handler.
 verify_jwt = false
+
+[functions.ai-floorplan]
+# Authenticated IndoCAD prompt-to-CAD geometry generation.
+verify_jwt = true
