@@ -39,10 +39,8 @@ const AuthPage = () => {
       eventId = crypto.randomUUID();
       sessionStorage.setItem(storageKey, eventId);
     }
-    void supabase.rpc("track_referral_event", {
-      _referral_code: referralCode,
-      _event_type: "link_click",
-      _event_id: eventId,
+    void supabase.functions.invoke("track-referral-event", {
+      body: { referralCode, eventType: "link_click", eventId },
     });
   }, [referralCode]);
 
