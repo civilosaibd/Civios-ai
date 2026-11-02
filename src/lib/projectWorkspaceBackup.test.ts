@@ -110,7 +110,7 @@ describe("project workspace ZIP backup", () => {
   it("rejects empty files with a clear error", async () => {
     const file = testFile([], "empty.zip");
     await expect(readProjectWorkspaceBackup(file)).rejects.toThrow(
-      "between 1 byte and 50 MB",
+      "between 1 byte and 200 MB",
     );
   });
   it("rejects a backup whose manifest bytes were corrupted after export", async () => {
