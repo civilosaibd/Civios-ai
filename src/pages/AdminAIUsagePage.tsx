@@ -45,7 +45,7 @@ export default function AdminAIUsagePage() {
       body: { action: "list", page: nextPage, period, search },
     });
     if (error || data?.error) {
-      if (data?.error?.includes("Admin access")) setIsAdmin(false);
+      if (data?.error?.includes("permission required") || data?.error?.includes("Admin access")) setIsAdmin(false);
       else toast.error(data?.error || "Unable to load AI usage. Check the admin-ai-usage-data Edge Function deployment.");
       setRows([]); setTotal(0); setHasMore(false);
     } else {
