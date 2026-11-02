@@ -115,6 +115,16 @@ test("Super Admin can grant affiliate permissions and commission review honors a
   });
 });
 
+test("Super Admin can grant read-only AI Usage permission without manage access",async()=>{
+  const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
+  await admin(async()=>{ await db.query("SELECT public.admin_set_subadmin_ai_usage_permissions($1,ARRAY['view']::text[])",[membership.id]); });
+  await sub(async()=>{
+    assert.equal((await db.query("SELECT public.has_admin_permission('ai_usage','view') AS allowed")).rows[0].allowed,true);
+    assert.equal((await db.query("SELECT public.has_admin_permission('ai_usage','manage') AS allowed")).rows[0].allowed,false);
+  });
+  await admin(()=>rejects(()=>db.query("SELECT public.admin_set_subadmin_ai_usage_permissions($1,ARRAY['manage']::text[])",[membership.id]),/AI Usage is read-only/));
+});
+
 test("Sub-admin cannot grant permissions or manage other sub-admins",async()=>{
   const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
   await sub(()=>rejects(()=>db.query("SELECT public.admin_set_subadmin_permissions($1,ARRAY['view']::text[])",[membership.id]),/Super Admin access required/));
