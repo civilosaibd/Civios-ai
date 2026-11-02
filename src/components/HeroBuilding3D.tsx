@@ -185,7 +185,7 @@ function ModernResidence({ motionEnabled }: { motionEnabled: boolean }) {
 
       {/* Rooftop penthouse, terrace and slim metal pergola */}
       <Solid position={[-0.42, 6.0, -0.78]} size={[2.05, 1.28, 1.75]} color="#d6d0c4" roughness={0.82} />
-      <WindowWall x={-0.42} y={6.0} z=0.12 width={1.7} height={1.02} />
+      <WindowWall x={-0.42} y={6.0} z={0.12} width={1.7} height={1.02} />
       <Solid position={[0, 5.92, 0]} size={[4.95, 0.16, 4.05]} color="#d0cabe" roughness={0.76} />
       <Solid position={[0, 6.12, -1.9]} size={[4.9, 0.32, 0.1]} color="#e1dbcf" />
       <Solid position={[-2.38, 6.12, 0]} size={[0.1, 0.32, 3.9]} color="#e1dbcf" />
