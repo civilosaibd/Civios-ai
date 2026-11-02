@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CadEntity } from "./geometry";
-import { fitOpeningToNearestWall, getWallVisibleSegments } from "./wall-openings";
+import { fitOpeningToNearestWall, getWallOpeningIntervals, getWallVisibleSegments } from "./wall-openings";
 
 const wall: CadEntity = {
   id: "wall-1", layerId: "layer-0", type: "wall",
@@ -44,6 +44,16 @@ describe("door and window wall openings", () => {
     expect(segments).toHaveLength(2);
     expect(segments[0].end.x).toBeCloseTo(3);
     expect(segments[1].start.x).toBeCloseTo(6);
+  });
+
+  it("returns typed opening intervals so 3D can preserve window sill and head wall sections", () => {
+    const windowEntity: CadEntity = {
+      id: "window-typed", layerId: "layer-0", type: "window",
+      at: { x: 5, y: 0 }, width: 1.6, rotation: 0,
+    };
+    const intervals = getWallOpeningIntervals(wall as Extract<CadEntity, { type: "wall" }>, [wall, windowEntity]);
+    expect(intervals).toHaveLength(1);
+    expect(intervals[0]).toMatchObject({ from: 4.2, to: 5.8, opening: { id: "window-typed", type: "window" } });
   });
 
   it("does not cut a wall for a parallel but offset symbol", () => {
