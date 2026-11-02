@@ -42,18 +42,20 @@ BEGIN
   SELECT coalesce(array_agg(action ORDER BY action), ARRAY[]::text[])
     INTO old_actions FROM public.admin_feature_permissions
     WHERE membership_id = _membership_id AND feature_key = 'users';
-  SELECT coalesce(array_agg(DISTINCT action ORDER BY action), ARRAY[]::text[])
-    INTO new_actions FROM unnest(coalesce(_actions, ARRAY[]::text[])) AS action
-    WHERE action IN ('view','manage');
+  IF EXISTS (
+    SELECT 1 FROM unnest(coalesce(_actions, ARRAY[]::text[])) AS requested(action)
+    WHERE action NOT IN ('view','manage')
+  ) THEN
+    RAISE EXCEPTION 'Only users.view and users.manage permissions are currently supported' USING ERRCODE = '22023';
+  END IF;
+  IF cardinality(coalesce(_actions, ARRAY[]::text[])) <>
+     cardinality(ARRAY(SELECT DISTINCT action FROM unnest(coalesce(_actions, ARRAY[]::text[])) AS requested(action))) THEN
+    RAISE EXCEPTION 'Duplicate permission actions are not allowed' USING ERRCODE = '22023';
+  END IF;
+  SELECT coalesce(array_agg(action ORDER BY action), ARRAY[]::text[])
+    INTO new_actions FROM unnest(coalesce(_actions, ARRAY[]::text[])) AS requested(action);
   IF 'manage' = ANY(new_actions) AND NOT ('view' = ANY(new_actions)) THEN
     new_actions := array_append(new_actions,'view');
-  END IF;
-  IF cardinality(coalesce(_actions, ARRAY[]::text[])) <> cardinality((
-       SELECT array_agg(DISTINCT a) FROM unnest(coalesce(_actions, ARRAY[]::text[])) AS a
-       WHERE a IN ('view','manage')
-     ))
-     AND cardinality(coalesce(_actions, ARRAY[]::text[])) <> 0 THEN
-    RAISE EXCEPTION 'Only users.view and users.manage are currently supported' USING ERRCODE = '22023';
   END IF;
 
   DELETE FROM public.admin_feature_permissions
