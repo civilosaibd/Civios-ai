@@ -352,6 +352,7 @@ ${replyText}
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <p className="text-sm text-muted-foreground">Registered account directory • {adminUsers.length} loaded (search covers loaded accounts)</p>
                 <Badge variant="outline" className="gap-1"><ShieldCheck className="h-3 w-3" />Privileged access is audited</Badge>
+                <p className="w-full text-xs text-amber-700 dark:text-amber-300">Suspension blocks new sign-ins. Existing access tokens may remain valid until their expiry; sensitive server actions must independently verify account status.</p>
               </div>
               <div className="relative">
                 <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
