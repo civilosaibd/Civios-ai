@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Grid, Line, OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
-import type { CadDocument, CadEntity, Point2D } from "@/lib/cad2d/geometry";\nimport { getWallOpeningIntervals, getWallVisibleSegments } from "@/lib/cad2d/wall-openings";
+import type { CadDocument, CadEntity, Point2D } from "@/lib/cad2d/geometry";
+import { getWallOpeningIntervals, getWallVisibleSegments } from "@/lib/cad2d/wall-openings";
 
 type MaterialThemeId = "modern" | "warm" | "glass" | "concrete";
 const MATERIAL_THEMES: Record<MaterialThemeId, { label: string; wall: string; column: string; frame: string; trim: string; roof: string; glass: string; ground: string }> = {
@@ -41,7 +42,6 @@ function Entity3D({ entity, color, factor, theme, entities }: { entity: CadEntit
     };
     const segments = getWallVisibleSegments(entity, entities);
     const openings = getWallOpeningIntervals(entity, entities);
-    const wallLength = Math.hypot(entity.end.x - entity.start.x, entity.end.y - entity.start.y);
     return <group>
       {segments.map((segment, index) => {
         const from = Math.hypot(segment.start.x - entity.start.x, segment.start.y - entity.start.y);
