@@ -37,13 +37,18 @@ BEGIN
   IF pay.id IS NULL THEN RAISE EXCEPTION 'Payment not found'; END IF;
   IF pay.status<>'pending' THEN RAISE EXCEPTION 'Payment is already %',pay.status; END IF;
   IF pay.plan_id IS NULL THEN RAISE EXCEPTION 'Payment has no plan'; END IF;
-  renewal:=CASE WHEN pay.billing_cycle='yearly' THEN now()+interval '1 year' ELSE now()+interval '1 month' END;
+  IF pay.billing_cycle <> 'yearly' THEN
+    RAISE EXCEPTION 'Legacy monthly payment: monthly billing was removed. Reject it and ask the user to resubmit a yearly payment.';
+  END IF;
+  renewal:=now()+interval '1 year';
   INSERT INTO public.subscriptions(user_id,plan_id,status,billing_cycle,start_date,renewal_date,cancelled_at,payment_provider)
   VALUES(pay.user_id,pay.plan_id,'active',pay.billing_cycle,now(),renewal,NULL,'manual')
   ON CONFLICT(user_id) DO UPDATE SET plan_id=EXCLUDED.plan_id,status='active',billing_cycle=EXCLUDED.billing_cycle,
     start_date=EXCLUDED.start_date,renewal_date=EXCLUDED.renewal_date,cancelled_at=NULL,payment_provider='manual'
   RETURNING id INTO sub_id;
   UPDATE public.payments SET status='verified',verified_at=now(),subscription_id=sub_id WHERE id=pay.id;
+  -- Preserve the canonical affiliate commission ledger hook from the yearly-only billing migration.
+  PERFORM public.record_referral_commission(pay.id);
   RETURN sub_id;
 END;
 $fn$;
