@@ -46,7 +46,7 @@ BEGIN
     'payments_failed', (SELECT count(*) FROM public.payments WHERE status = 'failed' AND updated_at >= _from AND updated_at < _to),
     'verified_payment_total_bdt', (SELECT coalesce(sum(amount),0) FROM public.payments WHERE status = 'verified' AND currency = 'BDT' AND verified_at >= _from AND verified_at < _to),
     'referrals_new', (SELECT count(*) FROM public.referrals WHERE created_at >= _from AND created_at < _to),
-    'referrals_converted', (SELECT count(*) FROM public.referrals WHERE status = 'converted' AND created_at >= _from AND created_at < _to),
+    'referrals_converted', (SELECT count(DISTINCT referred_user_id) FROM public.referral_commissions WHERE created_at >= _from AND created_at < _to),
     'commissions_approved_bdt', (SELECT coalesce(sum(commission_amount),0) FROM public.referral_commissions WHERE status = 'approved' AND created_at >= _from AND created_at < _to),
     'withdrawals_pending', (SELECT count(*) FROM public.withdrawals WHERE status IN ('pending','approved')),
     'withdrawals_paid_bdt', (SELECT coalesce(sum(amount),0) FROM public.withdrawals WHERE status = 'paid' AND paid_at >= _from AND paid_at < _to),
