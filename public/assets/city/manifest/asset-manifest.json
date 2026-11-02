@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "project": "CivilOS AI realistic aerial city",
-  "status": "expanded-source-catalog-with-blockout-only-rejections",
+  "status": "expanded-source-catalog-with-pack-level-prop-candidate",
   "coordinateSystem": {
     "unit": "meter",
     "verticalAxis": "Y",
@@ -451,6 +451,29 @@
       "format": "GLB",
       "sourceDownloadBytes": 13312,
       "notes": "8 x 8 m modular crossing tile. Layout/fit testing only; not approved as final photoreal road surface.",
+      "runtimePath": null
+    },
+    {
+      "id": "PROP-HIDDEN-ALLEY-CC0-PACK-01",
+      "name": "Hidden Alley Props — 39-model CC0 city-street pack",
+      "source": "https://hydethebooty98.itch.io/hidden-alley-props",
+      "creator": "HydeCo Games bundle of original Poly Haven community assets",
+      "license": "CC0 1.0 (source pack listing)",
+      "sourceStatus": "license-and-pack-contents-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "glTF models with 1K textures; Blender asset-browser file also included",
+      "sourceDownloadBytes": 186000000,
+      "notes": "Pack listing describes 39 photoreal city/alley props including street lamps, security cameras, roller-shutter doors, fire escape, utility boxes, trash cans, tyres, modular facades and fences. Select individual useful models only; covered car is not suitable for traffic. Inspect archive contents and each original Poly Haven asset record before runtime approval.",
+      "optimizationRequired": [
+        "download-and-verify-archive",
+        "inspect-contents-and-individual-source-credits",
+        "select-only-city-appropriate-props",
+        "inspect-mesh-materials-and-textures",
+        "verify-scale-axis-origin",
+        "generate-lods",
+        "compress-textures",
+        "record-per-asset-sha256"
+      ],
       "runtimePath": null
     }
   ],
