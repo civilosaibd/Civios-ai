@@ -16,7 +16,7 @@ GRANT SELECT, INSERT ON public.admin_dashboard_access_audit TO service_role;
 CREATE OR REPLACE FUNCTION public.admin_dashboard_metrics(_from timestamptz, _to timestamptz)
 RETURNS jsonb
 LANGUAGE plpgsql
-STABLE
+VOLATILE
 SECURITY DEFINER
 SET search_path = pg_catalog, public, pg_temp
 AS $$
