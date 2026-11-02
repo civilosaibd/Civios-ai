@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import {
   Loader2, Trash2, Star, Check, X, Crown, Users, FolderKanban, Building, MessageSquare,
-  Mail, Phone, Send, ExternalLink, Reply, Search, Eye, ShieldCheck, Activity, CreditCard,
+  Mail, Phone, Send, ExternalLink, Reply, Search, Eye, ShieldCheck, Activity, CreditCard, Wallet,
 } from "lucide-react";
 
 const WHATSAPP_NUMBER = "8801832313998";
@@ -206,6 +206,7 @@ ${replyText}
               <h1 className="font-heading text-2xl md:text-3xl font-bold">Admin Panel</h1>
               <p className="text-sm text-muted-foreground">Sponsors • Ratings • Users • Projects • Messages</p>
             </div>
+            <Button variant="outline" className="gap-2" onClick={() => navigate("/admin/affiliate")}><Wallet className="h-4 w-4" />Affiliate Management</Button>
             <Button variant="outline" className="gap-2" onClick={() => navigate("/admin/ai-usage")}><Activity className="h-4 w-4" />AI Usage</Button>
             <Button variant="outline" className="gap-2" onClick={() => navigate("/admin/billing")}><CreditCard className="h-4 w-4" />Billing</Button>
             {(newMsgCount > 0 || pendingSponsors > 0) && (
