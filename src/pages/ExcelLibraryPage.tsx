@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import JSZip from "jszip";
 import Navbar from "@/components/Navbar";
@@ -185,7 +185,7 @@ const ExcelLibraryPage = () => {
     if (candidates.length > MAX_BATCH_FILES) toast.warning(`একটি ব্যাচে সর্বোচ্চ ${MAX_BATCH_FILES}টি ফাইল নেওয়া হবে।`);
   };
 
-  const handleFolderDrop = async (event: React.DragEvent<HTMLElement>) => {
+  const handleFolderDrop = async (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
     setIsDragging(false);
     if (uploading || extracting) return;
