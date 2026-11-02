@@ -433,7 +433,8 @@ ${replyText}
                 <p className="font-semibold break-all">{userDetails.user?.email || "No email"} · {userDetails.user?.phone || "No phone"}</p>
                 <p className="text-xs text-muted-foreground break-all">ID: {userDetails.user?.id}</p>
                 <p className="text-xs text-muted-foreground">Created: {userDetails.user?.created_at ? new Date(userDetails.user.created_at).toLocaleString() : "—"} · Last sign in: {userDetails.user?.last_sign_in_at ? new Date(userDetails.user.last_sign_in_at).toLocaleString() : "Never"}</p>
-                <p className="text-xs text-muted-foreground">Email verified: {userDetails.user?.email_confirmed_at ? "Yes" : "No"} · Providers: {(userDetails.user?.providers || []).join(", ") || "—"}</p>
+                <p className="text-xs text-muted-foreground">Email verified: {userDetails.user?.email_confirmed_at ? "Yes" : "No"} · Account: {userDetails.user?.is_suspended ? "Suspended" : "Active"} · Providers: {(userDetails.user?.providers || []).join(", ") || "—"}</p>
+                {userDetails.user?.is_suspended && <p className="text-xs text-destructive">Suspended until: {userDetails.user?.banned_until ? new Date(userDetails.user.banned_until).toLocaleString() : "—"}</p>}
               </div>
               {!!userDetails.unavailable_tables?.length && <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200">Some data sources could not be loaded: {userDetails.unavailable_tables.join(", ")}. Empty results for these sources do not mean the user has no records.</div>}
               {Object.entries(userDetails.records || {}).map(([table, rows]: [string, any]) => (
