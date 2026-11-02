@@ -1750,6 +1750,11 @@ export type Database = {
     }
     Functions: {
       accept_project_invitation: { Args: { _token: string }; Returns: string }
+      admin_read_system_settings: { Args: never; Returns: Json }
+      admin_update_visualization_limits: {
+        Args: { _max_file_mb: number; _max_files: number }
+        Returns: Json
+      }
       approve_payment: { Args: { _payment_id: string }; Returns: string }
       available_commission_balance: {
         Args: { _user_id: string }
