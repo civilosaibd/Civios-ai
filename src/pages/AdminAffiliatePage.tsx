@@ -23,7 +23,7 @@ type Withdrawal = {
   requested_at: string; approved_at?: string | null; paid_at?: string | null; admin_note?: string | null;
   transaction_reference?: string | null;
 };
-type Payload = { affiliates: Affiliate[]; commissions: any[]; withdrawals: Withdrawal[]; totals: Record<string, number> };
+type Payload = { affiliates: Affiliate[]; commissions: any[]; withdrawals: Withdrawal[]; totals: Record<string, number>; can_manage?: boolean };
 
 const money = (value: number) => `৳${Number(value || 0).toLocaleString("en-BD", { maximumFractionDigits: 2 })}`;
 const date = (value?: string | null) => value ? new Date(value).toLocaleString() : "—";
@@ -32,6 +32,7 @@ export default function AdminAffiliatePage() {
   const { user } = useAuth();
   const nav = useNavigate();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [canManageAffiliate, setCanManageAffiliate] = useState(false);
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -51,22 +52,17 @@ export default function AdminAffiliatePage() {
       if (error) throw error;
       if (result?.error) throw new Error(result.error);
       setData(result as Payload);
+      setCanManageAffiliate(!!result.can_manage);
+      setIsAdmin(true);
     } catch (error: any) {
+      if (String(error?.message || "").toLowerCase().includes("permission required")) setIsAdmin(false);
       toast.error(error?.message || "Unable to load affiliate administration data.");
     } finally { setLoading(false); }
   }, [user]);
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      if (!user) { setIsAdmin(false); nav("/auth?redirect=/admin/affiliate"); return; }
-      const { data: allowed, error } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
-      if (!active) return;
-      if (error || allowed !== true) { setIsAdmin(false); toast.error("Admin only"); nav("/"); return; }
-      setIsAdmin(true);
-      await load();
-    })();
-    return () => { active = false; };
+    if (!user) { setIsAdmin(false); nav("/auth?redirect=/admin/affiliate"); return; }
+    void load();
   }, [user, nav, load]);
 
   const affiliates = useMemo(() => (data?.affiliates || []).filter((a) => {
@@ -129,7 +125,7 @@ export default function AdminAffiliatePage() {
       <div className="container max-w-7xl space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div><div className="flex items-center gap-2"><ShieldCheck className="h-6 w-6 text-primary"/><h1 className="text-2xl md:text-3xl font-bold">Affiliate Control Center</h1></div><p className="mt-1 text-sm text-muted-foreground">Affiliate profiles, tiered commissions and payout review. Privileged access is audit-logged.</p></div>
-          <div className="flex gap-2"><Button variant="outline" onClick={exportCsv} disabled={!data}><Download className="h-4 w-4 mr-2"/>Export CSV</Button><Button variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}/>Refresh</Button></div>
+          <div className="flex gap-2"><Button variant="outline" onClick={exportCsv} disabled={!data || !canManageAffiliate}><Download className="h-4 w-4 mr-2"/>Export CSV</Button><Button variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}/>Refresh</Button></div>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Card><CardContent className="pt-5"><Users className="h-5 w-5 text-primary mb-2"/><p className="text-xs text-muted-foreground">Affiliates</p><p className="text-2xl font-bold">{data?.totals.affiliates ?? "—"}</p></CardContent></Card>
@@ -154,12 +150,12 @@ export default function AdminAffiliatePage() {
           {filteredWithdrawals.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No withdrawal requests found.</p> :
             <div className="space-y-3">{filteredWithdrawals.map((w) => { const a = data?.affiliates.find((x) => x.user_id === w.user_id); return <div key={w.id} className="rounded-xl border p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
               <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{money(Number(w.amount))}</p><Badge variant="outline">{w.status}</Badge><Badge variant="secondary">{w.method}</Badge></div><p className="text-sm mt-1">{a?.name || "Affiliate"} · {a?.email || w.user_id}</p><p className="text-xs text-muted-foreground break-all">Payout account: {w.account_number} · Requested {date(w.requested_at)}</p>{w.transaction_reference && <p className="text-xs text-muted-foreground">Transaction: {w.transaction_reference}</p>}{w.admin_note && <p className="text-xs text-muted-foreground">Admin note: {w.admin_note}</p>}</div>
-              <div className="flex flex-wrap gap-2">{w.status === "pending" && <><Button size="sm" variant="outline" disabled={busy === w.id} onClick={() => { setReviewing(w); setNextStatus("approved"); }}>Approve</Button><Button size="sm" variant="destructive" disabled={busy === w.id} onClick={() => { setReviewing(w); setNextStatus("rejected"); }}>Reject</Button></>}{w.status === "approved" && <><Button size="sm" disabled={busy === w.id} onClick={() => { setReviewing(w); setNextStatus("paid"); }}>Mark Paid</Button><Button size="sm" variant="destructive" disabled={busy === w.id} onClick={() => { setReviewing(w); setNextStatus("rejected"); }}>Reject</Button></>}</div>
+              <div className="flex flex-wrap gap-2">{canManageAffiliate && w.status === "pending" && <><Button size="sm" variant="outline" disabled={busy === w.id} onClick={() => { setReviewing(w); setNextStatus("approved"); }}>Approve</Button><Button size="sm" variant="destructive" disabled={busy === w.id} onClick={() => { setReviewing(w); setNextStatus("rejected"); }}>Reject</Button></>}{canManageAffiliate && w.status === "approved" && <><Button size="sm" disabled={busy === w.id} onClick={() => { setReviewing(w); setNextStatus("paid"); }}>Mark Paid</Button><Button size="sm" variant="destructive" disabled={busy === w.id} onClick={() => { setReviewing(w); setNextStatus("rejected"); }}>Reject</Button></>}</div>
             </div>; })}</div>}
         </CardContent></Card>
 
         <Card><CardHeader><CardTitle>Commission Review</CardTitle><p className="text-xs text-muted-foreground">Flagged commissions are held until an administrator reviews them.</p></CardHeader><CardContent>
-          {(data?.commissions || []).filter((c) => c.status === "flagged").length === 0 ? <p className="text-sm text-muted-foreground py-5">No flagged commissions awaiting review.</p> : <div className="space-y-3">{(data?.commissions || []).filter((c) => c.status === "flagged").map((c) => <div key={c.id} className="rounded-lg border p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><p className="font-medium">{money(Number(c.commission_amount))} · {Math.round(Number(c.rate) * 100)}% commission</p><p className="text-xs text-muted-foreground">Referrer {c.referrer_id.slice(0, 8)} · referred user {c.referred_user_id.slice(0, 8)} · {date(c.created_at)}</p><p className="text-xs text-orange-600">{c.flag_reason || "Flagged for review"}</p></div><div className="flex gap-2"><Button size="sm" variant="outline" disabled={busy === c.id} onClick={() => void reviewCommission(c.id, true)}><Check className="h-4 w-4 mr-1"/>Approve</Button><Button size="sm" variant="destructive" disabled={busy === c.id} onClick={() => void reviewCommission(c.id, false)}><X className="h-4 w-4 mr-1"/>Reject</Button></div></div>)}</div>}
+          {(data?.commissions || []).filter((c) => c.status === "flagged").length === 0 ? <p className="text-sm text-muted-foreground py-5">No flagged commissions awaiting review.</p> : <div className="space-y-3">{(data?.commissions || []).filter((c) => c.status === "flagged").map((c) => <div key={c.id} className="rounded-lg border p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><p className="font-medium">{money(Number(c.commission_amount))} · {Math.round(Number(c.rate) * 100)}% commission</p><p className="text-xs text-muted-foreground">Referrer {c.referrer_id.slice(0, 8)} · referred user {c.referred_user_id.slice(0, 8)} · {date(c.created_at)}</p><p className="text-xs text-orange-600">{c.flag_reason || "Flagged for review"}</p></div>{canManageAffiliate && <div className="flex gap-2"><Button size="sm" variant="outline" disabled={busy === c.id} onClick={() => void reviewCommission(c.id, true)}><Check className="h-4 w-4 mr-1"/>Approve</Button><Button size="sm" variant="destructive" disabled={busy === c.id} onClick={() => void reviewCommission(c.id, false)}><X className="h-4 w-4 mr-1"/>Reject</Button></div>}</div></div>)}</div>}
         </CardContent></Card>
       </div>
     </main>
