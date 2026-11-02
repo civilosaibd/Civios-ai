@@ -132,7 +132,7 @@ export default function AdminBillingPage() {
                     <Button variant={kind === "payments" ? "default" : "outline"} onClick={() => switchKind("payments")}><CreditCard className="h-4 w-4 mr-2" />Payments</Button>
                     <Button variant={kind === "subscriptions" ? "default" : "outline"} onClick={() => switchKind("subscriptions")}><CalendarClock className="h-4 w-4 mr-2" />Subscriptions</Button>
                     <div className="flex-1" />
-                    <Button variant="outline" size="sm" onClick={exportCsv} disabled={!rows.length}><Download className="h-4 w-4 mr-1" />Export page CSV</Button>
+                    <Button variant="outline" size="sm" onClick={exportCsv} disabled={!rows.length || !canManageBilling}><Download className="h-4 w-4 mr-1" />Export page CSV</Button>
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-2">
