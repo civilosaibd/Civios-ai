@@ -61,7 +61,7 @@ BEGIN
   DELETE FROM public.admin_feature_permissions
     WHERE membership_id = _membership_id AND feature_key = 'users';
   INSERT INTO public.admin_feature_permissions(membership_id,feature_key,action,granted_by)
-    SELECT _membership_id,'users',action,actor FROM unnest(new_actions) AS action;
+    SELECT _membership_id,'users',permission_action,actor FROM unnest(new_actions) AS permissions(permission_action);
 
   FOREACH permission_item IN ARRAY old_actions LOOP
     IF NOT (permission_item = ANY(new_actions)) THEN
@@ -94,7 +94,7 @@ BEGIN
   IF actor IS NULL OR NOT public.is_super_admin() THEN
     RAISE EXCEPTION 'Super Admin access required' USING ERRCODE = '42501';
   END IF;
-  IF _status NOT IN ('active','suspended') THEN
+  IF _status IS NULL OR _status NOT IN ('active','suspended') THEN
     RAISE EXCEPTION 'Invalid sub-admin status' USING ERRCODE = '22023';
   END IF;
   SELECT * INTO target FROM public.admin_memberships WHERE id = _membership_id FOR UPDATE;
