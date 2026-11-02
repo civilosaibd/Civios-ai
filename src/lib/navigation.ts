@@ -26,7 +26,7 @@ export const topNav: NavLeaf[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Projects", url: "/projects", icon: FolderOpen },
   { title: "Calculation", url: "/calculation", icon: Calculator },
-  { title: "IndoCAD", url: "/indo-cad", icon: DraftingCompass },
+  { title: "IndoCAD", url: "/indo-cad", icon: DraftingCompass, adminOnly: true },
 ];
 
 /** Everything construction-related lives inside this single grouped section */
@@ -50,7 +50,6 @@ export const constructionTools: NavCategory[] = [
     items: [
       { title: "Floor Plan & 3D Design Studio", url: "/floor-plan-studio", icon: Box },
       { title: "Create Your Own Plan", url: "/plan-generator", icon: Building2 },
-      { title: "BIM Studio 3D", url: "/bim-studio", icon: Box },
       { title: "3D Construction Visualization", url: "/visualizations", icon: Box },
     ],
   },
