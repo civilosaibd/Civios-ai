@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
 
   if (body.action === "invite") {
     const email = String(body.email || "").trim().toLowerCase();
-    if (email.length < 5 || email.length > 320 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return reply({error:"Enter a valid email address"},400,origin);
+    if (email.length < 5 || email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return reply({error:"Enter a valid email address"},400,origin);
     const token = newToken(), tokenHash = await hashToken(token);
     const {data:invitation,error} = await caller.rpc("admin_create_invitation",{
       _email:email,_token_hash:tokenHash,_expires_at:new Date(Date.now()+7*24*60*60*1000).toISOString(),
