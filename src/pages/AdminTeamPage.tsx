@@ -61,7 +61,7 @@ export default function AdminTeamPage() {
     setBusy(null);
   };
   const updatePermissions=async(member:Member)=>{
-    const actions=permissionDraft[member.id]?.[featureKey] || [];
+    const actions=permissionDraft[member.id]?.users || [];
     setBusy(member.id);
     try { await call("set-permissions",{membershipId:member.id,featureKey:"users",permissions:actions}); toast.success("Users permissions updated."); await load(); }
     catch(e:any){toast.error(e.message);}
