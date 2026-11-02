@@ -31,6 +31,32 @@ const MIME_BY_EXTENSION: Record<string, string> = {
 };
 
 type UploadCandidate = { file: File; relativePath: string };
+type DroppedEntry = {
+  isFile: boolean;
+  isDirectory: boolean;
+  name: string;
+  file?: (success: (file: File) => void, failure?: (error: DOMException) => void) => void;
+  createReader?: () => { readEntries: (success: (entries: DroppedEntry[]) => void, failure?: (error: DOMException) => void) => void };
+};
+
+const readDroppedEntry = async (entry: DroppedEntry, parentPath = ""): Promise<UploadCandidate[]> => {
+  const relativePath = parentPath ? parentPath + "/" + entry.name : entry.name;
+  if (entry.isFile && entry.file) {
+    const file = await new Promise<File>((resolve, reject) => entry.file?.(resolve, reject));
+    return [{ file, relativePath }];
+  }
+  if (!entry.isDirectory || !entry.createReader) return [];
+  const reader = entry.createReader();
+  const children: DroppedEntry[] = [];
+  // DirectoryReader may return entries in chunks; keep reading until an empty batch.
+  while (true) {
+    const batch = await new Promise<DroppedEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
+    if (!batch.length) break;
+    children.push(...batch);
+  }
+  const nested = await Promise.all(children.map((child) => readDroppedEntry(child, relativePath)));
+  return nested.flat();
+};
 
 type LibraryFile = {
   id: string;
@@ -92,7 +118,7 @@ const ExcelLibraryPage = () => {
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<UploadCandidate[]>([]);
-  const [extracting, setExtracting] = useState(false);
+  const [extracting, setExtracting] = useState(false);\n  const [isDragging, setIsDragging] = useState(false);
   const [archiveReport, setArchiveReport] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0, failed: 0 });
@@ -157,6 +183,24 @@ const ExcelLibraryPage = () => {
       return [...current, ...valid.filter(({ file, relativePath }) => !known.has(relativePath + ":" + file.size + ":" + file.lastModified))].slice(0, MAX_BATCH_FILES);
     });
     if (candidates.length > MAX_BATCH_FILES) toast.warning(`একটি ব্যাচে সর্বোচ্চ ${MAX_BATCH_FILES}টি ফাইল নেওয়া হবে।`);
+  };
+
+  const handleFolderDrop = async (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    setIsDragging(false);
+    if (uploading || extracting) return;
+    const items = Array.from(event.dataTransfer.items);
+    const entries = items.map((item) => (item as DataTransferItem & { webkitGetAsEntry?: () => DroppedEntry | null }).webkitGetAsEntry?.()).filter((entry): entry is DroppedEntry => !!entry);
+    try {
+      const dropped = entries.length
+        ? (await Promise.all(entries.map((entry) => readDroppedEntry(entry)))).flat()
+        : Array.from(event.dataTransfer.files).map((file) => ({ file, relativePath: file.name }));
+      if (!dropped.length) toast.warning("ড্রপ করা ফোল্ডারে কোনো ফাইল পাওয়া যায়নি।");
+      else addCandidates(dropped);
+    } catch (error) {
+      console.error("Dropped folder could not be read", error);
+      toast.error("ফোল্ডারটি পড়া যায়নি। আবার ZIP অথবা Folder Upload ব্যবহার করুন।");
+    }
   };
 
   const chooseFiles = (list: FileList | null) => {
@@ -331,7 +375,7 @@ const ExcelLibraryPage = () => {
         </div>
 
         {isAdmin && (
-          <section className="space-y-4 rounded-2xl border bg-card p-4 shadow-sm md:p-6">
+          <section onDragOver={(event) => { event.preventDefault(); setIsDragging(true); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsDragging(false); }} onDrop={(event) => void handleFolderDrop(event)} className={"space-y-4 rounded-2xl border bg-card p-4 shadow-sm transition-colors md:p-6 " + (isDragging ? "border-primary border-dashed bg-primary/5" : "")}>
             <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /><h2 className="text-lg font-semibold">Admin · Bulk upload</h2></div>
             <p className="text-sm text-muted-foreground">একটি ZIP ফাইল অথবা সরাসরি Folder আপলোড করুন। প্রতিটি Excel ফাইল আলাদা entry হবে, folder path অক্ষুণ্ণ থাকবে এবং folder/file name দেখে category স্বয়ংক্রিয়ভাবে নির্ধারিত হবে। চাইলে Category override দিয়ে পুরো batch-এর category নির্দিষ্ট করতে পারবেন।</p>
             <div className="grid gap-3 md:grid-cols-2">
