@@ -25,7 +25,6 @@ export const FEATURES: { key: string; name: string; bn: string; url: string; pla
   { key: "cost_estimator", name: "Cost Estimator", bn: "খরচ হিসাব", url: "/upload", aliases: ["cost", "building estimate"] },
   { key: "rate_analysis", name: "Rate Analysis", bn: "রেট বিশ্লেষণ", url: "/rate-analysis", aliases: ["rate"] },
   { key: "plan_generator", name: "Create Your Own Plan", bn: "নিজের প্ল্যান", url: "/plan-generator", aliases: ["plan", "floor plan"] },
-  { key: "bim_studio", name: "BIM Studio 3D", bn: "বিআইএম স্টুডিও", url: "/bim-studio", aliases: ["bim", "bim studio", "3d"] },
   { key: "interior_studio", name: "Interior Studio", bn: "ইন্টেরিয়র স্টুডিও", url: "", aliases: ["interior"], status: "coming_soon" },
   { key: "site_geo", name: "Site Geo & Survey", bn: "সাইট ম্যাপ ও সার্ভে", url: "/site-geo", aliases: ["site geo", "map", "survey"] },
   { key: "scheduler", name: "Project Scheduler", bn: "প্রজেক্ট সময়সূচি", url: "/scheduler", aliases: ["scheduler", "schedule", "gantt"] },
