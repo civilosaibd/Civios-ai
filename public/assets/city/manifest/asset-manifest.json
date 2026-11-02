@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "project": "CivilOS AI realistic aerial city",
-  "status": "architecture-candidates-added-acquisition-pending",
+  "status": "residential-architecture-candidates-added-acquisition-pending",
   "coordinateSystem": {
     "unit": "meter",
     "verticalAxis": "Y",
@@ -321,24 +321,59 @@
         "test-glazing-overdraw"
       ],
       "runtimePath": null
+    },
+    {
+      "id": "BLD-RESIDENTIAL-TOWER-01",
+      "name": "Residential tower",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/residential-tower-ab650cbf",
+      "creator": "Innerscene contributor",
+      "license": "CC0",
+      "sourceStatus": "license-format-description-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 17200000,
+      "notes": "33.2 x 26.8 m plan, 86.9 m overall height; 25 apartment floors, staggered balconies, glazed ground floor and textured cladding. Exterior visualization only; visual fidelity and optimization require direct inspection.",
+      "optimizationRequired": [
+        "inspect-mesh-materials-and-textures",
+        "verify-scale-axis-origin",
+        "generate-lods",
+        "compress-textures",
+        "test-glazing-overdraw"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "BLD-APARTMENT-BLOCK-4F-01",
+      "name": "Four-storey apartment block",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/four-storey-apartment-block-331e1924",
+      "creator": "Innerscene contributor",
+      "license": "CC0",
+      "sourceStatus": "license-format-description-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 16800000,
+      "notes": "24.2 x 16.8 x 12.9 m; original unbranded textured GLB. Facade detail, material quality and mesh complexity need direct inspection.",
+      "optimizationRequired": [
+        "inspect-mesh-materials-and-textures",
+        "verify-scale-axis-origin",
+        "generate-lods",
+        "compress-textures"
+      ],
+      "runtimePath": null
     }
   ],
   "pendingFamilies": [
     "landmark-building",
-    "residential-buildings",
     "townhouses",
     "asphalt-pbr",
     "concrete-pbr",
     "facade-pbr",
     "daylight-environment",
     "traffic-lights-and-signage",
-    "street-furniture-benches-bins",
-    "landmark-building",
-    "residential-buildings",
-    "townhouses"
+    "street-furniture-benches-bins"
   ],
   "acquisitionGate": {
-    "note": "Source pages state CC0 and GLB availability; this is source-level screening only. No binary is marked acquired until downloaded, opened, inspected, optimized, hashed, and committed.",
+    "note": "CC0 and GLB claims are recorded from individual source pages. Source screening is not binary acquisition or visual approval. No runtime asset may be enabled until downloaded, inspected, optimized, SHA-256 recorded, and committed.",
     "requiredChecks": [
       "download-binary",
       "verify-license-at-download-time",
