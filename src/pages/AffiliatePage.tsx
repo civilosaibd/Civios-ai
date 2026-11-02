@@ -102,10 +102,8 @@ export default function AffiliatePage() {
 
   const recordShareAction = () => {
     if (!profile?.referral_code || !user?.id) return;
-    void supabase.rpc("track_referral_event", {
-      _referral_code: profile.referral_code,
-      _event_type: "share_action",
-      _event_id: crypto.randomUUID(),
+    void supabase.functions.invoke("track-referral-event", {
+      body: { referralCode: profile.referral_code, eventType: "share_action", eventId: crypto.randomUUID() },
     });
   };
 
