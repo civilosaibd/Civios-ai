@@ -146,6 +146,7 @@ export function mirrorEntity(entity: CadEntity, axisX: number): CadEntity {
     case "column":
     case "stair":
     case "balcony":
+      return { ...entity, at: mirror(entity.at), rotation: Math.PI - entity.rotation, railingSide: entity.railingSide === "x-min" ? "x-max" : entity.railingSide === "x-max" ? "x-min" : entity.railingSide };
     case "text":
       return { ...entity, at: mirror(entity.at), rotation: Math.PI - entity.rotation };
     case "dimension":
