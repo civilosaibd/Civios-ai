@@ -143,12 +143,19 @@ SET search_path = pg_catalog, public, pg_temp
 AS $$
 DECLARE
   caller uuid := auth.uid();
-  caller_email text := lower(trim(auth.jwt() ->> 'email'));
+  caller_email text;
+  caller_email_confirmed_at timestamptz;
   invitation public.admin_invitations%ROWTYPE;
   membership_id uuid;
 BEGIN
-  IF caller IS NULL OR caller_email IS NULL OR length(caller_email) = 0 THEN
+  IF caller IS NULL THEN
     RAISE EXCEPTION 'Sign in with the invited email address first' USING ERRCODE = '42501';
+  END IF;
+  SELECT lower(trim(email)), email_confirmed_at
+    INTO caller_email, caller_email_confirmed_at
+    FROM auth.users WHERE id = caller;
+  IF caller_email IS NULL OR length(caller_email) = 0 OR caller_email_confirmed_at IS NULL THEN
+    RAISE EXCEPTION 'A verified email address is required to accept an admin invitation' USING ERRCODE = '42501';
   END IF;
   IF _token_hash IS NULL OR _token_hash !~ '^[a-f0-9]{64} FROM public.admin_invitations
     WHERE token_hash = _token_hash FOR UPDATE;
