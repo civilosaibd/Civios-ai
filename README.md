@@ -44,6 +44,10 @@ An engineering workspace bringing civil-engineering workflows, project context, 
 
 Real interface screenshots are not fabricated. Add current, permission-safe captures to the repository before displaying them here.
 
+![CivilOS AI engineering workflow overview](public/readme/workflow-overview.svg)
+
+*Illustrative workflow concept — this graphic is not a screenshot of the live application.*
+
 | Screenshot | Recommended asset |
 |---|---|
 | Main dashboard | public/readme/dashboard.png |
