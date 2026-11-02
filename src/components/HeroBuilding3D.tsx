@@ -141,7 +141,7 @@ function ModernResidence({ motionEnabled }: { motionEnabled: boolean }) {
 
   const floors = [0.96, 2.38, 3.8, 5.22];
   return (
-    <group ref={root} rotation={[0, -0.35, 0]}>
+    <group rotation={[0, -0.35, 0]}>
       <GroundScene />
 
       {/* Lower stone-clad podium and recessed double-height entrance */}
@@ -339,7 +339,7 @@ function CityEnvironment() {
       />
       <directionalLight position={[-7, 6, -5]} intensity={1.1} color="#a8d6e6" />
       <pointLight position={[0, 3.8, 3.1]} intensity={18} distance={10} color="#ffd39a" />
-      <CityEnvironment />\n      <ModernResidence motionEnabled={motionEnabled} />
+      <CityEnvironment />\n      <ModernResidence />
       <ContactShadows position={[0, 0.22, 0]} opacity={0.34} scale={11} blur={2.8} far={5} />
       <OrbitControls
         target={[0, 0, 0]} enableDamping dampingFactor={0.055}
