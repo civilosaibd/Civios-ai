@@ -44,8 +44,8 @@ export default function IndoCADPage() {
             </div>
           </header>
 
-          <main className="min-h-0 flex-1 overflow-y-auto p-2 md:p-4">
-            <div className="mx-auto w-full max-w-[1800px]">
+          <main className="flex min-h-0 flex-1 overflow-hidden">
+            <div className="h-full min-h-0 w-full">
               <ProfessionalCadWorkspace key={storageKey} storageKey={storageKey} />
             </div>
           </main>
