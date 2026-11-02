@@ -123,3 +123,35 @@ test("Expired, mismatched and replayed invitations cannot activate access",async
   await other(()=>rejects(()=>db.query("SELECT public.admin_accept_invitation('cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc')"),/invalid, revoked, or expired/));
   await other(()=>rejects(()=>db.query("SELECT public.admin_accept_invitation('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')"),/invalid, revoked, or expired/));
 });
+
+
+test("Only Super Admin can create invitations; token hashes and audit rows are stored atomically",async()=>{
+  const hash="dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+  await sub(()=>rejects(()=>db.query("SELECT public.admin_create_invitation('new-admin@example.com',$1,now()+interval '7 days')",[hash]),/Super Admin access required/));
+  await admin(async()=>{
+    const result=await db.query("SELECT public.admin_create_invitation('new-admin@example.com',$1,now()+interval '7 days') AS invitation",[hash]);
+    assert.equal(result.rows[0].invitation.invited_email,"new-admin@example.com");
+    assert.equal(result.rows[0].invitation.status,"pending");
+  });
+  assert.equal((await q("SELECT count(*)::int n FROM public.admin_invitations WHERE token_hash=$1 AND status='pending'",[hash]))[0].n,1);
+  assert.equal((await q("SELECT count(*)::int n FROM public.admin_rbac_audit WHERE action='invite_created' AND metadata->>'invited_email'='new-admin@example.com'"))[0].n,1);
+});
+
+test("Invitation replacement and revocation are audited and replay-safe",async()=>{
+  const first="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+  const second="ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+  let id;
+  await admin(async()=>{
+    const created=await db.query("SELECT public.admin_create_invitation('replace@example.com',$1,now()+interval '7 days') AS invitation",[first]);
+    id=created.rows[0].invitation.id;
+    await db.query("SELECT public.admin_create_invitation('replace@example.com',$1,now()+interval '7 days')",[second]);
+  });
+  assert.equal((await q("SELECT status FROM public.admin_invitations WHERE id=$1",[id]))[0].status,"revoked");
+  assert.equal((await q("SELECT count(*)::int n FROM public.admin_rbac_audit WHERE action='invite_revoked' AND metadata->>'reason'='replaced_by_new_invitation'"))[0].n,1);
+  const [pending]=await q("SELECT id FROM public.admin_invitations WHERE token_hash=$1",[second]);
+  await admin(async()=>{
+    assert.equal((await db.query("SELECT public.admin_revoke_invitation($1) AS value",[pending.id])).rows[0].value,true);
+    await rejects(()=>db.query("SELECT public.admin_revoke_invitation($1)",[pending.id]),/Pending invitation not found/);
+  });
+  assert.equal((await q("SELECT status FROM public.admin_invitations WHERE id=$1",[pending.id]))[0].status,"revoked");
+});
