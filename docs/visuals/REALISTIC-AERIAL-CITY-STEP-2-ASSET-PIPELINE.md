@@ -51,7 +51,7 @@ The gate checks unique IDs, approved licenses, runtime path containment, file ex
 
 ## Three.js runtime compatibility
 
-CivilOS AI uses Three.js / React Three Fiber. GLB is the preferred delivery format. Three.js `GLTFLoader` supports glTF 2.0 features including Meshopt-compressed geometry and WebP textures, but an extension such as KTX2 or Draco may require the matching decoder/plugin configuration in the loader. Verify the actual extension set of each optimized asset before adding it to the runtime scene.
+CivilOS AI uses Three.js / React Three Fiber. GLB is the preferred delivery format. Three.js `GLTFLoader` supports `EXT_texture_webp` and `EXT_meshopt_compression`; Meshopt-compressed assets require `loader.setMeshoptDecoder(MeshoptDecoder)`, Draco requires a `DRACOLoader`, and KTX2 requires a configured `KTX2Loader`. The current preparation scripts deliberately disable geometry compression and preserve scene hierarchy until the homepage loader is explicitly configured and tested. WebP texture output remains enabled. Do not turn on Meshopt/Draco/KTX2 compression until the matching loader path is integrated and tested on the target browser.
 
 ## Performance and visual acceptance
 
