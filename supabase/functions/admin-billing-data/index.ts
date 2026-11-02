@@ -38,13 +38,20 @@ Deno.serve(async (req) => {
   if (authError || !auth.user) return json({ error: "Invalid session" }, 401, origin);
 
   const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: allowed, error: roleError } = await admin.rpc("has_role", {
-    _user_id: auth.user.id, _role: "admin",
-  });
-  if (roleError || allowed !== true) return json({ error: "Admin access required" }, 403, origin);
+  const [{ data: legacyAdmin }, { data: superAdmin }, { data: canViewBilling }, { data: canManageBilling }] = await Promise.all([
+    caller.rpc("has_role", { _user_id: auth.user.id, _role: "admin" }),
+    caller.rpc("is_super_admin"),
+    caller.rpc("has_admin_permission", { _feature_key: "billing", _action: "view" }),
+    caller.rpc("has_admin_permission", { _feature_key: "billing", _action: "manage" }),
+  ]);
+  const mayViewBilling = legacyAdmin === true || superAdmin === true || canViewBilling === true || canManageBilling === true;
+  const mayManageBilling = legacyAdmin === true || superAdmin === true || canManageBilling === true;
 
   let body: { action?: string; page?: number; pageSize?: number; status?: string; search?: string; paymentId?: string; decision?: string; note?: string; limit?: number };
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON body" }, 400, origin); }
+  if (body.action === "review-payment" ? !mayManageBilling : !mayViewBilling) {
+    return json({ error: body.action === "review-payment" ? "Billing: Manage permission required" : "Billing: View permission required" }, 403, origin);
+  }
 
   if (body.action === "review-payment") {
     if (!uuid(body.paymentId) || !["verify", "reject"].includes(String(body.decision))) {
