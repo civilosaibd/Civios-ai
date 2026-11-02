@@ -856,7 +856,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
         <Button size="sm" className="rounded-lg bg-orange-500 text-white hover:bg-orange-600" onClick={()=>exportFile("json")}><FileJson className="mr-1.5 h-4 w-4"/>Backup JSON</Button>
       </div>
     </div>
-    <div className="grid min-h-0 min-w-0 flex-1 gap-2 overflow-hidden md:grid-cols-[176px_minmax(0,1fr)] xl:grid-cols-[196px_minmax(0,1fr)_248px]">
+    <div className="grid min-h-0 min-w-0 flex-1 gap-2 overflow-y-auto md:grid-cols-[176px_minmax(0,1fr)] xl:grid-cols-[196px_minmax(0,1fr)_248px] xl:overflow-hidden">
       <aside className="hidden min-h-0 space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 md:block">{ToolPalette}</aside>
       <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5"><div className="flex items-center gap-2"><div className="rounded-md bg-orange-50 p-1.5 text-orange-600"><Ruler className="h-4 w-4"/></div><div><p className="text-xs font-semibold text-slate-800">Drawing canvas</p><p className="text-[10px] text-slate-500">Infinite-feel workspace · grid & precision controls</p></div></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-600">{doc.entities.length} objects</span></div>
@@ -868,7 +868,7 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
         </svg>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground"><span>Tool: {tool.toUpperCase()} · Objects: {doc.entities.length} · Selected: {selected.length} · Units: {doc.units}</span><span>Cursor: {cursor?cursor.x.toFixed(2)+", "+cursor.y.toFixed(2):"—"} · Wheel: zoom · Middle/right drag: pan</span></div>
       </div>
-      <aside className="hidden min-h-0 min-w-0 space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-sm xl:block">
+      <aside className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-white p-2 shadow-sm md:col-span-2 xl:col-span-1 xl:row-start-1 xl:max-h-full xl:overflow-y-auto">
         <CadSelectionInspector
           entities={doc.entities.filter((entity) => selected.includes(entity.id))}
           layers={doc.layers}
