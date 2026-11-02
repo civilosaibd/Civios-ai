@@ -248,11 +248,11 @@ export default function ProjectDetailPage() {
       let updated = 0;
       // Keep a map for this import so repeated type/title pairs in one archive update
       // the artifact created earlier in this same restore instead of duplicating it.
-      const artifactByKey = new Map(
-        artifacts.map((artifact) => [`${artifact.artifact_type}\\u0000${artifact.title}`, artifact] as const),
+      const artifactByKey = new Map<string, (typeof artifacts)[number]>(
+        artifacts.map((artifact) => [`${artifact.artifact_type}\u0000${artifact.title}`, artifact] as const),
       );
       for (const item of backup.artifacts) {
-        const key = `${item.artifact_type}\\u0000${item.title}`;
+        const key = `${item.artifact_type}\u0000${item.title}`;
         const existing = artifactByKey.get(key);
         const metadata = {
           ...(item.metadata || {}),

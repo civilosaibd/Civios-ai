@@ -373,7 +373,7 @@ ${replyText}
                 <div key={event.id} className="bg-card rounded-xl p-4 shadow-sm border flex items-start gap-3 flex-wrap">
                   <ShieldCheck className="h-4 w-4 mt-0.5 text-emerald-600 shrink-0" />
                   <div className="min-w-0 flex-1 space-y-1">
-                    <p className="text-sm font-medium">{event.action.replaceAll("_", " ")}</p>
+                    <p className="text-sm font-medium">{event.action.replace(/_/g, " ")}</p>
                     <p className="text-xs text-muted-foreground break-all">Admin: {event.admin_email || event.admin_user_id}</p>
                     <p className="text-xs text-muted-foreground break-all">Target: {event.target_email || event.target_user_id}</p>
                     <p className="text-[11px] text-muted-foreground">{new Date(event.accessed_at).toLocaleString()} · Event {event.id}</p>
@@ -416,7 +416,7 @@ ${replyText}
               {!!userDetails.unavailable_tables?.length && <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200">Some data sources could not be loaded: {userDetails.unavailable_tables.join(", ")}. Empty results for these sources do not mean the user has no records.</div>}
               {Object.entries(userDetails.records || {}).map(([table, rows]: [string, any]) => (
                 <section key={table} className="space-y-2">
-                  <div className="flex items-center justify-between"><h3 className="font-semibold capitalize">{table.replaceAll("_", " ")}</h3><Badge variant="secondary">{rows.length} records</Badge></div>
+                  <div className="flex items-center justify-between"><h3 className="font-semibold capitalize">{table.replace(/_/g, " ")}</h3><Badge variant="secondary">{rows.length} records</Badge></div>
                   {rows.length ? <pre className="text-[11px] leading-relaxed whitespace-pre-wrap break-all rounded-lg bg-muted/50 border p-3 max-h-48 overflow-auto">{JSON.stringify(rows, null, 2)}</pre> : <p className="text-xs text-muted-foreground">No records</p>}
                 </section>
               ))}

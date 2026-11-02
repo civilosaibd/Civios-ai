@@ -27,7 +27,7 @@ const SponsorPage = () => {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsed = schema.safeParse(form);
-    if (!parsed.success) return toast.error(parsed.error.errors[0].message);
+    if (!parsed.success) return toast.error(parsed.error.issues[0].message);
     setSubmitting(true);
     const payload: any = {
       ...parsed.data,
