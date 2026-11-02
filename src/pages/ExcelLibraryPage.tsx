@@ -22,6 +22,7 @@ const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const MAX_ARCHIVE_BYTES = 500 * 1024 * 1024;
 const MAX_EXTRACTED_BYTES = 500 * 1024 * 1024;
 const MAX_BATCH_FILES = 2000;
+const MAX_ARCHIVE_ENTRIES = 10000;
 const ALLOWED_EXTENSIONS = new Set(["xlsx", "xls", "xlsm"]);
 const MIME_BY_EXTENSION: Record<string, string> = {
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -153,6 +154,10 @@ const ExcelLibraryPage = () => {
     try {
       const zip = await JSZip.loadAsync(archive, { checkCRC32: false });
       const entries = Object.values(zip.files).filter((entry) => !entry.dir);
+      if (entries.length > MAX_ARCHIVE_ENTRIES) {
+        toast.error(`ZIP-এ সর্বোচ্চ ${MAX_ARCHIVE_ENTRIES.toLocaleString()}টি entry রাখা যাবে।`);
+        return;
+      }
       const candidates: UploadCandidate[] = [];
       let totalBytes = 0;
       let skipped = 0;
@@ -161,6 +166,9 @@ const ExcelLibraryPage = () => {
         if (normalized.startsWith("/") || normalized.split("/").some((part) => part === ".." || part === "__MACOSX" || part === ".DS_Store")) { skipped++; continue; }
         const filename = normalized.split("/").pop() || "";
         if (!ALLOWED_EXTENSIONS.has(getExtension(filename))) { skipped++; continue; }
+        // Check ZIP central-directory size metadata before decompression to reduce ZIP-bomb risk.
+        const declaredSize = Number((entry as typeof entry & { _data?: { uncompressedSize?: number } })._data?.uncompressedSize ?? 0);
+        if (declaredSize > MAX_FILE_BYTES || (declaredSize > 0 && totalBytes + declaredSize > MAX_EXTRACTED_BYTES)) { skipped++; continue; }
         const blob = await entry.async("blob");
         totalBytes += blob.size;
         if (blob.size <= 0 || blob.size > MAX_FILE_BYTES || totalBytes > MAX_EXTRACTED_BYTES) { skipped++; continue; }
