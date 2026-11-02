@@ -115,6 +115,7 @@ export function documentToSvg(doc: CadDocument): string {
     if (entity.type === "line" || entity.type === "wall") { touch(entity.start.x, entity.start.y); touch(entity.end.x, entity.end.y); }
     else if (entity.type === "circle" || entity.type === "arc") { touch(entity.center.x - entity.radius, entity.center.y - entity.radius); touch(entity.center.x + entity.radius, entity.center.y + entity.radius); }
     else if (entity.type === "polygon") polygonVertices(entity).forEach((p) => touch(p.x, p.y));
+    else if (entity.type === "stair") { const b=entityBounds(entity); touch(b.min.x,b.min.y); touch(b.max.x,b.max.y); }
     else if ("at" in entity && entity.at) touch(entity.at.x, entity.at.y);
     else if (entity.type === "dimension") { touch(entity.a.x, entity.a.y); touch(entity.b.x, entity.b.y); }
     else if (entity.type === "rectangle") { touch(entity.min.x, entity.min.y); touch(entity.max.x, entity.max.y); }
