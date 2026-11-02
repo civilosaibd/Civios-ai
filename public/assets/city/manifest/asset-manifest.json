@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "project": "CivilOS AI realistic aerial city",
-  "status": "source-catalog-expanded-acquisition-pending",
+  "status": "architecture-candidates-added-acquisition-pending",
   "coordinateSystem": {
     "unit": "meter",
     "verticalAxis": "Y",
@@ -282,20 +282,60 @@
         "compress-textures"
       ],
       "runtimePath": null
+    },
+    {
+      "id": "BLD-OFFICE-3STOREY-01",
+      "name": "Three-storey office building",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/three-storey-office-building-16b33ce5",
+      "creator": "Innerscene contributor",
+      "license": "CC0",
+      "sourceStatus": "license-format-and-description-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 13000000,
+      "notes": "30.196 x 20.936 x 11.595 m; textured real-world-scale commercial building. Visual fidelity, geometry and materials require direct inspection.",
+      "optimizationRequired": [
+        "inspect-mesh-materials-and-textures",
+        "verify-scale-axis-origin",
+        "generate-lods",
+        "compress-textures"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "BLD-MIXED-USE-HIGHRISE-01",
+      "name": "Mixed-use high-rise",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/mixed-use-high-rise-27a41221",
+      "creator": "Innerscene contributor",
+      "license": "CC0",
+      "sourceStatus": "license-format-and-description-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 23100000,
+      "notes": "56.2 x 42.3 m footprint, 134.6 m high; glass curtain wall, podium retail, balconies and roof terrace. Exterior visualization model; inspect mesh/material quality and optimize before runtime use.",
+      "optimizationRequired": [
+        "inspect-mesh-materials-and-textures",
+        "verify-scale-axis-origin",
+        "generate-lods",
+        "compress-textures",
+        "test-glazing-overdraw"
+      ],
+      "runtimePath": null
     }
   ],
   "pendingFamilies": [
     "landmark-building",
     "residential-buildings",
     "townhouses",
-    "commercial-buildings",
-    "skyline-buildings",
     "asphalt-pbr",
     "concrete-pbr",
     "facade-pbr",
     "daylight-environment",
     "traffic-lights-and-signage",
-    "street-furniture-benches-bins"
+    "street-furniture-benches-bins",
+    "landmark-building",
+    "residential-buildings",
+    "townhouses"
   ],
   "acquisitionGate": {
     "note": "Source pages state CC0 and GLB availability; this is source-level screening only. No binary is marked acquired until downloaded, opened, inspected, optimized, hashed, and committed.",
