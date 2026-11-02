@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Grid, Line, OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
-import type { CadDocument, CadEntity, Point2D } from "@/lib/cad2d/geometry";
+import { entityBounds as entityBoundsForPreview, type CadDocument, type CadEntity, type Point2D } from "@/lib/cad2d/geometry";
 import { getWallOpeningIntervals, getWallVisibleSegments } from "@/lib/cad2d/wall-openings";
 
 type MaterialThemeId = "modern" | "warm" | "glass" | "concrete";
@@ -57,6 +57,10 @@ function Entity3D({ entity, color, factor, theme, entities }: { entity: CadEntit
         </group>;
       })}
     </group>;
+  }
+  if (entity.type === "stair") {
+    const count=Math.max(3,Math.min(30,Math.round(entity.steps))), run=(entity.direction==="x"?entity.width:entity.depth)*factor, cross=(entity.direction==="x"?entity.depth:entity.width)*factor, tread=run/count, riser=entity.floorHeight/count;
+    return <group position={point3(entity.at,factor)} rotation={[0,-entity.rotation,0]}>{Array.from({length:count},(_,i)=>{const along=-run/2+(i+0.5)*tread, position:[number,number,number]=entity.direction==="x"?[along,(i+1)*riser/2,0]:[0,(i+1)*riser/2,-along], size:[number,number,number]=entity.direction==="x"?[tread,(i+1)*riser,cross]:[cross,(i+1)*riser,tread];return <mesh key={i} position={position} castShadow receiveShadow><boxGeometry args={size}/><meshStandardMaterial color={theme.column} roughness={0.78}/></mesh>;})}</group>;
   }
   if (entity.type === "column") {
     return <mesh position={point3(entity.at, factor, height / 2)} rotation={[0, -entity.rotation, 0]} castShadow receiveShadow>
@@ -165,6 +169,7 @@ export default function Cad3DPreview({ document, floorCount = 1 }: { document: C
       if (entity.type === "line" || entity.type === "wall") points.push(entity.start, entity.end);
       else if (entity.type === "polyline") points.push(...entity.points);
       else if (entity.type === "rectangle") points.push(entity.min, entity.max);
+      else if (entity.type === "stair") { const b=entityBoundsForPreview(entity); points.push(b.min,b.max); }
       else if (entity.type === "dimension") points.push(entity.a, entity.b);
       else if ("center" in entity) points.push(entity.center);
       else if ("at" in entity) points.push(entity.at);
