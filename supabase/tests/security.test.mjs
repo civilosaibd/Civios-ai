@@ -69,10 +69,6 @@ before(async () => {
   db = new PGlite({ extensions: { pgcrypto } });
   await db.exec(STUBS);
   for (const f of readdirSync(migDir).filter((f) => f.endsWith(".sql")).sort()) {
-    // The RBAC foundation promotes the pre-existing verified owner account.
-    // Seed that account immediately before the migration runs, after the
-    // profile-creation trigger has already been installed by earlier migrations.
-    // This mirrors Supabase Auth's confirmed-account bootstrap behavior.
     if (f === "20261030130000_super_admin_rbac_foundation.sql") {
       await db.exec(`INSERT INTO auth.users (id,email,email_confirmed_at)
         VALUES ('${ADMIN}','zobaerio24@gmail.com',now());`);
