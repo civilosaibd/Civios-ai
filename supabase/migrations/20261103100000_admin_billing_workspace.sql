@@ -28,7 +28,7 @@ RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, public, pg_temp
-AS $
+AS $billing$
 DECLARE
   pay public.payments%ROWTYPE;
   sub_id uuid;
@@ -56,14 +56,14 @@ BEGIN
   PERFORM public.record_referral_commission(pay.id);
   RETURN sub_id;
 END;
-$;
+$billing$;
 
 CREATE OR REPLACE FUNCTION public.reject_payment(_payment_id uuid, _note text DEFAULT NULL)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, public, pg_temp
-AS $
+AS $billing$
 BEGIN
   IF auth.uid() IS NULL OR NOT (
     public.has_role(auth.uid(), 'admin'::public.app_role)
@@ -75,7 +75,7 @@ BEGIN
    WHERE id=_payment_id AND status='pending';
   IF NOT FOUND THEN RAISE EXCEPTION 'Payment not found or not pending'; END IF;
 END;
-$;
+$billing$;
 
 CREATE OR REPLACE FUNCTION public.admin_process_payment(
   _payment_id uuid,
