@@ -599,8 +599,8 @@ test("SECURITY DEFINER authorization helpers pin their search_path", async () =>
 
 
 test("admin_ai_usage_summary: only admins can read monthly aggregate counters", async () => {
-  const period = (await q("SELECT to_char(now(),'YYYY-MM') AS period"))[0].period;
-  const previous = (await q("SELECT to_char((now() - interval '1 month'),'YYYY-MM') AS period"))[0].period;
+  const period = "2099-11";
+  const previous = "2099-10";
   await db.query(
     "INSERT INTO public.usage_records(user_id,period,ai_credits,projects,boq_generations,bbs_generations,drawings,reports,storage_mb) VALUES ($1,$2,12,2,3,4,5,6,7),($3,$2,8,1,2,1,0,1,3),($1,$4,99,99,99,99,99,99,99)",
     [ALICE,period,BOB,previous]
