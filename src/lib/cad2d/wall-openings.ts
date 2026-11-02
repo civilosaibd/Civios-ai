@@ -64,17 +64,27 @@ export function fitOpeningToNearestWall(
   return best;
 }
 
+export type WallOpeningInterval = { from: number; to: number; opening: Opening };
+
+/** Returns typed opening intervals along a wall centerline in drawing units. */
+export function getWallOpeningIntervals(wall: Wall, entities: CadEntity[]): WallOpeningInterval[] {
+  return entities
+    .filter((entity): entity is Opening => entity.type === "door" || entity.type === "window")
+    .map((opening) => {
+      const interval = isOpeningOnWall(wall, opening);
+      return interval ? { from: interval.from, to: interval.to, opening } : null;
+    })
+    .filter((interval): interval is WallOpeningInterval => interval !== null)
+    .sort((a, b) => a.from - b.from);
+}
+
 /** Returns wall centerline pieces after subtracting all aligned door/window openings. */
 export function getWallVisibleSegments(wall: Wall, entities: CadEntity[]): WallSegment[] {
   const length = distance(wall.start, wall.end);
   if (length <= 1e-9) return [];
   const ux = (wall.end.x - wall.start.x) / length;
   const uy = (wall.end.y - wall.start.y) / length;
-  const intervals = entities
-    .filter((entity): entity is Opening => entity.type === "door" || entity.type === "window")
-    .map((opening) => isOpeningOnWall(wall, opening))
-    .filter((interval): interval is NonNullable<typeof interval> => interval !== null)
-    .sort((a, b) => a.from - b.from);
+  const intervals = getWallOpeningIntervals(wall, entities);
 
   if (!intervals.length) return [{ start: { ...wall.start }, end: { ...wall.end } }];
   const merged: Array<{ from: number; to: number }> = [];

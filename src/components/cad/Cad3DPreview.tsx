@@ -3,6 +3,7 @@ import { Canvas } from "@react-three/fiber";
 import { Grid, Line, OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
 import type { CadDocument, CadEntity, Point2D } from "@/lib/cad2d/geometry";
+import { getWallOpeningIntervals, getWallVisibleSegments } from "@/lib/cad2d/wall-openings";
 
 type MaterialThemeId = "modern" | "warm" | "glass" | "concrete";
 const MATERIAL_THEMES: Record<MaterialThemeId, { label: string; wall: string; column: string; frame: string; trim: string; roof: string; glass: string; ground: string }> = {
@@ -16,18 +17,46 @@ const unitToMetres: Record<CadDocument["units"], number> = { mm: 0.001, cm: 0.01
 const DEFAULT_WALL_HEIGHT = 3;
 const point3 = (p: Point2D, factor: number, y = 0): [number, number, number] => [p.x * factor, y, -p.y * factor];
 
-function Entity3D({ entity, color, factor, theme }: { entity: CadEntity; color: string; factor: number; theme: typeof MATERIAL_THEMES[MaterialThemeId] }) {
+function Entity3D({ entity, color, factor, theme, entities }: { entity: CadEntity; color: string; factor: number; theme: typeof MATERIAL_THEMES[MaterialThemeId]; entities: CadEntity[] }) {
   const height = DEFAULT_WALL_HEIGHT;
   if (entity.type === "wall") {
     const dx = (entity.end.x - entity.start.x) * factor;
     const dy = (entity.end.y - entity.start.y) * factor;
     const length = Math.hypot(dx, dy);
     if (length < 0.001) return null;
-    const center: [number, number, number] = [(entity.start.x + entity.end.x) * factor / 2, height / 2, -(entity.start.y + entity.end.y) * factor / 2];
-    return <mesh position={center} rotation={[0, Math.atan2(dy, dx), 0]} castShadow receiveShadow>
-      <boxGeometry args={[length, height, Math.max(0.04, entity.thickness * factor)]} />
-      <meshStandardMaterial color={theme.wall} roughness={0.82} />
-    </mesh>;
+    const rotation = Math.atan2(dy, dx);
+    const thickness = Math.max(0.04, entity.thickness * factor);
+    const wallMesh = (from: number, to: number, bottom: number, top: number, key: string) => {
+      const segmentLength = (to - from) * factor;
+      if (segmentLength < 0.001 || top <= bottom) return null;
+      const centerDistance = (from + to) / 2;
+      const center: [number, number, number] = [
+        (entity.start.x + (entity.end.x - entity.start.x) * centerDistance / Math.max(length / factor, 1e-9)) * factor,
+        (bottom + top) / 2,
+        -(entity.start.y + (entity.end.y - entity.start.y) * centerDistance / Math.max(length / factor, 1e-9)) * factor,
+      ];
+      return <mesh key={key} position={center} rotation={[0, rotation, 0]} castShadow receiveShadow>
+        <boxGeometry args={[segmentLength, top - bottom, thickness]} />
+        <meshStandardMaterial color={theme.wall} roughness={0.82} />
+      </mesh>;
+    };
+    const segments = getWallVisibleSegments(entity, entities);
+    const openings = getWallOpeningIntervals(entity, entities);
+    return <group>
+      {segments.map((segment, index) => {
+        const from = Math.hypot(segment.start.x - entity.start.x, segment.start.y - entity.start.y);
+        const to = Math.hypot(segment.end.x - entity.start.x, segment.end.y - entity.start.y);
+        return wallMesh(from, to, 0, height, `wall-${entity.id}-solid-${index}`);
+      })}
+      {openings.filter(({ opening }) => opening.type === "window").map(({ from, to, opening }, index) => {
+        const sillHeight = Math.min(0.8, height * 0.3);
+        const headHeight = Math.min(2.0, height * 0.72);
+        return <group key={`wall-${entity.id}-window-${opening.id}-${index}`}>
+          {wallMesh(from, to, 0, sillHeight, `wall-${entity.id}-window-sill-${index}`)}
+          {wallMesh(from, to, headHeight, height, `wall-${entity.id}-window-head-${index}`)}
+        </group>;
+      })}
+    </group>;
   }
   if (entity.type === "column") {
     return <mesh position={point3(entity.at, factor, height / 2)} rotation={[0, -entity.rotation, 0]} castShadow receiveShadow>
@@ -165,7 +194,7 @@ export default function Cad3DPreview({ document, floorCount = 1 }: { document: C
         <Grid position={[center[0], -0.065, center[2]]} args={[width + radius * 1.5, depth + radius * 1.5]} cellSize={1} sectionSize={5} fadeDistance={radius * 4} infiniteGrid={false} />
         {Array.from({ length: levels }, (_, level) => <group key={`floor-${level}`} position={[0, level * 3.2, 0]}>
           {level > 0 && <mesh position={[center[0], -0.025, center[2]]} receiveShadow><boxGeometry args={[width, 0.12, depth]} /><meshStandardMaterial color="#cbd5e1" roughness={0.85} /></mesh>}
-          {visibleEntities.filter((entity) => level === 0 || (entity.type !== "text" && entity.type !== "dimension")).map((entity) => <Entity3D key={`${level}-${entity.id}`} entity={entity} factor={factor} color={document.layers.find((layer) => layer.id === entity.layerId)?.color ?? "#64748b"} theme={theme} />)}
+          {visibleEntities.filter((entity) => level === 0 || (entity.type !== "text" && entity.type !== "dimension")).map((entity) => <Entity3D key={`${level}-${entity.id}`} entity={entity} factor={factor} color={document.layers.find((layer) => layer.id === entity.layerId)?.color ?? "#64748b"} theme={theme} entities={visibleEntities} />)}
           {/* Continuous horizontal facade bands make each storey legible in the massing view. */}
           <mesh position={[center[0], 3.02, bounds.minZ - 0.045]} castShadow><boxGeometry args={[width + 0.18, 0.12, 0.18]} /><meshStandardMaterial color="#d6dde6" roughness={0.58} /></mesh>
           <mesh position={[center[0], 3.02, bounds.maxZ + 0.045]} castShadow><boxGeometry args={[width + 0.18, 0.12, 0.18]} /><meshStandardMaterial color="#d6dde6" roughness={0.58} /></mesh>
@@ -201,12 +230,6 @@ export default function Cad3DPreview({ document, floorCount = 1 }: { document: C
       </group>
       <OrbitControls makeDefault target={[0, modelHeight / 2, 0]} enableDamping dampingFactor={0.1} minDistance={2} maxDistance={radius * 16} />
     </Canvas>
-    <div className="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-white/70 bg-white/90 px-3 py-2 shadow-md backdrop-blur">
-      <label htmlFor="indocad-material-theme" className="text-[11px] font-medium text-slate-600">Exterior finish</label>
-      <select id="indocad-material-theme" value={themeId} onChange={(event) => setThemeId(event.target.value as MaterialThemeId)} className="max-w-[145px] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-blue-500">
-        {Object.entries(MATERIAL_THEMES).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}
-      </select>
-    </div>
     <div className="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-white/70 bg-white/90 px-3 py-2 shadow-md backdrop-blur">
       <label htmlFor="indocad-material-theme" className="text-[11px] font-medium text-slate-600">Exterior finish</label>
       <select id="indocad-material-theme" value={themeId} onChange={(event) => setThemeId(event.target.value as MaterialThemeId)} className="max-w-[145px] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-blue-500">
