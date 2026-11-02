@@ -917,8 +917,8 @@ export default function ProfessionalCadWorkspace({ storageKey = "civilos-cad-doc
       <div className="flex flex-wrap items-center gap-2 border-t border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] text-slate-400 md:px-4"><span className="inline-flex items-center gap-1.5"><Command className="h-3.5 w-3.5"/>Shortcuts: L line · C circle · R rectangle · P polyline · S select · E erase</span><span className="hidden text-slate-600 sm:inline">•</span><span className="inline-flex items-center gap-1.5"><Hand className="h-3.5 w-3.5"/>Wheel zoom · middle/right drag pan</span></div>
     </div>
     <AutoPlanGenerator units={doc.units} onGenerate={(generated, floors) => {
-      setBuildingFloors(floors);
       if (doc.entities.length > 0 && !window.confirm("Generate a new AI floor plan and replace the current drawing? Export a JSON backup first if needed.")) return;
+      setBuildingFloors(floors);
       commit(generated);
       setLayerName(generated.layers[0]?.name ?? "AI Generated Walls");
       setSelected([]); setStart(null); setPolylinePoints([]); setModifyTargetId(null); setFurnitureKind(null);
