@@ -33,6 +33,7 @@ export default function AdminBillingPage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [canManageBilling, setCanManageBilling] = useState(false);
   const [kind, setKind] = useState<Kind>("payments");
   const [rows, setRows] = useState<Row[]>([]);
   const [page, setPage] = useState(1);
@@ -52,12 +53,12 @@ export default function AdminBillingPage() {
       body: { action: "list", kind: nextKind, page: nextPage, status: nextStatus, search: nextSearch },
     });
     if (error || data?.error) {
-      if (data?.error?.includes("Admin access")) setIsAdmin(false);
+      if (data?.error?.includes("permission required") || data?.error?.includes("Admin access")) setIsAdmin(false);
       else toast.error(data?.error || "Unable to load billing records. Check the admin-billing-data Edge Function deployment.");
-      setRows([]); setTotal(0); setHasMore(false);
+      setRows([]); setTotal(0); setHasMore(false); setCanManageBilling(false);
     } else {
       setIsAdmin(true);
-      setRows(data?.rows || []); setTotal(data?.total || 0); setHasMore(!!data?.has_more); setPage(nextPage);
+      setRows(data?.rows || []); setTotal(data?.total || 0); setHasMore(!!data?.has_more); setPage(nextPage); setCanManageBilling(!!data?.can_manage);
     }
     setLoading(false);
   }, [kind, status, search]);
@@ -147,7 +148,7 @@ export default function AdminBillingPage() {
                   <div className="rounded-xl border bg-card overflow-hidden">
                     <div className="p-4 border-b flex items-center justify-between gap-2">
                       <div><h2 className="font-semibold">{kind === "payments" ? "Payment records" : "Subscription records"}</h2><p className="text-xs text-muted-foreground">Server-side search and pagination · 25 records per page</p></div>
-                      <Badge variant="outline">{total.toLocaleString()} total</Badge>
+                      <div className="flex items-center gap-2"><Badge variant="outline">{total.toLocaleString()} total</Badge>{!canManageBilling && <Badge variant="secondary">Read only</Badge>}</div>
                     </div>
                     {loading ? <div className="p-4 space-y-3"><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /></div>
                       : rows.length === 0 ? <div className="p-10 text-center text-sm text-muted-foreground"><Receipt className="h-8 w-8 mx-auto mb-2 opacity-40" />No records found.</div>
@@ -175,7 +176,7 @@ export default function AdminBillingPage() {
                             )}
                             <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Record identifiers</summary><p className="mt-1 break-all">Record: {row.id}<br />User: {row.user_id}{row.subscription_id ? <><br />Subscription: {row.subscription_id}</> : null}</p></details>
                           </div>
-                          {kind === "payments" && row.status === "pending" && (
+                          {canManageBilling && kind === "payments" && row.status === "pending" && (
                             <div className="flex shrink-0 gap-2">
                               <Button size="sm" disabled={busy === row.id || row.billing_cycle !== "yearly"} title={row.billing_cycle !== "yearly" ? "Legacy monthly payment cannot be approved" : undefined} onClick={() => void review(row, "verified")}><Check className="h-3.5 w-3.5 mr-1" />Verify</Button>
                               <Button size="sm" variant="outline" disabled={busy === row.id} onClick={() => void review(row, "failed")}><X className="h-3.5 w-3.5 mr-1" />Reject</Button>
