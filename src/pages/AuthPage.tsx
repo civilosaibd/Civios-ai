@@ -28,6 +28,25 @@ const AuthPage = () => {
   const [loading, setLoading] = useState(false);
   const [verificationPending, setVerificationPending] = useState<string | null>(null);
 
+  // Record one referral-link landing per browser session and referral code.
+  // This measures in-product link visits, not verified human reach or external shares.
+  const referralCode = params.get("ref")?.trim() || "";
+  useEffect(() => {
+    if (!referralCode || !/^[A-Z0-9-]{4,32}$/i.test(referralCode)) return;
+    const storageKey = `civilos.referral.click.${referralCode.toUpperCase()}`;
+    let eventId = sessionStorage.getItem(storageKey);
+    if (!eventId) {
+      eventId = crypto.randomUUID();
+      sessionStorage.setItem(storageKey, eventId);
+    }
+    void supabase.rpc("track_referral_event", {
+      _referral_code: referralCode,
+      _event_type: "link_click",
+      _event_id: eventId,
+    });
+  }, [referralCode]);
+
+
   // Supabase normally restores the OAuth session automatically. On custom domains,
   // explicitly complete a pending PKCE callback if the automatic URL handler did
   // not restore a session, then leave /auth instead of showing the auth form again.
