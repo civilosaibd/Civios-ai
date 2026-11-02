@@ -20,6 +20,7 @@ export type CadEntity =
   | (BaseEntity & { type: "door"; at: Point2D; width: number; rotation: number; swing: "left" | "right" })
   | (BaseEntity & { type: "window"; at: Point2D; width: number; rotation: number })
   | (BaseEntity & { type: "column"; at: Point2D; width: number; depth: number; rotation: number })
+  | (BaseEntity & { type: "stair"; at: Point2D; width: number; depth: number; rotation: number; steps: number; floorHeight: number; direction: "x" | "y" })
   | (BaseEntity & { type: "text"; at: Point2D; text: string; height: number; rotation: number })
   | (BaseEntity & { type: "dimension"; a: Point2D; b: Point2D; offset: number });
 
@@ -93,7 +94,7 @@ export function translateEntity(entity: CadEntity, dx: number, dy: number): CadE
     case "polyline": return { ...entity, points: entity.points.map(move) };
     case "rectangle": return { ...entity, min: move(entity.min), max: move(entity.max) };
     case "circle": case "arc": case "ellipse": case "polygon": return { ...entity, center: move(entity.center) };
-    case "door": case "window": case "column": case "text": return { ...entity, at: move(entity.at) };
+    case "door": case "window": case "column": case "stair": case "text": return { ...entity, at: move(entity.at) };
     case "dimension": return { ...entity, a: move(entity.a), b: move(entity.b) };
   }
 }
@@ -114,7 +115,7 @@ export function rotateEntity(entity: CadEntity, angleRadians: number, origin: Po
     case "circle": case "ellipse": return { ...entity, center: rotate(entity.center) };
     case "arc": return { ...entity, center: rotate(entity.center), startAngle: entity.startAngle + angleRadians, endAngle: entity.endAngle + angleRadians };
     case "polygon": return { ...entity, center: rotate(entity.center), rotation: entity.rotation + angleRadians };
-    case "door": case "window": case "column": case "text": return { ...entity, at: rotate(entity.at), rotation: entity.rotation + angleRadians };
+    case "door": case "window": case "column": case "stair": case "text": return { ...entity, at: rotate(entity.at), rotation: entity.rotation + angleRadians };
     case "dimension": return { ...entity, a: rotate(entity.a), b: rotate(entity.b) };
   }
 }
@@ -142,6 +143,7 @@ export function mirrorEntity(entity: CadEntity, axisX: number): CadEntity {
       return { ...entity, at: mirror(entity.at), rotation: Math.PI - entity.rotation, swing: entity.swing === "left" ? "right" : "left" };
     case "window":
     case "column":
+    case "stair":
     case "text":
       return { ...entity, at: mirror(entity.at), rotation: Math.PI - entity.rotation };
     case "dimension":
@@ -196,7 +198,7 @@ export function offsetEntity(entity: CadEntity, amount: number): CadEntity {
     if (width <= 0 || depth <= 0) throw new Error("Offset is larger than the column.");
     return { ...entity, width, depth };
   }
-  if (entity.type === "door" || entity.type === "window" || entity.type === "text" || entity.type === "dimension") {
+  if (entity.type === "door" || entity.type === "window" || entity.type === "stair" || entity.type === "text" || entity.type === "dimension") {
     throw new Error(`Cannot offset a ${entity.type}.`);
   }
   if (entity.points.length < 2) throw new Error("Polyline needs at least two vertices.");
@@ -307,6 +309,7 @@ export function scaleEntity(entity: CadEntity, factor: number, origin: Point2D =
     case "polygon": return { ...entity, center: scale(entity.center), radius: entity.radius * factor };
     case "door": case "window": return { ...entity, at: scale(entity.at), width: entity.width * factor };
     case "column": return { ...entity, at: scale(entity.at), width: entity.width * factor, depth: entity.depth * factor };
+    case "stair": return { ...entity, at: scale(entity.at), width: entity.width * factor, depth: entity.depth * factor, floorHeight: entity.floorHeight * factor };
     case "text": return { ...entity, at: scale(entity.at), height: entity.height * factor };
     case "dimension": return { ...entity, a: scale(entity.a), b: scale(entity.b), offset: entity.offset * factor };
   }
@@ -371,9 +374,10 @@ export function entityBounds(entity: CadEntity): { min: Point2D; max: Point2D } 
     const dy = Math.sin(entity.rotation) * entity.width / 2;
     return { min: { x: entity.at.x - Math.abs(dx), y: entity.at.y - Math.abs(dy) }, max: { x: entity.at.x + Math.abs(dx), y: entity.at.y + Math.abs(dy) } };
   }
-  if (entity.type === "column") {
-    const hx = entity.width / 2, hy = entity.depth / 2;
-    return { min: { x: entity.at.x - hx, y: entity.at.y - hy }, max: { x: entity.at.x + hx, y: entity.at.y + hy } };
+  if (entity.type === "column" || entity.type === "stair") {
+    const hx = entity.width / 2, hy = entity.depth / 2, c = Math.cos(entity.rotation), s = Math.sin(entity.rotation);
+    const pts = [[-hx,-hy],[hx,-hy],[hx,hy],[-hx,hy]].map(([x,y]) => ({x:entity.at.x+x*c-y*s,y:entity.at.y+x*s+y*c}));
+    return pts.reduce((b,p)=>({min:{x:Math.min(b.min.x,p.x),y:Math.min(b.min.y,p.y)},max:{x:Math.max(b.max.x,p.x),y:Math.max(b.max.y,p.y)}}),{min:{...pts[0]},max:{...pts[0]}});
   }
   if (entity.type === "text") {
     return { min: { ...entity.at }, max: { x: entity.at.x + entity.text.length * entity.height * 0.6, y: entity.at.y + entity.height } };
