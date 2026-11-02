@@ -55,6 +55,25 @@ const safeFileName = (name: string) =>
   name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(-120) || "workbook";
 
 const getExtension = (name: string) => name.split(".").pop()?.toLowerCase() || "";
+const CATEGORY_RULES: Array<{ category: string; pattern: RegExp }> = [
+  { category: "BBS & Reinforcement", pattern: /\b(bbs|bar bending|bar schedule|rebar|reinforcement|steel schedule)\b/i },
+  { category: "BOQ & Quantity Survey", pattern: /\b(boq|quantity survey|quantity take.?off|takeoff|measurement sheet)\b/i },
+  { category: "Estimation & Costing", pattern: /\b(estimate|estimation|rate analysis|costing|cost estimate|budget)\b/i },
+  { category: "Structural Design", pattern: /\b(structural|beam|column|slab|footing|foundation|rcc|concrete design)\b/i },
+  { category: "Survey & Geotechnical", pattern: /\b(survey|total station|leveling|levelling|soil|geotech|contour)\b/i },
+  { category: "Planning & Scheduling", pattern: /\b(schedule|gantt|planning|project plan|work plan)\b/i },
+  { category: "AutoCAD & Drafting", pattern: /\b(autocad|cad|drawing|drafting|dxf|dwg)\b/i },
+  { category: "Plumbing & Electrical", pattern: /\b(plumbing|pipe|sanitary|electrical|wiring|mep)\b/i },
+  { category: "QA/QC & Site Management", pattern: /\b(qa|qc|quality|checklist|site report|inspection|pour card)\b/i },
+  { category: "Architecture & Floor Plans", pattern: /\b(architecture|architectural|floor plan|room schedule|space planning)\b/i },
+];
+
+const inferCategory = (relativePath: string, filename: string, manualCategory: string) => {
+  if (manualCategory.trim()) return manualCategory.trim();
+  const searchable = (relativePath + " " + filename).replace(/[_./-]+/g, " ");
+  return CATEGORY_RULES.find(({ pattern }) => pattern.test(searchable))?.category || "Uncategorized";
+};
+
 
 const ExcelLibraryPage = () => {
   const { user, loading: authLoading } = useAuth();
@@ -78,6 +97,10 @@ const ExcelLibraryPage = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0, failed: 0 });
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<LibraryFile | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewSheets, setPreviewSheets] = useState<Array<{ name: string; rows: string[][] }>>([]);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth?redirect=" + encodeURIComponent(window.location.pathname));
@@ -210,7 +233,7 @@ const ExcelLibraryPage = () => {
           const folderPath = relativePath.includes("/") ? relativePath.slice(0, relativePath.lastIndexOf("/")) : null;
           const { error: insertError } = await supabase.from("excel_library_files").insert({
             title: file.name.replace(/\.[^.]+$/, ""), description: description.trim() || null,
-            category: category.trim() || null, original_filename: file.name, folder_path: folderPath,
+            category: inferCategory(relativePath, file.name, category), original_filename: file.name, folder_path: folderPath || null,
             storage_path: path, size_bytes: file.size, mime_type: mimeType, uploaded_by: user.id,
           });
           if (insertError) throw insertError;
@@ -241,6 +264,32 @@ const ExcelLibraryPage = () => {
     if (error || !data?.signedUrl) toast.error("ডাউনলোড লিংক তৈরি করা যায়নি। আবার চেষ্টা করুন।");
     else window.location.assign(data.signedUrl);
     setBusyId(null);
+  };
+
+  const previewWorkbook = async (file: LibraryFile) => {
+    setPreviewFile(file);
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewSheets([]);
+    try {
+      const { data, error } = await supabase.storage.from(BUCKET).download(file.storage_path);
+      if (error || !data) throw error || new Error("Workbook could not be downloaded for preview.");
+      const XLSX = await import("xlsx");
+      const workbook = XLSX.read(await data.arrayBuffer(), { type: "array", cellDates: true, bookVBA: false });
+      const sheets = workbook.SheetNames.map((name) => {
+        const sheet = workbook.Sheets[name];
+        const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: "", blankrows: false })
+          .slice(0, 50)
+          .map((row) => row.slice(0, 12).map((cell) => String(cell ?? "")));
+        return { name, rows };
+      });
+      setPreviewSheets(sheets);
+    } catch (error) {
+      console.error("Excel workbook preview failed", error);
+      setPreviewError("এই ফাইলটির Preview তৈরি করা যায়নি। ফাইলটি Download করে Excel বা compatible spreadsheet app-এ খুলুন।");
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
   const deleteFile = async (file: LibraryFile) => {
@@ -284,9 +333,9 @@ const ExcelLibraryPage = () => {
         {isAdmin && (
           <section className="space-y-4 rounded-2xl border bg-card p-4 shadow-sm md:p-6">
             <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /><h2 className="text-lg font-semibold">Admin · Bulk upload</h2></div>
-            <p className="text-sm text-muted-foreground">একটি ZIP ফাইল অথবা সরাসরি Unzipped Folder আপলোড করুন। ZIP-এর ভেতরের Excel ফাইলগুলো স্বয়ংক্রিয়ভাবে আলাদা হবে। প্রতিটি ফাইল আলাদাভাবে সংরক্ষিত হবে; প্রতি ফাইল সর্বোচ্চ 50 MB।</p>
+            <p className="text-sm text-muted-foreground">একটি ZIP ফাইল অথবা সরাসরি Folder আপলোড করুন। প্রতিটি Excel ফাইল আলাদা entry হবে, folder path অক্ষুণ্ণ থাকবে এবং folder/file name দেখে category স্বয়ংক্রিয়ভাবে নির্ধারিত হবে। চাইলে Category override দিয়ে পুরো batch-এর category নির্দিষ্ট করতে পারবেন।</p>
             <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1 text-sm"><span className="font-medium">Category (optional)</span><Input value={category} onChange={(event) => setCategory(event.target.value)} placeholder="যেমন: BOQ, BBS, Estimation, AutoCAD" maxLength={80} /></label>
+              <label className="space-y-1 text-sm"><span className="font-medium">Category override (optional)</span><Input value={category} onChange={(event) => setCategory(event.target.value)} placeholder="ফাঁকা রাখলে folder/file name দেখে auto category হবে" maxLength={80} /></label>
               <label className="space-y-1 text-sm"><span className="font-medium">Shared description (optional)</span><Textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="এই ব্যাচের ফাইলগুলোর সংক্ষিপ্ত বিবরণ" rows={2} maxLength={500} /></label>
             </div>
             <input ref={inputRef} type="file" multiple accept=".xls,.xlsx,.xlsm" className="hidden" onChange={(event) => chooseFiles(event.target.files)} />
@@ -338,6 +387,7 @@ const ExcelLibraryPage = () => {
                     <span>{formatBytes(file.size_bytes)}</span><span>·</span><span>{new Date(file.created_at).toLocaleDateString()}</span>
                   </div>
                   <div className="flex gap-2">
+                    <Button type="button" size="sm" variant="outline" onClick={() => void previewWorkbook(file)} disabled={busyId === file.id}><BookOpen className="mr-2 h-4 w-4" />Preview</Button>
                     <Button className="flex-1" size="sm" onClick={() => void downloadFile(file)} disabled={busyId === file.id}>
                       {busyId === file.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Download
                     </Button>
@@ -354,6 +404,34 @@ const ExcelLibraryPage = () => {
         </section>
         <div className="flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><p>ZIP Extract এবং Folder selection ব্রাউজারেই হয়। ফাইলগুলো private storage-এ থাকে; প্রতিটি ডাউনলোডে স্বল্পমেয়াদি secure link তৈরি হয়।</p></div>
       </main>
+      {previewFile && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-2 sm:p-6" role="dialog" aria-modal="true" aria-label={"Preview " + previewFile.original_filename}>
+          <section className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
+            <header className="flex items-center justify-between gap-3 border-b p-4">
+              <div className="min-w-0"><h2 className="truncate font-semibold">{previewFile.original_filename}</h2><p className="text-xs text-muted-foreground">Workbook preview · first 50 rows and 12 columns per sheet</p></div>
+              <Button type="button" variant="ghost" size="icon" aria-label="Close preview" onClick={() => { setPreviewFile(null); setPreviewSheets([]); }}><X className="h-5 w-5" /></Button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-auto p-4">
+              {previewLoading ? <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />Workbook preview তৈরি হচ্ছে…</div> :
+                previewError ? <div className="py-12 text-center text-sm text-muted-foreground">{previewError}</div> :
+                previewSheets.length === 0 ? <div className="py-12 text-center text-sm text-muted-foreground">এই workbook-এ দেখানোর মতো worksheet নেই।</div> :
+                <div className="space-y-6">{previewSheets.map((sheet) => (
+                  <section key={sheet.name} className="space-y-2">
+                    <h3 className="font-semibold">{sheet.name}</h3>
+                    {sheet.rows.length === 0 ? <p className="text-sm text-muted-foreground">Empty worksheet</p> :
+                      <div className="overflow-auto rounded-lg border"><table className="min-w-full border-collapse text-xs">
+                        <tbody>{sheet.rows.map((row, rowIndex) => <tr key={rowIndex} className="border-b last:border-0">{row.map((cell, cellIndex) => <td key={cellIndex} className="max-w-[260px] whitespace-pre-wrap break-words border-r px-3 py-2 last:border-r-0">{cell}</td>)}</tr>)}</tbody>
+                      </table></div>}
+                  </section>
+                ))}</div>}
+            </div>
+            <footer className="flex justify-end gap-2 border-t p-3">
+              <Button type="button" variant="outline" onClick={() => void downloadFile(previewFile)}><Download className="mr-2 h-4 w-4" />Download for offline use</Button>
+              <Button type="button" onClick={() => { setPreviewFile(null); setPreviewSheets([]); }}>Close</Button>
+            </footer>
+          </section>
+        </div>
+      )}
       <Footer />
     </div>
   );
