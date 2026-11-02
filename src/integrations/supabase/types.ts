@@ -1750,6 +1750,10 @@ export type Database = {
     }
     Functions: {
       accept_project_invitation: { Args: { _token: string }; Returns: string }
+      admin_dashboard_metrics: {
+        Args: { _from: string; _to: string }
+        Returns: Json
+      }
       approve_payment: { Args: { _payment_id: string }; Returns: string }
       available_commission_balance: {
         Args: { _user_id: string }
