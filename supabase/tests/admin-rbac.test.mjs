@@ -190,3 +190,31 @@ test("Invitation replacement and revocation are audited and replay-safe",async()
   });
   assert.equal((await q("SELECT status FROM public.admin_invitations WHERE id=$1",[pending.id]))[0].status,"revoked");
 });
+
+
+test("Super Admin can grant read-only Reports and Audit permissions",async()=>{
+  const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
+  await admin(async()=>{
+    await db.query("SELECT public.admin_set_subadmin_reports_permissions($1,ARRAY['view']::text[])",[membership.id]);
+    await db.query("SELECT public.admin_set_subadmin_audit_permissions($1,ARRAY['view']::text[])",[membership.id]);
+  });
+  await sub(async()=>{
+    assert.equal((await db.query("SELECT public.has_admin_permission('reports','view') AS allowed")).rows[0].allowed,true);
+    assert.equal((await db.query("SELECT public.has_admin_permission('audit','view') AS allowed")).rows[0].allowed,true);
+    assert.equal((await db.query("SELECT public.has_admin_permission('reports','manage') AS allowed")).rows[0].allowed,false);
+    assert.equal((await db.query("SELECT public.has_admin_permission('audit','manage') AS allowed")).rows[0].allowed,false);
+  });
+  await admin(()=>rejects(()=>db.query("SELECT public.admin_set_subadmin_reports_permissions($1,ARRAY['manage']::text[])",[membership.id]),/Reports is read-only/));
+  await admin(()=>rejects(()=>db.query("SELECT public.admin_set_subadmin_audit_permissions($1,ARRAY['manage']::text[])",[membership.id]),/Audit is read-only/));
+});
+
+test("Super Admin can grant Settings view/manage permissions with manage implying view",async()=>{
+  const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
+  await admin(async()=>{await db.query("SELECT public.admin_set_subadmin_settings_permissions($1,ARRAY['manage']::text[])",[membership.id]);});
+  const actions=(await q("SELECT action FROM public.admin_feature_permissions WHERE membership_id=$1 AND feature_key='settings' ORDER BY action",[membership.id])).map(x=>x.action);
+  assert.deepEqual(actions,["manage","view"]);
+  await sub(async()=>{
+    assert.equal((await db.query("SELECT public.has_admin_permission('settings','view') AS allowed")).rows[0].allowed,true);
+    assert.equal((await db.query("SELECT public.has_admin_permission('settings','manage') AS allowed")).rows[0].allowed,true);
+  });
+});
