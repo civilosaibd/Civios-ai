@@ -110,7 +110,7 @@ test("affiliate withdrawal review and audit are atomic when audit insertion fail
   );
   await db.exec(`
     CREATE OR REPLACE FUNCTION public.test_fail_admin_action_audit() RETURNS trigger
-    LANGUAGE plpgsql AS $ BEGIN RAISE EXCEPTION 'simulated audit outage'; END; $;
+    LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'simulated audit outage'; END; $$;
     CREATE TRIGGER test_fail_admin_action_audit BEFORE INSERT ON public.admin_action_audit
     FOR EACH ROW EXECUTE FUNCTION public.test_fail_admin_action_audit();
   `);
@@ -137,7 +137,7 @@ test("project status update and access audit are atomic when audit insertion fai
   );
   await db.exec(`
     CREATE OR REPLACE FUNCTION public.test_fail_project_access_audit() RETURNS trigger
-    LANGUAGE plpgsql AS $ BEGIN RAISE EXCEPTION 'simulated project audit outage'; END; $;
+    LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'simulated project audit outage'; END; $$;
     CREATE TRIGGER test_fail_project_access_audit BEFORE INSERT ON public.admin_project_access_audit
     FOR EACH ROW EXECUTE FUNCTION public.test_fail_project_access_audit();
   `);
