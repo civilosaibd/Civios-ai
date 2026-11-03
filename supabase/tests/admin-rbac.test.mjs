@@ -26,6 +26,10 @@ const admin=(fn)=>as("authenticated",ADMIN,"zobaerio24@gmail.com",fn);
 const sub=(fn)=>as("authenticated",SUB,"subadmin@example.com",fn);
 const other=(fn)=>as("authenticated",OTHER,"other@example.com",fn);
 const q=async(sql,params)=> (await db.query(sql,params)).rows;
+const ensureSubMembership=async()=> (await q(
+  "INSERT INTO public.admin_memberships(user_id,role,status) VALUES ($1,'sub_admin','active') ON CONFLICT (user_id) DO UPDATE SET role='sub_admin',status='active' RETURNING id",
+  [SUB],
+))[0];
 const rejects=(fn,re)=>assert.rejects(Promise.resolve().then(fn),re);
 
 before(async()=>{
@@ -193,7 +197,7 @@ test("Invitation replacement and revocation are audited and replay-safe",async()
 
 
 test("Super Admin can grant read-only Reports and Audit permissions",async()=>{
-  const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
+  const membership=await ensureSubMembership();
   await admin(async()=>{
     await db.query("SELECT public.admin_set_subadmin_reports_permissions($1,ARRAY['view']::text[])",[membership.id]);
     await db.query("SELECT public.admin_set_subadmin_audit_permissions($1,ARRAY['view']::text[])",[membership.id]);
@@ -211,7 +215,7 @@ test("Super Admin can grant read-only Reports and Audit permissions",async()=>{
 });
 
 test("Super Admin can grant Settings view/manage permissions with manage implying view",async()=>{
-  const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
+  const membership=await ensureSubMembership();
   await admin(async()=>{await db.query("SELECT public.admin_set_subadmin_settings_permissions($1,ARRAY['manage']::text[])",[membership.id]);});
   const actions=(await q("SELECT action FROM public.admin_feature_permissions WHERE membership_id=$1 AND feature_key='settings' ORDER BY action",[membership.id])).map(x=>x.action);
   assert.deepEqual(actions,["manage","view"]);
@@ -222,7 +226,7 @@ test("Super Admin can grant Settings view/manage permissions with manage implyin
 });
 
 test("Sub-admin cannot grant Reports, Audit or Settings permissions",async()=>{
-  const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
+  const membership=await ensureSubMembership();
   await sub(async()=>{
     await rejects(()=>db.query("SELECT public.admin_set_subadmin_reports_permissions($1,ARRAY['view']::text[])",[membership.id]),/Super Admin access required/);
     await rejects(()=>db.query("SELECT public.admin_set_subadmin_audit_permissions($1,ARRAY['view']::text[])",[membership.id]),/Super Admin access required/);
