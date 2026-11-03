@@ -204,6 +204,8 @@ test("Super Admin can grant read-only Reports and Audit permissions",async()=>{
     assert.equal((await db.query("SELECT public.has_admin_permission('reports','manage') AS allowed")).rows[0].allowed,false);
     assert.equal((await db.query("SELECT public.has_admin_permission('audit','manage') AS allowed")).rows[0].allowed,false);
   });
+  await admin(async()=>{ await db.query("SELECT public.admin_set_subadmin_audit_permissions($1,ARRAY[]::text[])",[membership.id]); });
+  await sub(async()=>assert.equal((await db.query("SELECT public.has_admin_permission('audit','view') AS allowed")).rows[0].allowed,false));
   await admin(()=>rejects(()=>db.query("SELECT public.admin_set_subadmin_reports_permissions($1,ARRAY['manage']::text[])",[membership.id]),/Reports is read-only/));
   await admin(()=>rejects(()=>db.query("SELECT public.admin_set_subadmin_audit_permissions($1,ARRAY['manage']::text[])",[membership.id]),/Audit is read-only/));
 });
