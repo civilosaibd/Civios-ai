@@ -251,7 +251,11 @@ test("Invitation replacement and revocation are audited and replay-safe",async()
 });
 
 test("affiliate withdrawal RPC enforces view/manage permissions, valid transitions, and paid reference",async()=>{
-  const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
+  // Keep this test self-contained instead of relying on another test to create SUB membership.
+  const [membership]=await q(
+    "INSERT INTO public.admin_memberships(user_id,role,status,assigned_by) VALUES ($1,'sub_admin','active',$2) ON CONFLICT (user_id) DO UPDATE SET status='active' RETURNING id",
+    [SUB,ADMIN]
+  );
   const [withdrawal]=await q(
     "INSERT INTO public.withdrawals(user_id,amount,method,account_number,status) VALUES ($1,750,'bKash','01800000000','pending') RETURNING id",
     [SUB]
