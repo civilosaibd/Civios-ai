@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { formatDistanceToNow } from "date-fns";
 import { shouldRunDaily } from "@/lib/referral";
+import { createDebouncedTask } from "@/lib/debouncedTask";
 
 interface Notif {
   id: string; type: string; title: string; message: string | null;
@@ -49,15 +50,32 @@ export default function NotificationBell() {
 
   useEffect(() => {
     if (!user) return;
+
+    // Coalesce bursts of row events into one bounded read.
+    const refresh = createDebouncedTask(() => {
+      if (document.visibilityState === "visible") void load();
+    }, 350);
+
     const channel = supabase.channel(`notifications:${user.id}`)
       .on("postgres_changes", {
         event: "*",
         schema: "public",
         table: "notifications",
         filter: `user_id=eq.${user.id}`,
-      }, () => { void load(); })
+      }, () => refresh.schedule())
       .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+
+    // Skip event-triggered reads in background tabs; catch up when visible again.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      refresh.cancel();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      void supabase.removeChannel(channel);
+    };
   }, [user, load]);
 
   const unread = items.filter((n) => !n.read).length;
