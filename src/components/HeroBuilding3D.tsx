@@ -1,7 +1,8 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { ContactShadows, OrbitControls, RoundedBox } from "@react-three/drei";
+import { Bounds, Center, ContactShadows, OrbitControls, RoundedBox, useGLTF } from "@react-three/drei";
 import type { Group } from "three";
+import { supabase } from "@/integrations/supabase/client";
 
 type Vec3 = [number, number, number];
 
@@ -207,7 +208,16 @@ function ModernResidence({ motionEnabled }: { motionEnabled: boolean }) {
   );
 }
 
-function Scene({ motionEnabled }: { motionEnabled: boolean }) {
+function UploadedHeroModel({ url }: { url: string }) {
+  const { scene } = useGLTF(url);
+  return (
+    <Bounds fit clip observe margin={1.35}>
+      <Center><primitive object={scene.clone()} /></Center>
+    </Bounds>
+  );
+}
+
+function Scene({ motionEnabled, modelUrl }: { motionEnabled: boolean; modelUrl: string | null }) {
   return (
     <>
       <color attach="background" args={["#10202a"]} />
@@ -223,7 +233,7 @@ function Scene({ motionEnabled }: { motionEnabled: boolean }) {
       />
       <directionalLight position={[-7, 6, -5]} intensity={1.1} color="#a8d6e6" />
       <pointLight position={[0, 3.8, 3.1]} intensity={18} distance={10} color="#ffd39a" />
-      <ModernResidence motionEnabled={motionEnabled} />
+      {modelUrl ? <UploadedHeroModel url={modelUrl} /> : <ModernResidence motionEnabled={motionEnabled} />}
       <ContactShadows position={[0, 0.22, 0]} opacity={0.34} scale={11} blur={2.8} far={5} />
       <OrbitControls
         target={[0, 3.2, 0]} enableDamping dampingFactor={0.055}
@@ -235,6 +245,21 @@ function Scene({ motionEnabled }: { motionEnabled: boolean }) {
 }
 
 export default function HeroBuilding3D() {
+  const [modelUrl, setModelUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data, error } = await (supabase.from("homepage_hero_models" as any) as any)
+        .select("file_path").eq("is_active", true).limit(1).maybeSingle();
+      if (!alive || error || !data?.file_path) return;
+      const { data: publicAsset } = supabase.storage
+        .from("homepage-hero-models").getPublicUrl(data.file_path);
+      if (alive && publicAsset?.publicUrl) setModelUrl(publicAsset.publicUrl);
+    })();
+    return () => { alive = false; };
+  }, []);
+
   const motionEnabled = typeof window === "undefined"
     ? true
     : !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -256,7 +281,7 @@ export default function HeroBuilding3D() {
         gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
         fallback={<div className="flex h-full items-center justify-center text-sm text-white/70">3D preview is not available in this browser.</div>}
       >
-        <Scene motionEnabled={motionEnabled} />
+        <Scene motionEnabled={motionEnabled} modelUrl={modelUrl} />
       </Canvas>
 
       <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-2 rounded-full border border-white/15 bg-slate-950/55 px-3 py-2 text-[9px] font-bold tracking-[0.2em] text-cyan-100 shadow-lg backdrop-blur-md sm:left-6 sm:top-6 sm:text-[10px]">
