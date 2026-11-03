@@ -596,3 +596,86 @@ test("SECURITY DEFINER authorization helpers pin their search_path", async () =>
     );
   }
 });
+
+
+// ---------------------------------------------------------------------------
+// Cloud workspace — owner isolation and least-privilege access
+// ---------------------------------------------------------------------------
+test("user_workspace: authenticated users can CRUD only their own workspace rows", async () => {
+  await alice(() => db.query(
+    "INSERT INTO public.user_workspace (user_id, key, value) VALUES ($1, 'civilos.test', '{\"owner\":\"alice\"}'::jsonb)",
+    [ALICE]
+  ));
+
+  const [aliceRow] = await alice(() => q(
+    "SELECT user_id, key, value FROM public.user_workspace WHERE key='civilos.test'"
+  ));
+  assert.equal(aliceRow.user_id, ALICE);
+  assert.deepEqual(aliceRow.value, { owner: "alice" });
+
+  const bobRows = await bob(() => q(
+    "SELECT user_id, key, value FROM public.user_workspace WHERE key='civilos.test'"
+  ));
+  assert.equal(bobRows.length, 0);
+
+  await bob(() => rejects(
+    () => db.query(
+      "INSERT INTO public.user_workspace (user_id, key, value) VALUES ($1, 'forged', '{\"owner\":\"alice\"}'::jsonb)",
+      [ALICE]
+    ),
+    /row-level security/
+  ));
+
+  await bob(() => db.query(
+    "UPDATE public.user_workspace SET value='{\\\"owner\\\":\\\"bob\\\"}'::jsonb WHERE user_id=$1 AND key='civilos.test'",
+    [ALICE]
+  ));
+  const [stillAlice] = await q(
+    "SELECT value FROM public.user_workspace WHERE user_id=$1 AND key='civilos.test'",
+    [ALICE]
+  );
+  assert.deepEqual(stillAlice.value, { owner: "alice" });
+
+  await bob(() => db.query(
+    "DELETE FROM public.user_workspace WHERE user_id=$1 AND key='civilos.test'",
+    [ALICE]
+  ));
+  assert.equal((await q(
+    "SELECT count(*)::int n FROM public.user_workspace WHERE user_id=$1 AND key='civilos.test'",
+    [ALICE]
+  ))[0].n, 1);
+
+  await alice(() => db.query(
+    "UPDATE public.user_workspace SET value='{\\\"owner\\\":\\\"alice-updated\\\"}'::jsonb WHERE user_id=$1 AND key='civilos.test'",
+    [ALICE]
+  ));
+  const [updated] = await q(
+    "SELECT value FROM public.user_workspace WHERE user_id=$1 AND key='civilos.test'",
+    [ALICE]
+  );
+  assert.deepEqual(updated.value, { owner: "alice-updated" });
+});
+
+test("user_workspace: anonymous role has no table privileges", async () => {
+  const [privileges] = await q(
+    "SELECT has_table_privilege('anon', 'public.user_workspace', 'SELECT') AS can_select, has_table_privilege('anon', 'public.user_workspace', 'INSERT') AS can_insert"
+  );
+  assert.equal(privileges.can_select, false);
+  assert.equal(privileges.can_insert, false);
+  await anon(() => rejects(
+    () => db.query("SELECT * FROM public.user_workspace"),
+    /permission denied/
+  ));
+});
+
+test("user_workspace: RLS is enabled and all four owner policies exist", async () => {
+  const [table] = await q(
+    "SELECT c.relrowsecurity AS rls_enabled FROM pg_class c WHERE c.oid='public.user_workspace'::regclass"
+  );
+  assert.equal(table.rls_enabled, true);
+  const policies = await q(
+    "SELECT policyname, cmd, roles::text FROM pg_policies WHERE schemaname='public' AND tablename='user_workspace' ORDER BY cmd"
+  );
+  assert.deepEqual(policies.map((p) => p.cmd).sort(), ["DELETE", "INSERT", "SELECT", "UPDATE"]);
+  assert.equal(policies.length, 4);
+});
