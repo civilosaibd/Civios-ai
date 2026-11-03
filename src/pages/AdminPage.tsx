@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import SEO from "@/components/SEO";
+import HeroArchitectureManager from "@/components/admin/HeroArchitectureManager";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -232,6 +233,7 @@ ${replyText}
               <TabsTrigger value="users" className="gap-1"><Users className="h-4 w-4" />Users</TabsTrigger>
               <TabsTrigger value="projects" className="gap-1"><FolderKanban className="h-4 w-4" />Projects</TabsTrigger>
               <TabsTrigger value="audit" className="gap-1"><ShieldCheck className="h-4 w-4" />Access Audit</TabsTrigger>
+              <TabsTrigger value="hero-3d" className="gap-1"><Building className="h-4 w-4" />Homepage 3D</TabsTrigger>
             </TabsList>
 
             {/* MESSAGES */}
@@ -354,6 +356,10 @@ ${replyText}
               ))}
               {adminUsers.length === 0 && <p className="text-center text-sm text-muted-foreground py-8">No accounts loaded. Deploy the admin-user-data Edge Function to enable this directory.</p>}
               {hasMoreUsers && <div className="flex justify-center pt-2"><Button variant="outline" onClick={loadMoreUsers} disabled={loadingMoreUsers}>{loadingMoreUsers && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Load more accounts</Button></div>}
+            </TabsContent>
+
+            <TabsContent value="hero-3d" className="space-y-3 mt-4">
+              <HeroArchitectureManager />
             </TabsContent>
 
             <TabsContent value="audit" className="space-y-3 mt-4">
