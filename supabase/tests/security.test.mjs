@@ -780,3 +780,56 @@ test("RBAC audit rows are visible to Super Admin only, not ordinary authenticate
   ));
   assert.equal(superAdminCount.count, 1);
 });
+
+
+test("SECURITY DEFINER identity helpers cannot reveal another user's admin, project or visualization role", async () => {
+  const [{ id: projectId }] = await q(
+    "INSERT INTO public.projects(user_id,name) VALUES ($1,'Security Identity Probe Project') RETURNING id",
+    [BOB]
+  );
+  const [{ id: visualizationId }] = await q(
+    "INSERT INTO public.construction_visualizations(user_id,name) VALUES ($1,'Security Identity Probe Visualization') RETURNING id",
+    [BOB]
+  );
+
+  await alice(async () => {
+    const [probe] = await q(
+      `SELECT
+        public.has_role($1,'admin') AS other_admin,
+        public.get_project_role($2,$1)::text AS other_project_role,
+        public.is_project_member($2,$1) AS other_project_member,
+        public.viz_role($3,$1) AS other_visualization_role,
+        public.viz_can_read($3,$1) AS other_visualization_read,
+        public.viz_can_write($3,$1) AS other_visualization_write`,
+      [BOB, projectId, visualizationId]
+    );
+    assert.deepEqual(probe, {
+      other_admin: false,
+      other_project_role: null,
+      other_project_member: false,
+      other_visualization_role: null,
+      other_visualization_read: false,
+      other_visualization_write: false,
+    });
+  });
+
+  // The same helpers must continue to work for the authenticated caller's own identity.
+  await bob(async () => {
+    const [own] = await q(
+      `SELECT
+        public.get_project_role($1,$2)::text AS project_role,
+        public.is_project_member($1,$2) AS project_member,
+        public.viz_role($3,$2) AS visualization_role,
+        public.viz_can_read($3,$2) AS visualization_read,
+        public.viz_can_write($3,$2) AS visualization_write`,
+      [projectId, BOB, visualizationId]
+    );
+    assert.deepEqual(own, {
+      project_role: "admin",
+      project_member: true,
+      visualization_role: "owner",
+      visualization_read: true,
+      visualization_write: true,
+    });
+  });
+});
