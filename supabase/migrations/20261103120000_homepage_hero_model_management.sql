@@ -66,7 +66,7 @@ CREATE POLICY "Admins delete homepage hero GLB"
 CREATE OR REPLACE FUNCTION public.activate_homepage_hero_model(_model_id uuid)
 RETURNS void
 LANGUAGE plpgsql
-SECURITY DEFINER
+SECURITY INVOKER
 SET search_path = public
 AS $$
 BEGIN
