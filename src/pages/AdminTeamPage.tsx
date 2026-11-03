@@ -82,7 +82,8 @@ export default function AdminTeamPage() {
   const updatePermissions=async(member:Member,featureKey:FeatureKey)=>{
     const actions=permissionDraft[member.id]?.[featureKey] || [];
     setBusy(member.id);
-    try { await call("set-permissions",{membershipId:member.id,featureKey,permissions:actions}); toast.success(`${featureKey==="users"?"Users":featureKey==="projects"?"Projects":featureKey==="billing"?"Billing":featureKey==="affiliate"?"Affiliate":"AI Usage"} permissions updated.`); await load(); }
+    try { await call("set-permissions",{membershipId:member.id,featureKey,permissions:actions}); const featureLabel = PERMISSION_FEATURES.find(feature => feature.key === featureKey)?.label || featureKey;
+      toast.success(`${featureLabel} permissions updated.`); await load(); }
     catch(e:any){toast.error(e.message);}
     setBusy(null);
   };
