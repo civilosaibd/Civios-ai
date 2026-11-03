@@ -720,11 +720,11 @@ test("admin_ai_usage_summary: only admins can read monthly aggregate counters", 
   assert.equal(summary.reports, 7);
   assert.equal(Number(summary.storage_mb), 10);
   const [membership] = await q(
-    "INSERT INTO public.admin_memberships(user_id,role,status,assigned_by) VALUES ($1,'sub_admin','active',$2) RETURNING id",
+    "INSERT INTO public.admin_memberships(user_id,role,status,assigned_by) VALUES ($1,'sub_admin','active',$2) ON CONFLICT (user_id) DO UPDATE SET role='sub_admin',status='active' RETURNING id",
     [BOB, ADMIN]
   );
   await db.query(
-    "INSERT INTO public.admin_feature_permissions(membership_id,feature_key,action,granted_by) VALUES ($1,'ai_usage','view',$2)",
+    "INSERT INTO public.admin_feature_permissions(membership_id,feature_key,action,granted_by) VALUES ($1,'ai_usage','view',$2) ON CONFLICT (membership_id,feature_key,action) DO NOTHING",
     [membership.id, ADMIN]
   );
   await bob(async () => {
