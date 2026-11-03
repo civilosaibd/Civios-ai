@@ -213,3 +213,71 @@ test("each later eligible verified payment earns 10%, not another 30%", async ()
   const pro = await plan("professional");
   near(c.r, 0.10); near(c.b, pro.p); near(c.c, pct(pro.p));
 });
+
+
+test("affiliate payout update and audit are atomic and the RPC is service-role-only", async () => {
+  const [withdrawal] = await q(
+    "SELECT id FROM public.withdrawals WHERE user_id=$1 AND status='pending' ORDER BY requested_at DESC LIMIT 1",
+    [CAROL],
+  );
+  assert.ok(withdrawal, "the balance test should have created a pending withdrawal");
+
+  await carol(() => rejects(
+    () => db.query("SELECT public.admin_update_affiliate_withdrawal($1,$2,'approved',NULL,NULL)", [ADMIN, withdrawal.id]),
+    /permission denied/,
+  ));
+
+  await as("service_role", null, null, async () => {
+    await db.query(
+      "SELECT public.admin_update_affiliate_withdrawal($1,$2,'approved','test approval',NULL)",
+      [ADMIN, withdrawal.id],
+    );
+  });
+  assert.equal((await q("SELECT status FROM public.withdrawals WHERE id=$1", [withdrawal.id]))[0].status, "approved");
+  assert.equal((await q(
+    "SELECT count(*)::int n FROM public.admin_action_audit WHERE target_id=$1 AND action='affiliate_withdrawal_approved'",
+    [withdrawal.id],
+  ))[0].n, 1);
+
+  await db.exec(`
+    CREATE FUNCTION public.test_fail_affiliate_payout_audit() RETURNS trigger
+    LANGUAGE plpgsql AS $$
+    BEGIN
+      IF NEW.action = 'affiliate_withdrawal_paid' THEN
+        RAISE EXCEPTION 'forced audit failure for atomicity test';
+      END IF;
+      RETURN NEW;
+    END;
+    $$;
+    CREATE TRIGGER test_fail_affiliate_payout_audit
+    BEFORE INSERT ON public.admin_action_audit
+    FOR EACH ROW EXECUTE FUNCTION public.test_fail_affiliate_payout_audit();
+  `);
+
+  await as("service_role", null, null, () => rejects(
+    () => db.query(
+      "SELECT public.admin_update_affiliate_withdrawal($1,$2,'paid',NULL,'TEST-TRX-001')",
+      [ADMIN, withdrawal.id],
+    ),
+    /forced audit failure/,
+  ));
+  const [afterRollback] = await q("SELECT status, paid_at FROM public.withdrawals WHERE id=$1", [withdrawal.id]);
+  assert.equal(afterRollback.status, "approved", "withdrawal update must roll back when audit insert fails");
+  assert.equal(afterRollback.paid_at, null);
+
+  await db.exec("DROP TRIGGER test_fail_affiliate_payout_audit ON public.admin_action_audit; DROP FUNCTION public.test_fail_affiliate_payout_audit();");
+  await as("service_role", null, null, async () => {
+    await db.query(
+      "SELECT public.admin_update_affiliate_withdrawal($1,$2,'paid',NULL,' TEST-TRX-001 ')",
+      [ADMIN, withdrawal.id],
+    );
+  });
+  const [paid] = await q("SELECT status, transaction_reference, paid_at FROM public.withdrawals WHERE id=$1", [withdrawal.id]);
+  assert.equal(paid.status, "paid");
+  assert.equal(paid.transaction_reference, "TEST-TRX-001");
+  assert.ok(paid.paid_at);
+  assert.equal((await q(
+    "SELECT count(*)::int n FROM public.admin_action_audit WHERE target_id=$1 AND action='affiliate_withdrawal_paid'",
+    [withdrawal.id],
+  ))[0].n, 1);
+});
