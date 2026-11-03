@@ -240,3 +240,55 @@ test("Sub-admin cannot grant Reports, Audit or Settings permissions",async()=>{
     await rejects(()=>db.query("SELECT public.admin_set_subadmin_settings_permissions($1,ARRAY['view']::text[])",[membership.id]),/Super Admin access required/);
   });
 });
+
+
+test("System Settings RPCs enforce view/manage permissions and audit changes",async()=>{
+  const membership=await ensureSubMembership();
+
+  await sub(()=>rejects(
+    ()=>db.query("SELECT public.admin_read_system_settings()"),
+    /Settings: View permission required/
+  ));
+
+  await admin(()=>db.query(
+    "SELECT public.admin_set_subadmin_settings_permissions($1,ARRAY['view']::text[])",[membership.id]
+  ));
+  await sub(async()=>{
+    const [settings]=await q("SELECT public.admin_read_system_settings() AS value");
+    assert.equal(settings.value.can_manage,false);
+    await rejects(
+      ()=>db.query("SELECT public.admin_update_visualization_limits(30,12)"),
+      /Settings: Manage permission required/
+    );
+  });
+
+  await admin(()=>db.query(
+    "SELECT public.admin_set_subadmin_settings_permissions($1,ARRAY['manage']::text[])",[membership.id]
+  ));
+  await sub(async()=>{
+    const [updated]=await q("SELECT public.admin_update_visualization_limits(30,12) AS value");
+    assert.deepEqual(updated.value,{max_file_mb:30,max_files:12});
+  });
+  const [audit]=await q(
+    "SELECT admin_user_id,setting_group,new_values FROM public.admin_system_settings_audit ORDER BY created_at DESC LIMIT 1"
+  );
+  assert.equal(audit.admin_user_id,SUB);
+  assert.equal(audit.setting_group,"visualization_upload_limits");
+  assert.deepEqual(audit.new_values,{max_file_mb:30,max_files:12});
+});
+
+test("System Settings audit table is inaccessible to anon/authenticated clients",async()=>{
+  for(const privilege of ["SELECT","INSERT","UPDATE","DELETE"]){
+    const [{anon_allowed,authenticated_allowed}]=await q(
+      "SELECT has_table_privilege('anon','public.admin_system_settings_audit',$1) AS anon_allowed, has_table_privilege('authenticated','public.admin_system_settings_audit',$1) AS authenticated_allowed",
+      [privilege]
+    );
+    assert.equal(anon_allowed,false);
+    assert.equal(authenticated_allowed,false);
+  }
+  const [{service_select,service_insert}]=await q(
+    "SELECT has_table_privilege('service_role','public.admin_system_settings_audit','SELECT') AS service_select, has_table_privilege('service_role','public.admin_system_settings_audit','INSERT') AS service_insert"
+  );
+  assert.equal(service_select,true);
+  assert.equal(service_insert,true);
+});
