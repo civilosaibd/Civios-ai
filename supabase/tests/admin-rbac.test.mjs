@@ -103,6 +103,33 @@ test("Super Admin can grant billing permissions and billing manage implies view"
   });
 });
 
+test("affiliate withdrawal review and audit are atomic when audit insertion fails",async()=>{
+  const [withdrawal]=await q(
+    "INSERT INTO public.withdrawals(user_id,amount,method,account_number,status) VALUES ($1,500,'bKash','01700000000','pending') RETURNING id",
+    [SUB]
+  );
+  await db.exec(`
+    CREATE OR REPLACE FUNCTION public.test_fail_admin_action_audit() RETURNS trigger
+    LANGUAGE plpgsql AS $ BEGIN RAISE EXCEPTION 'simulated audit outage'; END $;
+    CREATE TRIGGER test_fail_admin_action_audit BEFORE INSERT ON public.admin_action_audit
+    FOR EACH ROW EXECUTE FUNCTION public.test_fail_admin_action_audit();
+  `);
+  await admin(()=>rejects(
+    ()=>db.query("SELECT public.admin_update_affiliate_withdrawal($1,'approved',NULL,NULL)",[withdrawal.id]),
+    /simulated audit outage/
+  ));
+  assert.equal((await q("SELECT status FROM public.withdrawals WHERE id=$1",[withdrawal.id]))[0].status,"pending");
+  await db.exec("DROP TRIGGER test_fail_admin_action_audit ON public.admin_action_audit; DROP FUNCTION public.test_fail_admin_action_audit();");
+  await admin(async()=>{
+    const result=await db.query("SELECT public.admin_update_affiliate_withdrawal($1,'approved','checked',NULL) AS value",[withdrawal.id]);
+    assert.equal(result.rows[0].value.status,"approved");
+  });
+  const [updated]=await q("SELECT status,admin_note FROM public.withdrawals WHERE id=$1",[withdrawal.id]);
+  assert.deepEqual(updated,{status:"approved",admin_note:"checked"});
+  const [audit]=await q("SELECT action,details->>'previous_status' AS previous_status,details->>'new_status' AS new_status FROM public.admin_action_audit WHERE target_id=$1",[withdrawal.id]);
+  assert.deepEqual(audit,{action:"affiliate_withdrawal_approved",previous_status:"pending",new_status:"approved"});
+});
+
 test("Super Admin can grant affiliate permissions and commission review honors affiliate.manage",async()=>{
   const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
   await admin(async()=>{ await db.query("SELECT public.admin_set_subadmin_affiliate_permissions($1,ARRAY['manage']::text[])",[membership.id]); });
