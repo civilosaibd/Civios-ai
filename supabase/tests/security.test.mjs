@@ -768,15 +768,15 @@ test("privileged admin audit tables deny direct client access and retain service
 
 test("RBAC audit rows are visible to Super Admin only, not ordinary authenticated users", async () => {
   await db.query(
-    "INSERT INTO public.admin_rbac_audit(actor_user_id,action,metadata) VALUES ($1,'security_regression_test','{}'::jsonb)",
+    "INSERT INTO public.admin_rbac_audit(actor_user_id,action,metadata) VALUES ($1,'permission_granted','{\"security_test_marker\":\"audit_visibility\"}'::jsonb)",
     [ADMIN]
   );
   const [ordinaryCount] = await alice(() => q(
-    "SELECT count(*)::int AS count FROM public.admin_rbac_audit WHERE action='security_regression_test'"
+    "SELECT count(*)::int AS count FROM public.admin_rbac_audit WHERE metadata->>'security_test_marker'='audit_visibility'"
   ));
   assert.equal(ordinaryCount.count, 0);
   const [superAdminCount] = await admin(() => q(
-    "SELECT count(*)::int AS count FROM public.admin_rbac_audit WHERE action='security_regression_test'"
+    "SELECT count(*)::int AS count FROM public.admin_rbac_audit WHERE metadata->>'security_test_marker'='audit_visibility'"
   ));
   assert.equal(superAdminCount.count, 1);
 });
