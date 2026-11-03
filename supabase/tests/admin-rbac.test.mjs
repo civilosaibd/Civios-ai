@@ -130,6 +130,50 @@ test("affiliate withdrawal review and audit are atomic when audit insertion fail
   assert.deepEqual(audit,{action:"affiliate_withdrawal_approved",previous_status:"pending",new_status:"approved"});
 });
 
+test("project status RPC enforces view-only versus manage permissions and rejects invalid status",async()=>{
+  const [membership]=await q(
+    "INSERT INTO public.admin_memberships(user_id,role,status,assigned_by) VALUES ($1,'sub_admin','active',$2) ON CONFLICT (user_id) DO UPDATE SET status='active' RETURNING id",
+    [SUB,ADMIN]
+  );
+  const [project]=await q(
+    "INSERT INTO public.projects(user_id,name) VALUES ($1,'Project Permission Regression') RETURNING id",
+    [SUB]
+  );
+  await admin(()=>db.query(
+    "SELECT public.admin_set_subadmin_project_permissions($1,ARRAY['view']::text[])",
+    [membership.id]
+  ));
+  await sub(async()=>{
+    assert.equal((await db.query("SELECT public.has_admin_permission('projects','view') AS allowed")).rows[0].allowed,true);
+    assert.equal((await db.query("SELECT public.has_admin_permission('projects','manage') AS allowed")).rows[0].allowed,false);
+    await rejects(
+      ()=>db.query("SELECT public.admin_update_project_status($1,'completed')",[project.id]),
+      /Projects: Manage permission required/
+    );
+  });
+  assert.equal((await q("SELECT status FROM public.projects WHERE id=$1",[project.id]))[0].status,"planning");
+  await admin(()=>db.query(
+    "SELECT public.admin_set_subadmin_project_permissions($1,ARRAY['manage']::text[])",
+    [membership.id]
+  ));
+  await sub(async()=>{
+    await rejects(
+      ()=>db.query("SELECT public.admin_update_project_status($1,'unknown')",[project.id]),
+      /Unsupported project status/
+    );
+    const result=await db.query(
+      "SELECT public.admin_update_project_status($1,'in_progress') AS value",
+      [project.id]
+    );
+    assert.equal(result.rows[0].value.status,"in_progress");
+  });
+  const [audit]=await q(
+    "SELECT action,details->>'previous_status' AS previous_status,details->>'new_status' AS new_status FROM public.admin_project_access_audit WHERE project_id=$1",
+    [project.id]
+  );
+  assert.deepEqual(audit,{action:"update_project_status",previous_status:"planning",new_status:"in_progress"});
+});
+
 test("project status update and access audit are atomic when audit insertion fails",async()=>{
   const [project]=await q(
     "INSERT INTO public.projects(user_id,name) VALUES ($1,'Audit Integrity Project') RETURNING id",
