@@ -30,7 +30,7 @@ export default function AdminUsersPage(){
     setLoading(false);
   },[]);
   useEffect(()=>{if(user)void load(1);},[user,load]);
-  useEffect(()=>{if(!user)return;void (async()=>{const [{data:superAdmin},{data:legacyAdmin}]=await Promise.all([supabase.rpc("is_super_admin"),supabase.rpc("has_role",{_user_id:user.id,_role:"admin"})]);setCanSeeAudit(superAdmin===true||legacyAdmin===true);})();},[user]);
+  useEffect(()=>{if(!user)return;void (async()=>{const [{data:superAdmin},{data:legacyAdmin},{data:auditView}]=await Promise.all([supabase.rpc("is_super_admin"),supabase.rpc("has_role",{_user_id:user.id,_role:"admin"}),supabase.rpc("has_admin_permission",{_feature_key:"audit",_action:"view"})]);setCanSeeAudit(superAdmin===true||legacyAdmin===true||auditView===true);})();},[user]);
   const filtered=useMemo(()=>accounts.filter(a=>[a.display_name,a.email,a.phone,a.id].some(v=>String(v||"").toLowerCase().includes(search.toLowerCase()))),[accounts,search]);
   const openDetails=async(account:Account)=>{
     setSelected(account);setDetails(null);setDetailsLoading(true);
@@ -41,7 +41,7 @@ export default function AdminUsersPage(){
   const loadAudit=async()=>{
     setAuditLoading(true);
     const {data,error}=await supabase.functions.invoke("admin-user-data",{body:{action:"audit-list",limit:100}});
-    if(error||data?.error)toast.error(data?.error||"Audit history is available to Super Admins only.");
+    if(error||data?.error)toast.error(data?.error||"Audit view permission is required to view this history.");
     else{setAuditRows(data.events||[]);setAuditOpen(true);}
     setAuditLoading(false);
   };
