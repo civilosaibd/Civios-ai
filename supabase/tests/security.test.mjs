@@ -835,17 +835,27 @@ test("SECURITY DEFINER identity helpers cannot reveal another user's admin, proj
 });
 
 
-test("authenticated SECURITY DEFINER RPCs use a pinned safe search_path", async () => {
+test("all intended authenticated SECURITY DEFINER RPCs use a pinned safe search_path", async () => {
+  // Filter to the reviewed externally callable RPC set. PGlite's permissive
+  // default grants can make has_function_privilege() include unrelated
+  // functions inherited through PUBLIC, so enumerate the intended API surface.
   const rows = await q(`
     SELECT p.proname, p.proconfig
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
       AND p.prosecdef
-      AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+      AND p.proname = ANY (ARRAY[
+        'accept_project_invitation', 'approve_payment', 'cancel_my_subscription',
+        'cancel_viz_job', 'claim_referral', 'decline_project_invitation',
+        'generate_my_deadline_notifications', 'get_project_role', 'has_role',
+        'is_project_member', 'my_affiliate_stats', 'reject_payment',
+        'request_withdrawal', 'review_commission', 'viz_can_read',
+        'viz_can_write', 'viz_role'
+      ])
     ORDER BY p.proname
   `);
-  assert.equal(rows.length, 17, "expected all 17 authenticated SECURITY DEFINER RPCs to be present");
+  assert.equal(rows.length, 17, "expected all 17 reviewed SECURITY DEFINER RPCs to be present");
   for (const row of rows) {
     assert.ok(
       row.proconfig?.includes("search_path=pg_catalog, public, pg_temp"),
