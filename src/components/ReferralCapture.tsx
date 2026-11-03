@@ -8,7 +8,25 @@ import { supabase } from "@/integrations/supabase/client";
 export default function ReferralCapture() {
   const { search } = useLocation();
   const { user } = useAuth();
-  useEffect(() => { captureReferral(search); }, [search]);
+  useEffect(() => {
+    const code = captureReferral(search);
+    if (!code) return;
+    // Count a referral-link landing once per browser tab and referral code.
+    // This is a recorded landing event, not proof of a unique human or external share.
+    try {
+      const key = `civilos_referral_click:${code}`;
+      let eventId = sessionStorage.getItem(key);
+      if (!eventId) {
+        eventId = crypto.randomUUID();
+        sessionStorage.setItem(key, eventId);
+      }
+      void supabase.functions.invoke("track-referral-event", {
+        body: { referralCode: code, eventType: "link_click", eventId },
+      });
+    } catch {
+      // Referral attribution still works when browser storage is unavailable.
+    }
+  }, [search]);
   // Signed in with a code still stored (e.g. Google sign-up): let the database decide whether it counts.
   useEffect(() => {
     if (!user) return;
