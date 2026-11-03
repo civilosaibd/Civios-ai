@@ -355,3 +355,21 @@ test("privileged status RPCs are executable only by authenticated callers",async
     authenticated_project:true
   });
 });
+
+
+test("admin user-data Edge Function fails closed and audits privileged directory and audit-history reads",()=>{
+  const endpoint=readFileSync(join(here,"..","functions","admin-user-data","index.ts"),"utf8");
+  assert.match(endpoint,/auth\.getUser\(\)/);
+  assert.match(endpoint,/permissionChecks\.some\(\(\{ error \}\) => error\)/);
+  assert.match(endpoint,/legacyAdmin === true \|\| superAdmin === true \|\| canViewUsers === true/);
+  assert.match(endpoint,/body\.action === "account-status"[\s\S]*?if \(!mayManageUsers\)/);
+  assert.match(endpoint,/action: "view_user_directory"/);
+  assert.match(endpoint,/action: "view_user_access_audit"/);
+  assert.match(endpoint,/Unable to record privileged directory access; user records were not returned/);
+  assert.match(endpoint,/Unable to record privileged audit-history access/);
+  assert.match(endpoint,/action: "view_user_details"/);
+  assert.match(endpoint,/userId === authData\.user\.id/);
+  assert.match(endpoint,/targetRole\?\.role === "admin" \|\| membership/);
+  assert.match(endpoint,/columns: "id,user_id,agent_type,key,created_at,updated_at"/);
+  assert.doesNotMatch(endpoint,/serviceKey\s*\)\s*;[\s\S]{0,500}req\.headers\.get\("Authorization"\)/);
+});
