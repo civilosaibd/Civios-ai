@@ -249,3 +249,45 @@ test("Invitation replacement and revocation are audited and replay-safe",async()
   });
   assert.equal((await q("SELECT status FROM public.admin_invitations WHERE id=$1",[pending.id]))[0].status,"revoked");
 });
+
+test("affiliate withdrawal RPC enforces view/manage permissions, valid transitions, and paid reference",async()=>{
+  const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
+  const [withdrawal]=await q(
+    "INSERT INTO public.withdrawals(user_id,amount,method,account_number,status) VALUES ($1,750,'bKash','01800000000','pending') RETURNING id",
+    [SUB]
+  );
+  await admin(()=>db.query("SELECT public.admin_set_subadmin_affiliate_permissions($1,ARRAY['view']::text[])",[membership.id]));
+  await sub(async()=>{
+    assert.equal((await db.query("SELECT public.has_admin_permission('affiliate','view') AS allowed")).rows[0].allowed,true);
+    assert.equal((await db.query("SELECT public.has_admin_permission('affiliate','manage') AS allowed")).rows[0].allowed,false);
+    await rejects(
+      ()=>db.query("SELECT public.admin_update_affiliate_withdrawal($1,'approved',NULL,NULL)",[withdrawal.id]),
+      /Affiliate: Manage permission required/
+    );
+  });
+  assert.equal((await q("SELECT status FROM public.withdrawals WHERE id=$1",[withdrawal.id]))[0].status,"pending");
+  await admin(()=>db.query("SELECT public.admin_set_subadmin_affiliate_permissions($1,ARRAY['manage']::text[])",[membership.id]));
+  await sub(async()=>{
+    const approved=await db.query("SELECT public.admin_update_affiliate_withdrawal($1,'approved',NULL,NULL) AS value",[withdrawal.id]);
+    assert.equal(approved.rows[0].value.status,"approved");
+    await rejects(
+      ()=>db.query("SELECT public.admin_update_affiliate_withdrawal($1,'paid',NULL,NULL)",[withdrawal.id]),
+      /transaction reference is required/
+    );
+    const paid=await db.query("SELECT public.admin_update_affiliate_withdrawal($1,'paid',NULL,'TXN-SECURE-001') AS value",[withdrawal.id]);
+    assert.equal(paid.rows[0].value.status,"paid");
+    assert.equal(paid.rows[0].value.transaction_reference,"TXN-SECURE-001");
+    await rejects(
+      ()=>db.query("SELECT public.admin_update_affiliate_withdrawal($1,'rejected',NULL,NULL)",[withdrawal.id]),
+      /Invalid withdrawal transition/
+    );
+  });
+  const audit=await q(
+    "SELECT action,details->>'previous_status' AS previous_status,details->>'new_status' AS new_status,details->>'transaction_reference' AS transaction_reference FROM public.admin_action_audit WHERE target_id=$1 ORDER BY created_at",
+    [withdrawal.id]
+  );
+  assert.deepEqual(audit,[
+    {action:"affiliate_withdrawal_approved",previous_status:"pending",new_status:"approved",transaction_reference:null},
+    {action:"affiliate_withdrawal_paid",previous_status:"approved",new_status:"paid",transaction_reference:"TXN-SECURE-001"}
+  ]);
+});
