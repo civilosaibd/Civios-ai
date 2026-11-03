@@ -11,9 +11,12 @@ const readLocal = <T,>(key: string, def: T, merge: boolean): T => {
   } catch { return def; }
 };
 
+const getRetryDelay = (attempt: number) => Math.min(60_000, 5_000 * 2 ** Math.min(attempt, 4));
+
 /**
- * State kept in localStorage and, when signed in, synced to the user's account
- * (table user_workspace) so it appears on every device.
+ * State is always kept locally and, when signed in, synced to the user's account
+ * through user_workspace. A failed remote sync never discards the local copy or
+ * reports the account as synced; the initial sync retries with bounded backoff.
  */
 export function useCloudState<T>(key: string, def: T, opts: { merge?: boolean } = {}): [T, Dispatch<SetStateAction<T>>, boolean] {
   const merge = !!opts.merge;
@@ -22,48 +25,147 @@ export function useCloudState<T>(key: string, def: T, opts: { merge?: boolean } 
   const [synced, setSynced] = useState(false);
   const ready = useRef(false);
   const fromServer = useRef(false);
+  const lastValue = useRef(value);
+  const saveVersion = useRef(0);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const dirtyKey = `${key}:unsaved`;
 
-  // Pull from account on sign-in; if nothing there yet, push the local copy up.
+  // Pull from the account first. If local edits were pending, preserve and upload
+  // them instead of replacing them with the older server copy.
   useEffect(() => {
-    ready.current = false; setSynced(false);
+    ready.current = false;
+    setSynced(false);
     if (!user) return;
+
     let cancelled = false;
-    (async () => {
-      const { data } = await supabase.from("user_workspace").select("value").eq("user_id", user.id).eq("key", key).maybeSingle();
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let retryAttempt = 0;
+
+    const sync = async () => {
       if (cancelled) return;
-      if (data && localStorage.getItem(dirtyKey) === user.id) {
-        // Edits made just before a reload never reached the account — keep them and upload now.
-        const local = readLocal(key, def, merge);
-        const { error } = await supabase.from("user_workspace").upsert({ user_id: user.id, key, value: local as never, updated_at: new Date().toISOString() });
-        if (!error) localStorage.removeItem(dirtyKey);
-      } else if (data) {
-        const v = data.value as T;
-        const next = merge && v && typeof v === "object" && !Array.isArray(v) ? ({ ...def, ...(v as object) } as T) : v;
-        setValue((prev) => { if (Object.is(prev, next)) return prev; fromServer.current = true; return next; });
-        localStorage.setItem(key, JSON.stringify(next));
-      } else {
-        await supabase.from("user_workspace").upsert({ user_id: user.id, key, value: readLocal(key, def, merge) as never });
+      try {
+        const { data, error } = await supabase
+          .from("user_workspace")
+          .select("value")
+          .eq("user_id", user.id)
+          .eq("key", key)
+          .maybeSingle();
+
+        if (cancelled) return;
+        if (error) throw error;
+
+        const hasPendingLocalEdits = localStorage.getItem(dirtyKey) === user.id;
+        if (data && hasPendingLocalEdits) {
+          const local = readLocal(key, def, merge);
+          const { error: saveError } = await supabase.from("user_workspace").upsert({
+            user_id: user.id,
+            key,
+            value: local as never,
+            updated_at: new Date().toISOString(),
+          });
+          if (saveError) throw saveError;
+          localStorage.removeItem(dirtyKey);
+        } else if (data) {
+          const serverValue = data.value as T;
+          const next = merge && serverValue && typeof serverValue === "object" && !Array.isArray(serverValue)
+            ? ({ ...def, ...(serverValue as object) } as T)
+            : serverValue;
+          setValue((previous) => {
+            if (Object.is(previous, next)) return previous;
+            fromServer.current = true;
+            return next;
+          });
+          localStorage.setItem(key, JSON.stringify(next));
+        } else {
+          const local = readLocal(key, def, merge);
+          const { error: seedError } = await supabase.from("user_workspace").upsert({
+            user_id: user.id,
+            key,
+            value: local as never,
+          });
+          if (seedError) throw seedError;
+          localStorage.removeItem(dirtyKey);
+        }
+
+        if (cancelled) return;
+        ready.current = true;
+        retryAttempt = 0;
+        setSynced(true);
+      } catch (error) {
+        if (cancelled) return;
+        ready.current = false;
+        setSynced(false);
+        const message = error instanceof Error ? error.message : "Unknown cloud sync error";
+        console.warn("Cloud workspace sync failed; local data is preserved.", message);
+
+        const delay = getRetryDelay(retryAttempt);
+        retryAttempt += 1;
+        retryTimer = setTimeout(() => { void sync(); }, delay);
       }
-      ready.current = true; setSynced(true);
-    })();
-    return () => { cancelled = true; };
+    };
+
+    void sync();
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+    // The data defaults and merge mode are expected to remain stable for a given key.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, key]);
 
-  // Save locally at once; save to account shortly after edits stop.
+  // Persist locally immediately. Once the initial remote sync succeeds, serialize
+  // debounced writes so a slow older request cannot overwrite a newer edit.
   useEffect(() => {
+    const changed = !Object.is(lastValue.current, value);
+    lastValue.current = value;
     localStorage.setItem(key, JSON.stringify(value));
-    if (fromServer.current) { fromServer.current = false; return; }
-    if (!user || !ready.current) return;
+
+    // Invalidate queued saves whenever the value, user, or key changes.
+    const currentSaveVersion = ++saveVersion.current;
+
+    if (fromServer.current) {
+      fromServer.current = false;
+      return;
+    }
+    if (!user) return;
+
+    if (!ready.current) {
+      // Do not mark the first render as dirty. Only edits made while sync is
+      // unavailable should win over the server snapshot on the next retry.
+      if (changed) localStorage.setItem(dirtyKey, user.id);
+      return;
+    }
+
     localStorage.setItem(dirtyKey, user.id);
-    const t = setTimeout(() => {
-      supabase.from("user_workspace").upsert({ user_id: user.id, key, value: value as never, updated_at: new Date().toISOString() }).then(({ error }) => {
-        if (error) console.warn("cloud save failed", error.message);
-        else localStorage.removeItem(dirtyKey);
-      });
+    setSynced(false);
+    const timer = setTimeout(() => {
+      saveQueue.current = saveQueue.current
+        .catch(() => undefined)
+        .then(async () => {
+          if (currentSaveVersion !== saveVersion.current) return;
+
+          const { error } = await supabase.from("user_workspace").upsert({
+            user_id: user.id,
+            key,
+            value: value as never,
+            updated_at: new Date().toISOString(),
+          });
+          if (error) throw error;
+
+          if (currentSaveVersion === saveVersion.current) {
+            localStorage.removeItem(dirtyKey);
+            setSynced(true);
+          }
+        })
+        .catch((error: unknown) => {
+          if (currentSaveVersion !== saveVersion.current) return;
+          const message = error instanceof Error ? error.message : "Unknown cloud save error";
+          console.warn("Cloud save failed; local data is preserved for retry.", message);
+          setSynced(false);
+        });
     }, 800);
-    return () => clearTimeout(t);
+
+    return () => clearTimeout(timer);
   }, [value, key, user]);
 
   return [value, setValue, synced];
