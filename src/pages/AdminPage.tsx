@@ -14,8 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import {
-  Loader2, Trash2, Star, Check, X, Crown, Users, FolderKanban, Building, MessageSquare,
-  Mail, Phone, Send, ExternalLink, Reply, Search, Eye, ShieldCheck, CreditCard,
+  Loader2, Trash2, Star, Check, X, Crown, Users, FolderKanban, Building, MessageSquare, CreditCard, Activity, TrendingUp,
+  Mail, Phone, Send, ExternalLink, Reply, Search, Eye, ShieldCheck, Settings, UserCog, UsersRound,
 } from "lucide-react";
 
 const WHATSAPP_NUMBER = "8801832313998";
@@ -206,7 +206,11 @@ ${replyText}
               <h1 className="font-heading text-2xl md:text-3xl font-bold">Admin Panel</h1>
               <p className="text-sm text-muted-foreground">Sponsors • Ratings • Users • Projects • Messages</p>
             </div>
-            <Button variant="outline" className="gap-2" onClick={() => navigate("/admin/billing")}><CreditCard className="h-4 w-4" />Billing & Subscriptions</Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => navigate("/admin/users")}><UsersRound className="h-4 w-4 mr-2" />User Accounts</Button>
+              <Button size="sm" variant="outline" onClick={() => navigate("/admin/team")}><UserCog className="h-4 w-4 mr-2" />Team & Permissions</Button>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => navigate("/admin/settings")}><Settings className="h-4 w-4 mr-2" />System Settings</Button>
             {(newMsgCount > 0 || pendingSponsors > 0) && (
               <div className="flex gap-2">
                 {newMsgCount > 0 && <Badge className="bg-red-500">{newMsgCount} new msg</Badge>}
@@ -214,6 +218,13 @@ ${replyText}
               </div>
             )}
           </div>
+
+          <section aria-label="Admin workspaces" className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <Button variant="outline" className="justify-start gap-2" onClick={() => navigate("/admin/projects")}><FolderKanban className="h-4 w-4"/>Projects</Button>
+            <Button variant="outline" className="justify-start gap-2" onClick={() => navigate("/admin/affiliate")}><TrendingUp className="h-4 w-4"/>Affiliate</Button>
+            <Button variant="outline" className="justify-start gap-2" onClick={() => navigate("/admin/billing")}><CreditCard className="h-4 w-4"/>Billing</Button>
+            <Button variant="outline" className="justify-start gap-2" onClick={() => navigate("/admin/ai-usage")}><Activity className="h-4 w-4"/>AI Usage</Button>
+          </section>
 
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

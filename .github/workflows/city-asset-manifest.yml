@@ -1,0 +1,33 @@
+name: City Asset Manifest
+
+on:
+  pull_request:
+    paths:
+      - "public/assets/city/manifest/**"
+      - "public/assets/city/runtime/**"
+      - "scripts/city-assets/**"
+      - ".github/workflows/city-asset-manifest.yml"
+  push:
+    branches: [main]
+    paths:
+      - "public/assets/city/manifest/**"
+      - "public/assets/city/runtime/**"
+      - "scripts/city-assets/**"
+      - ".github/workflows/city-asset-manifest.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-city-asset-manifest:
+    name: Validate city asset manifest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate manifest and approved runtime files
+        run: node scripts/city-assets/validate-manifest.mjs

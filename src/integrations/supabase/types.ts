@@ -1775,6 +1775,11 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_admin_permission: {
+        Args: { _action: string; _feature_key: string }
+        Returns: boolean
+      }
+      is_super_admin: { Args: never; Returns: boolean }
       is_project_member: {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean

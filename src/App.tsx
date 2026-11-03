@@ -32,6 +32,10 @@ const ProjectsPage = lazy(() => import("./pages/ProjectsPage.tsx"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage.tsx"));
 const SponsorPage = lazy(() => import("./pages/SponsorPage.tsx"));
 const AdminPage = lazy(() => import("./pages/AdminPage.tsx"));
+const AdminProjectManagementPage = lazy(() => import("./pages/AdminProjectManagementPage.tsx"));
+const AdminTeamPage = lazy(() => import("./pages/AdminTeamPage.tsx"));
+const AdminUsersPage = lazy(() => import("./pages/AdminUsersPage.tsx"));
+const AdminAcceptInvitePage = lazy(() => import("./pages/AdminAcceptInvitePage.tsx"));
 const SharedEstimatePage = lazy(() => import("./pages/SharedEstimatePage.tsx"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage.tsx"));
 const AIWriterPage = lazy(() => import("./pages/AIWriterPage.tsx"));
@@ -73,6 +77,7 @@ const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage.tsx"));
 const ModulesPage = lazy(() => import("./pages/ModulesPage.tsx"));
 const BillingPage = lazy(() => import("./pages/BillingPage.tsx"));
 const AdminBillingPage = lazy(() => import("./pages/AdminBillingPage.tsx"));
+const AdminSystemSettingsPage = lazy(() => import("./pages/AdminSystemSettingsPage.tsx"));
 const FinancePage = lazy(() => import("./pages/FinancePage.tsx"));
 const DefectDetectionPage = lazy(() => import("./pages/DefectDetectionPage.tsx"));
 const KnowledgeLibraryPage = lazy(
@@ -255,12 +260,17 @@ const App = () => (
                         element={<AdminAffiliatePage />}
                       />
                       <Route path="/invite" element={<InviteAcceptPage />} />
+                      <Route path="/admin/accept-invite" element={<AdminAcceptInvitePage />} />
 
                       <Route path="/billing" element={<BillingPage />} />
                       <Route
                         path="/admin/billing"
                         element={<AdminBillingPage />}
                       />
+                      <Route path="/admin/team" element={<AdminTeamPage />} />
+                      <Route path="/admin/users" element={<AdminUsersPage />} />
+                      <Route path="/admin/projects" element={<AdminProjectManagementPage />} />
+                      <Route path="/admin/settings" element={<AdminSystemSettingsPage />} />
 
                       <Route
                         path="/share/:token"
