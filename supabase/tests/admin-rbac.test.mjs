@@ -130,6 +130,38 @@ test("affiliate withdrawal review and audit are atomic when audit insertion fail
   assert.deepEqual(audit,{action:"affiliate_withdrawal_approved",previous_status:"pending",new_status:"approved"});
 });
 
+test("project status update and access audit are atomic when audit insertion fails",async()=>{
+  const [project]=await q(
+    "INSERT INTO public.projects(user_id,name) VALUES ($1,'Audit Integrity Project') RETURNING id",
+    [SUB]
+  );
+  await db.exec(`
+    CREATE OR REPLACE FUNCTION public.test_fail_project_access_audit() RETURNS trigger
+    LANGUAGE plpgsql AS $ BEGIN RAISE EXCEPTION 'simulated project audit outage'; END; $;
+    CREATE TRIGGER test_fail_project_access_audit BEFORE INSERT ON public.admin_project_access_audit
+    FOR EACH ROW EXECUTE FUNCTION public.test_fail_project_access_audit();
+  `);
+  await admin(()=>rejects(
+    ()=>db.query("SELECT public.admin_update_project_status($1,'completed')",[project.id]),
+    /simulated project audit outage/
+  ));
+  assert.equal((await q("SELECT status FROM public.projects WHERE id=$1",[project.id]))[0].status,"planning");
+  await db.exec("DROP TRIGGER test_fail_project_access_audit ON public.admin_project_access_audit; DROP FUNCTION public.test_fail_project_access_audit();");
+  await other(()=>rejects(
+    ()=>db.query("SELECT public.admin_update_project_status($1,'completed')",[project.id]),
+    /Projects: Manage permission required/
+  ));
+  await admin(async()=>{
+    const result=await db.query("SELECT public.admin_update_project_status($1,'completed') AS value",[project.id]);
+    assert.equal(result.rows[0].value.status,"completed");
+  });
+  const [audit]=await q(
+    "SELECT action,details->>'previous_status' AS previous_status,details->>'new_status' AS new_status FROM public.admin_project_access_audit WHERE project_id=$1",
+    [project.id]
+  );
+  assert.deepEqual(audit,{action:"update_project_status",previous_status:"planning",new_status:"completed"});
+});
+
 test("Super Admin can grant affiliate permissions and commission review honors affiliate.manage",async()=>{
   const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
   await admin(async()=>{ await db.query("SELECT public.admin_set_subadmin_affiliate_permissions($1,ARRAY['manage']::text[])",[membership.id]); });
