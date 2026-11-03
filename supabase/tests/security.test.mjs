@@ -796,12 +796,12 @@ test("SECURITY DEFINER identity helpers cannot reveal another user's admin, proj
     const [probe] = await q(
       `SELECT
         public.has_role($1,'admin') AS other_admin,
-        public.get_project_role($2,$1)::text AS other_project_role,
-        public.is_project_member($2,$1) AS other_project_member,
-        public.viz_role($3,$1) AS other_visualization_role,
-        public.viz_can_read($3,$1) AS other_visualization_read,
-        public.viz_can_write($3,$1) AS other_visualization_write`,
-      [BOB, projectId, visualizationId]
+        public.get_project_role($2,$3)::text AS other_project_role,
+        public.is_project_member($2,$3) AS other_project_member,
+        public.viz_role($4,$3) AS other_visualization_role,
+        public.viz_can_read($4,$3) AS other_visualization_read,
+        public.viz_can_write($4,$3) AS other_visualization_write`,
+      [ADMIN, projectId, BOB, visualizationId]
     );
     assert.deepEqual(probe, {
       other_admin: false,
