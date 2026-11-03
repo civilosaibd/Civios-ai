@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "project": "CivilOS AI realistic aerial city",
-  "status": "architecture-candidates-added-acquisition-pending",
+  "status": "expanded-source-catalog-with-pack-level-prop-candidate",
   "coordinateSystem": {
     "unit": "meter",
     "verticalAxis": "Y",
@@ -321,24 +321,174 @@
         "test-glazing-overdraw"
       ],
       "runtimePath": null
+    },
+    {
+      "id": "BLD-RESIDENTIAL-TOWER-01",
+      "name": "Residential tower",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/residential-tower-ab650cbf",
+      "creator": "Innerscene contributor",
+      "license": "CC0",
+      "sourceStatus": "license-format-description-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 17200000,
+      "notes": "33.2 x 26.8 m plan, 86.9 m overall height; 25 apartment floors, staggered balconies, glazed ground floor and textured cladding. Exterior visualization only; visual fidelity and optimization require direct inspection.",
+      "optimizationRequired": [
+        "inspect-mesh-materials-and-textures",
+        "verify-scale-axis-origin",
+        "generate-lods",
+        "compress-textures",
+        "test-glazing-overdraw"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "BLD-APARTMENT-BLOCK-4F-01",
+      "name": "Four-storey apartment block",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/four-storey-apartment-block-331e1924",
+      "creator": "Innerscene contributor",
+      "license": "CC0",
+      "sourceStatus": "license-format-description-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 16800000,
+      "notes": "24.2 x 16.8 x 12.9 m; original unbranded textured GLB. Facade detail, material quality and mesh complexity need direct inspection.",
+      "optimizationRequired": [
+        "inspect-mesh-materials-and-textures",
+        "verify-scale-axis-origin",
+        "generate-lods",
+        "compress-textures"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "ROAD-TWO-LANE-MARKED-12M-01",
+      "name": "Two-lane straight road with markings",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/two-lane-straight-road-with-markings-8d2ba089",
+      "creator": "Innerscene original model",
+      "license": "CC0",
+      "sourceStatus": "license-format-description-dimensions-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 6700000,
+      "notes": "12 x 12 m modular road piece; 1.85 m sidewalk + 0.15 m curb + 8.00 m carriageway + 0.15 m curb + 1.85 m sidewalk; two 3.50 m lanes with painted edge/centre markings; right-hand traffic; unbranded. Dimensions and source description verified, but geometry/material appearance not visually inspected.",
+      "optimizationRequired": [
+        "download-and-inspect-glb",
+        "verify-road-marking-texture-resolution",
+        "check-repeat-seams-and-module-alignment",
+        "verify-scale-axis-origin",
+        "optimize-mesh-and-textures",
+        "generate-lods"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "MAT-ASPHALT-FRESH-CC0-2K-01",
+      "name": "Fresh asphalt seamless PBR texture",
+      "source": "https://www.meshy.ai/textures/concrete/fresh-asphalt",
+      "creator": "Meshy AI generated texture",
+      "license": "CC0",
+      "sourceStatus": "license-and-pbr-map-description-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "PBR texture pack (download format to verify)",
+      "notes": "Fresh dark asphalt with fine aggregate; seamless tileable; CC0 commercial use; 2K PBR pack reported as 4.6 MB. Verify actual archive contents, map color spaces, scale and visual quality before runtime use.",
+      "optimizationRequired": [
+        "download-and-verify-archive",
+        "inspect-basecolor-normal-roughness-maps",
+        "verify-color-space-and-real-world-scale",
+        "compress-to-webp-or-ktx2",
+        "test-tiling-under-daylight"
+      ],
+      "runtimePath": null
+    },
+    {
+      "id": "BLK-ROAD-STRAIGHT-LOWPOLY-01",
+      "name": "Low-poly City — Road straight",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/low-poly-city-road-straight-cf2e392c",
+      "creator": "Innerscene original model",
+      "license": "CC0",
+      "sourceStatus": "blockout-only-low-poly",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 10240,
+      "notes": "8 x 8 m modular road tile. Useful for early layout/blockout tests only; explicitly low-poly and not approved for photoreal final streets.",
+      "runtimePath": null
+    },
+    {
+      "id": "BLK-ROAD-END-LOWPOLY-01",
+      "name": "Low-poly City — Road end",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/low-poly-city-road-end-baa1e3f9",
+      "creator": "Innerscene original model",
+      "license": "CC0",
+      "sourceStatus": "blockout-only-low-poly",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 15360,
+      "notes": "8 x 8 m road-end tile. Blockout/geometry-fit testing only; low-poly appearance is not suitable for final photoreal city.",
+      "runtimePath": null
+    },
+    {
+      "id": "BLK-TRAFFIC-LIGHT-LOWPOLY-01",
+      "name": "Low-poly City — Traffic light",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/low-poly-city-traffic-light-94ebd054",
+      "creator": "Innerscene original model",
+      "license": "CC0",
+      "sourceStatus": "blockout-only-low-poly",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 15360,
+      "notes": "Reported 0.33 x 0.275 x 3.5 m. Can validate placement and scale; replace with detailed photoreal street signal before final release.",
+      "runtimePath": null
+    },
+    {
+      "id": "BLK-CROSSWALK-LOWPOLY-01",
+      "name": "Low-poly City — Crosswalk",
+      "source": "https://www.innerscene.com/tools/library/3d-parts/low-poly-city-crosswalk-5bd32d06",
+      "creator": "Innerscene original model",
+      "license": "CC0",
+      "sourceStatus": "blockout-only-low-poly",
+      "runtimeStatus": "not-acquired",
+      "format": "GLB",
+      "sourceDownloadBytes": 13312,
+      "notes": "8 x 8 m modular crossing tile. Layout/fit testing only; not approved as final photoreal road surface.",
+      "runtimePath": null
+    },
+    {
+      "id": "PROP-HIDDEN-ALLEY-CC0-PACK-01",
+      "name": "Hidden Alley Props — 39-model CC0 city-street pack",
+      "source": "https://hydethebooty98.itch.io/hidden-alley-props",
+      "creator": "HydeCo Games bundle of original Poly Haven community assets",
+      "license": "CC0 1.0 (source pack listing)",
+      "sourceStatus": "license-and-pack-contents-verified-candidate",
+      "runtimeStatus": "not-acquired",
+      "format": "glTF models with 1K textures; Blender asset-browser file also included",
+      "sourceDownloadBytes": 186000000,
+      "notes": "Pack listing describes 39 photoreal city/alley props including street lamps, security cameras, roller-shutter doors, fire escape, utility boxes, trash cans, tyres, modular facades and fences. Select individual useful models only; covered car is not suitable for traffic. Inspect archive contents and each original Poly Haven asset record before runtime approval.",
+      "optimizationRequired": [
+        "download-and-verify-archive",
+        "inspect-contents-and-individual-source-credits",
+        "select-only-city-appropriate-props",
+        "inspect-mesh-materials-and-textures",
+        "verify-scale-axis-origin",
+        "generate-lods",
+        "compress-textures",
+        "record-per-asset-sha256"
+      ],
+      "runtimePath": null
     }
   ],
   "pendingFamilies": [
     "landmark-building",
-    "residential-buildings",
     "townhouses",
     "asphalt-pbr",
     "concrete-pbr",
     "facade-pbr",
     "daylight-environment",
     "traffic-lights-and-signage",
-    "street-furniture-benches-bins",
-    "landmark-building",
-    "residential-buildings",
-    "townhouses"
+    "street-furniture-benches-bins"
   ],
   "acquisitionGate": {
-    "note": "Source pages state CC0 and GLB availability; this is source-level screening only. No binary is marked acquired until downloaded, opened, inspected, optimized, hashed, and committed.",
+    "note": "CC0 and GLB claims are recorded from individual source pages. Source screening is not binary acquisition or visual approval. No runtime asset may be enabled until downloaded, inspected, optimized, SHA-256 recorded, and committed.",
     "requiredChecks": [
       "download-binary",
       "verify-license-at-download-time",

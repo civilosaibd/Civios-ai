@@ -71,3 +71,4 @@ export function shouldRunDaily(key: string, store: Store | null = safeStore(), n
     return true;
   } catch { return false; }
 }
+

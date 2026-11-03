@@ -25,6 +25,26 @@ verify_jwt = false
 # Authenticated IndoCAD prompt-to-CAD geometry generation.
 verify_jwt = true
 
-[functions.admin-ai-usage-data]
-# Handler validates the caller JWT and checks the admin role before privileged reads.
+[functions.admin-rbac]
 verify_jwt = true
+
+[functions.admin-user-data]
+verify_jwt = true
+
+[functions.admin-project-data]
+verify_jwt = true
+
+[functions.admin-billing-data]
+# The handler validates caller JWT and billing.view/manage permissions before privileged access.
+verify_jwt = true
+
+[functions.admin-ai-usage-data]
+# Handler validates JWT and requires ai_usage.view before privileged usage reads.
+verify_jwt = true
+
+[functions.admin-affiliate-data]
+verify_jwt = true
+
+[functions.track-referral-event]
+# Anonymous link clicks are accepted; authenticated share actions are validated by the handler.
+verify_jwt = false
