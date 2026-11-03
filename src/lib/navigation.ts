@@ -3,7 +3,7 @@ import {
   Sparkles, Calculator, FileText, HardHat, ShoppingCart, Wallet, BarChart3,
   Bot, FileSearch, PenTool, Ruler, ClipboardList, Camera, ClipboardCheck,
   Package, Truck, Receipt, TrendingUp, Lightbulb, FileBarChart, User,
-  Building2, Shield, Upload, Download, Hammer, Cpu, Box, BookOpen, GraduationCap, DraftingCompass,
+  Building2, Shield, Upload, Download, Hammer, Cpu, Box, BookOpen, GraduationCap, DraftingCompass, FileSpreadsheet,
 } from "lucide-react";
 
 export type NavLeaf = {
@@ -25,6 +25,7 @@ export type NavCategory = {
 export const topNav: NavLeaf[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Projects", url: "/projects", icon: FolderOpen },
+  { title: "Excel Template Library", url: "/excel-library", icon: FileSpreadsheet },
   { title: "Calculation", url: "/calculation", icon: Calculator },
   { title: "IndoCAD", url: "/indo-cad", icon: DraftingCompass, adminOnly: true },
 ];
@@ -138,6 +139,7 @@ export const settingsNav: NavCategory = {
     { title: "Affiliate Program", url: "/affiliate", icon: Sparkles },
     { title: "All Modules", url: "/modules", icon: Wrench },
     { title: "Admin Dashboard", url: "/admin", icon: Shield, adminOnly: true },
+    { title: "Admin · Excel Library", url: "/admin/excel-library", icon: FileSpreadsheet, adminOnly: true },
     { title: "Admin · Payments", url: "/admin/billing", icon: CreditCard, adminOnly: true },
     { title: "Admin · AI Agent", url: "/admin/ai-agent", icon: Cpu, adminOnly: true },
   ],
