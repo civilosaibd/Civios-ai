@@ -69,34 +69,24 @@ Deno.serve(async (req) => {
 
   if (body.action === "update-status") {
     const id = body.projectId || "", status = body.status || "";
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(id)) return reply({ error: "A valid project ID is required" }, 400, origin);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return reply({ error: "A valid project ID is required" }, 400, origin);
     if (!["planning", "in_progress", "on_hold", "completed", "cancelled"].includes(status)) return reply({ error: "Unsupported project status" }, 400, origin);
 
-    // Keep the previous value so a failed mandatory audit write can be compensated.
-    const { data: before, error: readError } = await db.from("projects")
-      .select("id,status").eq("id", id).maybeSingle();
-    if (readError || !before) return reply({ error: "Project not found" }, 404, origin);
-    const { data: updated, error } = await db.from("projects").update({ status })
-      .eq("id", id).eq("status", before.status)
-      .select("id,user_id,name,status,updated_at").maybeSingle();
-    if (error || !updated) return reply({ error: "Project status changed concurrently or could not be updated; refresh and retry" }, 409, origin);
-
-    const audit = await db.from("admin_project_access_audit").insert({
-      admin_user_id: auth.user.id, project_id: id, action: "update_project_status",
-      details: { previous_status: before.status, new_status: status },
+    // Database RPC enforces projects.manage and commits the status change plus
+    // its mandatory audit row atomically. Audit failures roll back the mutation.
+    const { data: project, error: updateError } = await caller.rpc("admin_update_project_status", {
+      _project_id: id,
+      _status: status,
     });
-    if (audit.error) {
-      // Do not leave an unaudited privileged mutation in place. Compare-and-set
-      // prevents overwriting a newer status change made by another administrator.
-      const { data: rollback, error: rollbackError } = await db.from("projects")
-        .update({ status: before.status }).eq("id", id).eq("status", status)
-        .select("id").maybeSingle();
-      if (rollbackError || !rollback) {
-        return reply({ error: "Audit logging failed and automatic rollback could not be confirmed. Freeze further project changes and investigate immediately." }, 500, origin);
-      }
-      return reply({ error: "Audit logging failed; the project status change was rolled back. Retry after the audit service is restored." }, 503, origin);
+    if (updateError) {
+      const code = updateError.code;
+      const httpStatus = code === "42501" ? 403
+        : code === "P0002" ? 404
+        : code === "22023" ? 400
+        : code === "23514" ? 409 : 500;
+      return reply({ error: updateError.message || "Project status update failed; no unaudited change was committed" }, httpStatus, origin);
     }
-    return reply({ project: updated }, 200, origin);
+    return reply({ project }, 200, origin);
   }
   return reply({ error: "Unsupported action" }, 400, origin);
 });
