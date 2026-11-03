@@ -12,6 +12,9 @@ CREATE TABLE IF NOT EXISTS public.user_workspace (
 
 ALTER TABLE public.user_workspace ENABLE ROW LEVEL SECURITY;
 
+-- Explicitly remove any broad default privileges inherited from the project.
+REVOKE ALL ON TABLE public.user_workspace FROM anon;
+
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_workspace TO authenticated;
 GRANT ALL ON public.user_workspace TO service_role;
 
