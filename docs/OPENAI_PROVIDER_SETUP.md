@@ -1,61 +1,49 @@
-# CivilOS AI — OpenAI Provider Setup
+# CivilOS AI — AI Provider Configuration
 
-The `ai-chat` Supabase Edge Function supports two server-selected providers:
+The authenticated `ai-chat` Supabase Edge Function supports server-selected providers:
 
-- `lovable` (default): existing Gemini route through the Lovable AI gateway.
-- `openai`: OpenAI Responses API with streamed text adapted to the existing CivilOS chat clients.
+- `openai` — OpenAI Responses API (recommended default).
+- `openrouter` — OpenRouter Chat Completions API; select any model available to the configured OpenRouter account.
 
-The provider is selected only by server-side environment variables. The browser cannot submit an API key, select a model, or override the provider.
+The browser never chooses a provider/model and never receives provider API keys. Provider switching is performed only by changing Supabase Edge Function secrets. Only one provider is active for this endpoint at a time; this is not simultaneous multi-provider fan-out or automatic fallback.
 
-## 1. Add secrets in Supabase
+## OpenAI (recommended default)
 
-Open the CivilOS-AI Supabase project:
+Set these Edge Function secrets in the Supabase dashboard:
 
-1. Go to **Project Settings → Edge Functions → Secrets** (or the Edge Function Secrets page in the Supabase dashboard).
-2. Add:
-   - `AI_PROVIDER` = `openai`
-   - `OPENAI_API_KEY` = your OpenAI API key
-   - `OPENAI_MODEL` = `gpt-5.5` (optional; this is the code default)
-3. Save the secrets.
+- `AI_PROVIDER` = `openai`
+- `OPENAI_API_KEY` = your OpenAI API key
+- `OPENAI_MODEL` = `gpt-5.5` (or a model enabled for your API project)
 
-Never put `OPENAI_API_KEY` in Vite variables, frontend source, GitHub commits, localStorage, or browser requests. Do not share it in chat or screenshots.
+## OpenRouter
 
-You can alternatively set the secrets with the Supabase CLI from a trusted terminal:
+Set:
 
-```bash
-supabase secrets set AI_PROVIDER=openai OPENAI_API_KEY=YOUR_OPENAI_API_KEY OPENAI_MODEL=gpt-5.5 --project-ref kdsoubdybjfgppglzldn
-```
+- `AI_PROVIDER` = `openrouter`
+- `OPENROUTER_API_KEY` = your OpenRouter API key
+- `OPENROUTER_MODEL` = the exact model slug from OpenRouter, for example `openai/gpt-4o-mini`
+- `OPENROUTER_SITE_URL` = `https://civilosai.pro.bd` (optional attribution header)
 
-Replace the placeholder locally. Do not commit a real key or paste it into a command that will be saved in shell history.
+The model slug must be available to the OpenRouter account and support streaming Chat Completions. Model availability, provider routing, rate limits and pricing are controlled by OpenRouter.
 
-## 2. Deploy the Edge Function
+## Security and behavior
 
-Deploy the updated `ai-chat` function after merging this change:
+- Store all provider keys only in Supabase Edge Function Secrets. Never use `VITE_*`, frontend code, localStorage, GitHub files or browser requests for private keys.
+- Keep `verify_jwt = true`; the function validates the signed-in Supabase user.
+- Per-user rate limiting and CivilOS AI credit checks remain server-side.
+- The provider and model are controlled by server secrets; clients cannot override either.
+- Conversation plus reference context is capped at 40,000 characters; individual reference context is capped at 10,000 characters.
+- Uploaded reference material is passed as untrusted user data, not appended to the trusted system instructions.
+- OpenAI Responses requests use `store: false`.
+- A ChatGPT subscription does not include OpenAI API credits. OpenAI and OpenRouter API usage are billed separately under their respective accounts.
+- The function does not silently fall back to another provider. This prevents unexpected provider billing and model changes.
 
-```bash
-supabase functions deploy ai-chat --project-ref kdsoubdybjfgppglzldn
-```
+## Deploy and verify (after PR merge and explicit production approval)
 
-Keep JWT verification enabled. The function validates the signed-in Supabase user, applies the existing per-user rate limit and AI-credit quota, and only then calls the provider.
+Deploy the updated function to the intended Supabase project only after reviewing the PR and confirming the required secrets are configured. Frontend Vercel deployment does not deploy Supabase Edge Functions.
 
-## 3. Verify
+Test the AI Engineering Assistant with Bangla and English prompts, verify streaming, test an oversized request returns 413, and inspect function logs for status-only provider failures. Never log or expose API keys.
 
-1. Sign in to CivilOS AI.
-2. Open **AI Engineering Assistant** or the existing AI Assistant page.
-3. Send a short test prompt in Bangla and another in English.
-4. Confirm the answer streams into the existing chat interface.
-5. Check Supabase Edge Function logs for provider request errors. Never log or expose the API key.
+## Future provider additions
 
-If OpenAI is not configured, the function returns a clear 503 response. It does not silently switch providers, which avoids unexpected billing or provider changes.
-
-## 4. Switch back
-
-Set `AI_PROVIDER=lovable` in Edge Function Secrets to return to the existing Gemini route. The OpenAI key can then be removed from project secrets if no longer needed.
-
-## Privacy and cost notes
-
-- OpenAI requests set `store: false`.
-- OpenAI API usage is billed separately by OpenAI; a ChatGPT subscription does not include API credits.
-- The existing CivilOS AI quota and rate-limit checks remain in front of both providers.
-- The app's own CivilOS branding remains in the UI; this integration does not add a ChatGPT watermark or logo.
-- Model availability, rate limits and pricing depend on the OpenAI API project and account.
+The provider adapter can be extended for other vendors that expose compatible APIs (for example Groq, Together AI or Fireworks). Each provider should receive its own server-side secret and explicit endpoint/model mapping; do not accept arbitrary API URLs or credentials from the browser. Add a provider-specific streaming adapter and tests before enabling it.

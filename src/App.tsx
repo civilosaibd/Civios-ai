@@ -14,7 +14,6 @@ import AnimatedLogoIntro from "./components/AnimatedLogoIntro";
 import InstallCivilOS from "./components/InstallCivilOS";
 import UpdateAvailable from "./components/UpdateAvailable";
 import { PwaProvider } from "@/lib/pwa";
-import FloatingAssistant from "@/components/FloatingAssistant";
 import { UnitsProvider } from "@/lib/UnitsContext";
 import PlanFeatureGate from "@/components/PlanFeatureGate";
 import ImmersiveEngineeringBackground from "@/components/ImmersiveEngineeringBackground";
@@ -114,7 +113,6 @@ const App = () => (
                   <ScrollToTop />
                   <ReferralCapture />
                   <InstallCivilOS />
-                  <FloatingAssistant />
                   <UpdateAvailable />
 
                   <Suspense fallback={<AppLoading compact />}>

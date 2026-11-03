@@ -1716,9 +1716,6 @@ export type Database = {
           paid_at: string | null
           requested_at: string
           status: string
-          transaction_reference: string | null
-          reviewed_by: string | null
-          reviewed_at: string | null
           user_id: string
         }
         Insert: {
@@ -1731,9 +1728,6 @@ export type Database = {
           paid_at?: string | null
           requested_at?: string
           status?: string
-          transaction_reference?: string | null
-          reviewed_by?: string | null
-          reviewed_at?: string | null
           user_id: string
         }
         Update: {
@@ -1746,9 +1740,6 @@ export type Database = {
           paid_at?: string | null
           requested_at?: string
           status?: string
-          transaction_reference?: string | null
-          reviewed_by?: string | null
-          reviewed_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -1759,11 +1750,6 @@ export type Database = {
     }
     Functions: {
       accept_project_invitation: { Args: { _token: string }; Returns: string }
-      admin_read_system_settings: { Args: never; Returns: Json }
-      admin_update_visualization_limits: {
-        Args: { _max_file_mb: number; _max_files: number }
-        Returns: Json
-      }
       approve_payment: { Args: { _payment_id: string }; Returns: string }
       available_commission_balance: {
         Args: { _user_id: string }
