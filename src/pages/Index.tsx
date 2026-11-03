@@ -1,6 +1,5 @@
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
-import SmartCity3DShowcase from "@/components/SmartCity3DShowcase";
 import FeaturesSection from "@/components/FeaturesSection";
 import HowItWorks from "@/components/HowItWorks";
 import TestimonialsSection from "@/components/TestimonialsSection";
@@ -53,7 +52,6 @@ const Index = () => (
     <Navbar />
     <main className="flex-1">
       <HeroSection />
-      <SmartCity3DShowcase />
       <FeaturesSection />
       <HowItWorks />
       <PricingSection />
