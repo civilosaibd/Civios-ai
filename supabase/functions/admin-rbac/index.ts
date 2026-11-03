@@ -90,13 +90,16 @@ Deno.serve(async (req) => {
   if (body.action === "set-permissions") {
     if (!uuid(String(body.membershipId || "")) || !Array.isArray(body.permissions)) return reply({error:"Invalid permission assignment"},400,origin);
     const featureKey = String(body.featureKey || "users");
-    if (!["users","projects","billing","affiliate","ai_usage"].includes(featureKey)) return reply({error:"This feature permission is not enabled yet"},400,origin);
+    if (!["users","projects","billing","affiliate","ai_usage","reports","audit","settings"].includes(featureKey)) return reply({error:"This feature permission is not enabled yet"},400,origin);
     const actions = [...new Set(body.permissions.map(String))];
-    if (actions.some((a)=>!["view","manage"].includes(a)) || (featureKey==="ai_usage" && actions.includes("manage"))) return reply({error:"Unsupported permission action for this feature"},400,origin);
+    if (actions.some((a)=>!["view","manage"].includes(a)) || (["ai_usage","reports","audit"].includes(featureKey) && actions.includes("manage"))) return reply({error:"Unsupported permission action for this feature"},400,origin);
     const rpc = featureKey==="projects" ? "admin_set_subadmin_project_permissions"
       : featureKey==="billing" ? "admin_set_subadmin_billing_permissions"
       : featureKey==="affiliate" ? "admin_set_subadmin_affiliate_permissions"
       : featureKey==="ai_usage" ? "admin_set_subadmin_ai_usage_permissions"
+      : featureKey==="reports" ? "admin_set_subadmin_reports_permissions"
+      : featureKey==="audit" ? "admin_set_subadmin_audit_permissions"
+      : featureKey==="settings" ? "admin_set_subadmin_settings_permissions"
       : "admin_set_subadmin_permissions";
     const {data,error} = await caller.rpc(rpc,{_membership_id:body.membershipId,_actions:actions});
     if (error) return reply({error:error.message},409,origin);
