@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AnimatedLogo from "@/components/AnimatedLogo";
 
 const SESSION_KEY = "civilos-animated-splash-seen";
+const INTRO_FAILSAFE_MS = 5_200;
+const EXIT_TRANSITION_MS = 460;
 
 const AnimatedLogoIntro = () => {
   const [visible, setVisible] = useState(false);
   const [exiting, setExiting] = useState(false);
+  const safetyTimer = useRef<number | undefined>(undefined);
+  const exitTimer = useRef<number | undefined>(undefined);
+  const hasStartedExit = useRef(false);
 
   useEffect(() => {
     try {
@@ -17,10 +22,26 @@ const AnimatedLogoIntro = () => {
     setVisible(true);
   }, []);
 
-  const handleComplete = useCallback(() => {
+  const beginExit = useCallback(() => {
+    if (hasStartedExit.current) return;
+    hasStartedExit.current = true;
+    if (safetyTimer.current !== undefined) window.clearTimeout(safetyTimer.current);
     setExiting(true);
-    window.setTimeout(() => setVisible(false), 460);
+    exitTimer.current = window.setTimeout(() => setVisible(false), EXIT_TRANSITION_MS);
   }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+    // WebGL can fail or take too long on low-memory/mobile devices. Never let
+    // an animated splash prevent the actual application from becoming usable.
+    safetyTimer.current = window.setTimeout(beginExit, INTRO_FAILSAFE_MS);
+    return () => {
+      if (safetyTimer.current !== undefined) window.clearTimeout(safetyTimer.current);
+      if (exitTimer.current !== undefined) window.clearTimeout(exitTimer.current);
+    };
+  }, [visible, beginExit]);
+
+  const handleComplete = useCallback(() => beginExit(), [beginExit]);
 
   if (!visible) return null;
 
