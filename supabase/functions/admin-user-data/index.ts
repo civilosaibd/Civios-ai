@@ -40,11 +40,12 @@ Deno.serve(async (req) => {
   const admin = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const [{ data: legacyAdmin }, { data: superAdmin }, { data: canViewUsers }, { data: canManageUsers }] = await Promise.all([
+  const [{ data: legacyAdmin }, { data: superAdmin }, { data: canViewUsers }, { data: canManageUsers }, { data: canViewAudit }] = await Promise.all([
     callerClient.rpc("has_role", { _user_id: authData.user.id, _role: "admin" }),
     callerClient.rpc("is_super_admin"),
     callerClient.rpc("has_admin_permission", { _feature_key: "users", _action: "view" }),
     callerClient.rpc("has_admin_permission", { _feature_key: "users", _action: "manage" }),
+    callerClient.rpc("has_admin_permission", { _feature_key: "audit", _action: "view" }),
   ]);
 
   let body: { action?: string; userId?: string; page?: number; status?: string; reason?: string; limit?: number };
@@ -52,7 +53,7 @@ Deno.serve(async (req) => {
   const mayViewUsers = legacyAdmin === true || superAdmin === true || canViewUsers === true;
   const mayManageUsers = legacyAdmin === true || superAdmin === true || canManageUsers === true;
   if (body.action === "audit-list") {
-    if (legacyAdmin !== true && superAdmin !== true) return json({ error: "Super Admin access required" }, 403, origin);
+    if (legacyAdmin !== true && superAdmin !== true && canViewAudit !== true) return json({ error: "Audit: View permission required" }, 403, origin);
   } else if (body.action === "account-status") {
     if (!mayManageUsers) return json({ error: "Users: Manage permission required" }, 403, origin);
   } else if (!mayViewUsers) {
