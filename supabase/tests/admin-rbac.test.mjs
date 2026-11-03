@@ -339,3 +339,19 @@ test("affiliate withdrawal RPC enforces view/manage permissions, valid transitio
     {action:"affiliate_withdrawal_paid",previous_status:"approved",new_status:"paid",transaction_reference:"TXN-SECURE-001"}
   ]);
 });
+
+test("privileged status RPCs are executable only by authenticated callers",async()=>{
+  const checks=await q(`
+    SELECT
+      has_function_privilege('anon','public.admin_update_affiliate_withdrawal(uuid,text,text,text)','EXECUTE') AS anon_affiliate,
+      has_function_privilege('authenticated','public.admin_update_affiliate_withdrawal(uuid,text,text,text)','EXECUTE') AS authenticated_affiliate,
+      has_function_privilege('anon','public.admin_update_project_status(uuid,text)','EXECUTE') AS anon_project,
+      has_function_privilege('authenticated','public.admin_update_project_status(uuid,text)','EXECUTE') AS authenticated_project
+  `);
+  assert.deepEqual(checks[0],{
+    anon_affiliate:false,
+    authenticated_affiliate:true,
+    anon_project:false,
+    authenticated_project:true
+  });
+});
