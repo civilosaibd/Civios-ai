@@ -192,7 +192,7 @@ ${replyText}
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/20">
-      <SEO title="Admin Panel" description="Manage sponsors, ratings, users, projects and contact messages." />
+      <SEO title="Admin Panel" description="Centralized administration overview for CivilOS AI operations and workspaces." />
       <Navbar />
       <main className="flex-1 py-6 md:py-8">
         <div className="container space-y-6">
@@ -219,11 +219,35 @@ ${replyText}
             )}
           </div>
 
-          <section aria-label="Admin workspaces" className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <Button variant="outline" className="justify-start gap-2" onClick={() => navigate("/admin/projects")}><FolderKanban className="h-4 w-4"/>Projects</Button>
-            <Button variant="outline" className="justify-start gap-2" onClick={() => navigate("/admin/affiliate")}><TrendingUp className="h-4 w-4"/>Affiliate</Button>
-            <Button variant="outline" className="justify-start gap-2" onClick={() => navigate("/admin/billing")}><CreditCard className="h-4 w-4"/>Billing</Button>
-            <Button variant="outline" className="justify-start gap-2" onClick={() => navigate("/admin/ai-usage")}><Activity className="h-4 w-4"/>AI Usage</Button>
+          <section aria-label="Centralized admin workspaces" className="space-y-3">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h2 className="font-heading text-lg font-semibold">Centralized Admin Command Center</h2>
+                <p className="text-sm text-muted-foreground">One place to monitor operations and open every administration workspace.</p>
+              </div>
+              <Badge variant="outline" className="gap-1"><ShieldCheck className="h-3.5 w-3.5"/>Admin workspace</Badge>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              {[
+                { title: "User Accounts", description: "Search accounts and inspect user access.", icon: UsersRound, path: "/admin/users" },
+                { title: "Team & Permissions", description: "Manage sub-admins and scoped permissions.", icon: UserCog, path: "/admin/team" },
+                { title: "Projects", description: "Review project records and access activity.", icon: FolderKanban, path: "/admin/projects" },
+                { title: "Affiliate", description: "Monitor referrals, commissions and payouts.", icon: TrendingUp, path: "/admin/affiliate" },
+                { title: "Billing", description: "Review payments and subscription records.", icon: CreditCard, path: "/admin/billing" },
+                { title: "AI Usage", description: "Review monthly account usage counters.", icon: Activity, path: "/admin/ai-usage" },
+                { title: "System Settings", description: "Configure available platform settings.", icon: Settings, path: "/admin/settings" },
+                { title: "Admin Overview", description: "Return to the main operations overview.", icon: Crown, path: "/admin" },
+              ].map(({ title, description, icon: Icon, path }) => (
+                <button key={path} type="button" onClick={() => navigate(path)}
+                  className="group flex min-h-28 items-start gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Icon className="h-5 w-5"/></span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold group-hover:text-primary">{title}</span>
+                    <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{description}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
           </section>
 
           {/* Stats */}
