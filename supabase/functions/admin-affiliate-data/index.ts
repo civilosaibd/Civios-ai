@@ -80,20 +80,22 @@ Deno.serve(async (req) => {
     const id = body.withdrawalId || "";
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) return reply({ error: "A valid withdrawal ID is required" }, 400, origin);
     if (!["approved", "rejected", "paid"].includes(body.status || "")) return reply({ error: "Unsupported withdrawal status" }, 400, origin);
-    const { data: current, error } = await db.from("withdrawals").select("id,user_id,amount,method,status").eq("id", id).maybeSingle();
-    if (error || !current) return reply({ error: "Withdrawal not found" }, 404, origin);
-    const transitions: Record<string, string[]> = { pending: ["approved", "rejected"], approved: ["paid", "rejected"] };
-    if (!transitions[current.status]?.includes(body.status!)) return reply({ error: `Invalid withdrawal transition: ${current.status} → ${body.status}` }, 409, origin);
-    const reference = String(body.transactionReference || "").trim();
-    if (body.status === "paid" && !reference) return reply({ error: "A payment transaction reference is required before marking paid" }, 400, origin);
-    const now = new Date().toISOString(), update: Record<string, unknown> = { status: body.status, admin_note: String(body.adminNote || "").trim() || null, reviewed_by: auth.user.id, reviewed_at: now };
-    if (body.status === "approved") update.approved_at = now;
-    if (body.status === "paid") { update.paid_at = now; update.transaction_reference = reference; }
-    const { data: changed, error: updateError } = await db.from("withdrawals").update(update).eq("id", id).eq("status", current.status).select("id,user_id,amount,method,status,requested_at,approved_at,paid_at,admin_note,transaction_reference").maybeSingle();
-    if (updateError || !changed) return reply({ error: "Withdrawal could not be updated; refresh and retry" }, 409, origin);
-    const audit = await db.from("admin_action_audit").insert({ admin_user_id: auth.user.id, action: `affiliate_withdrawal_${body.status}`, target_type: "withdrawal", target_id: id, details: { user_id: changed.user_id, amount: changed.amount, method: changed.method, transaction_reference: changed.transaction_reference || null } });
-    if (audit.error) return reply({ error: "Withdrawal updated, but audit logging failed. Contact support before further payout actions." }, 500, origin);
-    return reply({ withdrawal: changed }, 200, origin);
+    // The database function enforces authorization, transition rules, and writes
+    // the withdrawal plus its audit record in one PostgreSQL transaction.
+    const { data: withdrawal, error: updateError } = await caller.rpc("admin_update_affiliate_withdrawal", {
+      _withdrawal_id: id,
+      _status: body.status,
+      _admin_note: String(body.adminNote || "").trim() || null,
+      _transaction_reference: String(body.transactionReference || "").trim() || null,
+    });
+    if (updateError) {
+      const status = updateError.code === "42501" ? 403
+        : updateError.code === "P0002" ? 404
+        : updateError.code === "23514" ? 409
+        : updateError.code === "22023" ? 400 : 500;
+      return reply({ error: updateError.message || "Withdrawal review failed; no unaudited change was committed" }, status, origin);
+    }
+    return reply({ withdrawal }, 200, origin);
   }
   return reply({ error: "Unsupported action" }, 400, origin);
 });
