@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Box, CheckCircle2, Eye, Loader2, Plus, Trash2, UploadCloud } from "lucide-react";
+import { Box, CheckCircle2, Eye, Loader2, Trash2, UploadCloud } from "lucide-react";
 
 type HeroModel = {
   id: string;
@@ -92,15 +92,7 @@ export default function HeroArchitectureManager() {
 
   const activateModel = async (model: HeroModel) => {
     setBusyId(model.id);
-    // Deactivate the current model first; the database unique index prevents two active models.
-    const { error: deactivateError } = await (supabase.from("homepage_hero_models" as any) as any)
-      .update({ is_active: false }).eq("is_active", true);
-    if (deactivateError) {
-      setBusyId(null);
-      return toast.error("Could not deactivate current model: " + deactivateError.message);
-    }
-    const { error } = await (supabase.from("homepage_hero_models" as any) as any)
-      .update({ is_active: true }).eq("id", model.id);
+    const { error } = await supabase.rpc("activate_homepage_hero_model" as any, { _model_id: model.id } as any);
     setBusyId(null);
     if (error) toast.error("Could not activate model: " + error.message);
     else { toast.success("Homepage 3D model updated."); await loadModels(); }
