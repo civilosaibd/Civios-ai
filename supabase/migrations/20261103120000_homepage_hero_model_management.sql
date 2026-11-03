@@ -60,3 +60,25 @@ DROP POLICY IF EXISTS "Admins delete homepage hero GLB" ON storage.objects;
 CREATE POLICY "Admins delete homepage hero GLB"
   ON storage.objects FOR DELETE TO authenticated
   USING (bucket_id = 'homepage-hero-models' AND public.has_role(auth.uid(), 'admin'));
+
+
+-- Atomically switch the single active homepage model.
+CREATE OR REPLACE FUNCTION public.activate_homepage_hero_model(_model_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.has_role(auth.uid(), 'admin') THEN
+    RAISE EXCEPTION 'Admin access required';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.homepage_hero_models WHERE id = _model_id) THEN
+    RAISE EXCEPTION 'Homepage model not found';
+  END IF;
+  UPDATE public.homepage_hero_models SET is_active = false WHERE is_active = true;
+  UPDATE public.homepage_hero_models SET is_active = true, updated_at = now() WHERE id = _model_id;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.activate_homepage_hero_model(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.activate_homepage_hero_model(uuid) TO authenticated;
