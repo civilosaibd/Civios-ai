@@ -25,6 +25,12 @@ verify_jwt = false
 # Authenticated IndoCAD prompt-to-CAD geometry generation.
 verify_jwt = true
 
+[functions.admin-rbac]
+verify_jwt = true
+
+[functions.admin-user-data]
+verify_jwt = true
+
 [functions.admin-affiliate-data]
 verify_jwt = true
 

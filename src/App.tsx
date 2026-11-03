@@ -31,6 +31,9 @@ const ProjectsPage = lazy(() => import("./pages/ProjectsPage.tsx"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage.tsx"));
 const SponsorPage = lazy(() => import("./pages/SponsorPage.tsx"));
 const AdminPage = lazy(() => import("./pages/AdminPage.tsx"));
+const AdminTeamPage = lazy(() => import("./pages/AdminTeamPage.tsx"));
+const AdminUsersPage = lazy(() => import("./pages/AdminUsersPage.tsx"));
+const AdminAcceptInvitePage = lazy(() => import("./pages/AdminAcceptInvitePage.tsx"));
 const SharedEstimatePage = lazy(() => import("./pages/SharedEstimatePage.tsx"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage.tsx"));
 const AIWriterPage = lazy(() => import("./pages/AIWriterPage.tsx"));
@@ -254,12 +257,15 @@ const App = () => (
                         element={<AdminAffiliatePage />}
                       />
                       <Route path="/invite" element={<InviteAcceptPage />} />
+                      <Route path="/admin/accept-invite" element={<AdminAcceptInvitePage />} />
 
                       <Route path="/billing" element={<BillingPage />} />
                       <Route
                         path="/admin/billing"
                         element={<AdminBillingPage />}
                       />
+                      <Route path="/admin/team" element={<AdminTeamPage />} />
+                      <Route path="/admin/users" element={<AdminUsersPage />} />
                       <Route path="/admin/settings" element={<AdminSystemSettingsPage />} />
 
                       <Route

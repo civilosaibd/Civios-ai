@@ -175,12 +175,14 @@ test("balance counts only approved commission; stats and the withdrawal check ag
   assert.equal(Number(s2.requested), 500);
 });
 
-test("only an admin can review a flagged commission; approving makes it withdrawable, once", async () => {
+test("only admins or affiliate.manage sub-admins can review flagged commissions", async () => {
   const [f] = await q("SELECT id FROM public.referral_commissions WHERE status='flagged' ORDER BY created_at LIMIT 1");
-  await carol(() => rejects(() => db.query("SELECT public.review_commission($1,true)", [f.id]), /Admin only/));
-  await admin(() => db.query("SELECT public.review_commission($1,true,'checked manually')", [f.id]));
+  await carol(() => rejects(() => db.query("SELECT public.review_commission($1,true)", [f.id]), /Admin only|Affiliate: Manage permission required/));
+  const [membership] = await q("INSERT INTO public.admin_memberships(user_id,role,status,assigned_by) VALUES ($1,'sub_admin','active',$2) RETURNING id", [DAVE,ADMIN]);
+  await db.query("INSERT INTO public.admin_feature_permissions(membership_id,feature_key,action,granted_by) VALUES ($1,'affiliate','manage',$2)", [membership.id,ADMIN]);
+  await dave(() => db.query("SELECT public.review_commission($1,true,'checked by affiliate sub-admin')", [f.id]));
   const [row] = await q("SELECT status, reviewed_by, reviewed_at FROM public.referral_commissions WHERE id=$1", [f.id]);
-  assert.equal(row.status, "approved"); assert.equal(row.reviewed_by, ADMIN); assert.ok(row.reviewed_at);
+  assert.equal(row.status, "approved"); assert.equal(row.reviewed_by, DAVE); assert.ok(row.reviewed_at);
   await admin(() => rejects(() => db.query("SELECT public.review_commission($1,false)", [f.id]), /Only flagged/));
   const s = await carol(async () => (await db.query("SELECT public.my_affiliate_stats() s")).rows[0].s);
   assert.ok(Number(s.earned) > 0 && Number(s.in_review) > 0);

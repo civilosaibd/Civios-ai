@@ -132,7 +132,7 @@ test("payments: forged 'verified' status is neutralised to 'pending'", async () 
 
 test("approve_payment: non-admin and anon are refused", async () => {
   const [{ id }] = await q("SELECT id FROM public.payments WHERE transaction_id='TX-ALICE-1'");
-  await alice(() => rejects(() => db.query("SELECT public.approve_payment($1)", [id]), /Admin only/));
+  await alice(() => rejects(() => db.query("SELECT public.approve_payment($1)", [id]), /Admin only|Billing: Manage permission required/));
   await anon(() => rejects(() => db.query("SELECT public.approve_payment($1)", [id]), /permission denied/));
 });
 
