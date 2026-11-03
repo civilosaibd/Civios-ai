@@ -114,18 +114,24 @@ function CivilOSMark({ mode, onComplete }: { mode: "loop" | "intro"; onComplete?
     if (!rotatingGroup.current) return;
 
     if (mode === "loop") {
-      rotatingGroup.current.rotation.y = reducedMotion.current ? -0.18 : elapsed.current * (Math.PI * 2 / 7);
+      // Gentle oscillation keeps the decorated face visible at all times.
+      rotatingGroup.current.rotation.y = reducedMotion.current
+        ? -0.18
+        : Math.sin(elapsed.current * 0.9) * 0.42;
       rotatingGroup.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.7) * 0.03;
       return;
     }
 
+    // Intro: badge opens from an edge-on pose straight to face-on, so the
+    // undecorated back of the slab is never shown to the viewer.
     const duration = 4.5;
     const progress = reducedMotion.current ? 1 : Math.min(elapsed.current / duration, 1);
-    const eased = progress < 0.82
-      ? progress / 0.82
-      : 1 - Math.pow(1 - (progress - 0.82) / 0.18, 3) * 0.04;
-    rotatingGroup.current.rotation.y = eased * Math.PI * 5;
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const startAngle = -1.12 * (Math.PI / 2);
+    rotatingGroup.current.rotation.y = (1 - eased) * startAngle;
     rotatingGroup.current.rotation.x = Math.sin(progress * Math.PI) * 0.03;
+    const s = 0.94 + 0.08 * eased;
+    rotatingGroup.current.scale.setScalar(s);
     if (progress >= 1 && !completed.current) {
       completed.current = true;
       callback.current?.();
