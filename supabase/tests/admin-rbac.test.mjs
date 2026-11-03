@@ -26,6 +26,10 @@ const admin=(fn)=>as("authenticated",ADMIN,"zobaerio24@gmail.com",fn);
 const sub=(fn)=>as("authenticated",SUB,"subadmin@example.com",fn);
 const other=(fn)=>as("authenticated",OTHER,"other@example.com",fn);
 const q=async(sql,params)=> (await db.query(sql,params)).rows;
+const ensureSubMembership=async()=> (await q(
+  "INSERT INTO public.admin_memberships(user_id,role,status) VALUES ($1,'sub_admin','active') ON CONFLICT (user_id) DO UPDATE SET role='sub_admin',status='active' RETURNING id",
+  [SUB],
+))[0];
 const rejects=(fn,re)=>assert.rejects(Promise.resolve().then(fn),re);
 
 before(async()=>{
@@ -189,4 +193,102 @@ test("Invitation replacement and revocation are audited and replay-safe",async()
     await rejects(()=>db.query("SELECT public.admin_revoke_invitation($1)",[pending.id]),/Pending invitation not found/);
   });
   assert.equal((await q("SELECT status FROM public.admin_invitations WHERE id=$1",[pending.id]))[0].status,"revoked");
+});
+
+
+test("Super Admin can grant read-only Reports and Audit permissions",async()=>{
+  const membership=await ensureSubMembership();
+  await admin(async()=>{
+    await db.query("SELECT public.admin_set_subadmin_reports_permissions($1,ARRAY['view']::text[])",[membership.id]);
+    await db.query("SELECT public.admin_set_subadmin_audit_permissions($1,ARRAY['view']::text[])",[membership.id]);
+  });
+  await sub(async()=>{
+    assert.equal((await db.query("SELECT public.has_admin_permission('reports','view') AS allowed")).rows[0].allowed,true);
+    assert.equal((await db.query("SELECT public.has_admin_permission('audit','view') AS allowed")).rows[0].allowed,true);
+    assert.equal((await db.query("SELECT public.has_admin_permission('reports','manage') AS allowed")).rows[0].allowed,false);
+    assert.equal((await db.query("SELECT public.has_admin_permission('audit','manage') AS allowed")).rows[0].allowed,false);
+  });
+  await admin(async()=>{ await db.query("SELECT public.admin_set_subadmin_audit_permissions($1,ARRAY[]::text[])",[membership.id]); });
+  await sub(async()=>assert.equal((await db.query("SELECT public.has_admin_permission('audit','view') AS allowed")).rows[0].allowed,false));
+  await admin(()=>rejects(()=>db.query("SELECT public.admin_set_subadmin_reports_permissions($1,ARRAY['manage']::text[])",[membership.id]),/Reports is read-only/));
+  await admin(()=>rejects(()=>db.query("SELECT public.admin_set_subadmin_audit_permissions($1,ARRAY['manage']::text[])",[membership.id]),/Audit is read-only/));
+});
+
+test("Super Admin can grant Settings view/manage permissions with manage implying view",async()=>{
+  const membership=await ensureSubMembership();
+  await admin(async()=>{await db.query("SELECT public.admin_set_subadmin_settings_permissions($1,ARRAY['manage']::text[])",[membership.id]);});
+  const actions=(await q("SELECT action FROM public.admin_feature_permissions WHERE membership_id=$1 AND feature_key='settings' ORDER BY action",[membership.id])).map(x=>x.action);
+  assert.deepEqual(actions,["manage","view"]);
+  await sub(async()=>{
+    assert.equal((await db.query("SELECT public.has_admin_permission('settings','view') AS allowed")).rows[0].allowed,true);
+    assert.equal((await db.query("SELECT public.has_admin_permission('settings','manage') AS allowed")).rows[0].allowed,true);
+  });
+  await admin(async()=>{ await db.query("SELECT public.admin_set_subadmin_settings_permissions($1,ARRAY['view']::text[])",[membership.id]); });
+  await sub(async()=>{
+    assert.equal((await db.query("SELECT public.has_admin_permission('settings','view') AS allowed")).rows[0].allowed,true);
+    assert.equal((await db.query("SELECT public.has_admin_permission('settings','manage') AS allowed")).rows[0].allowed,false);
+  });
+  await admin(async()=>{ await db.query("SELECT public.admin_set_subadmin_settings_permissions($1,ARRAY[]::text[])",[membership.id]); });
+  await sub(async()=>assert.equal((await db.query("SELECT public.has_admin_permission('settings','view') AS allowed")).rows[0].allowed,false));
+});
+
+test("Sub-admin cannot grant Reports, Audit or Settings permissions",async()=>{
+  const membership=await ensureSubMembership();
+  await sub(async()=>{
+    await rejects(()=>db.query("SELECT public.admin_set_subadmin_reports_permissions($1,ARRAY['view']::text[])",[membership.id]),/Super Admin access required/);
+    await rejects(()=>db.query("SELECT public.admin_set_subadmin_audit_permissions($1,ARRAY['view']::text[])",[membership.id]),/Super Admin access required/);
+    await rejects(()=>db.query("SELECT public.admin_set_subadmin_settings_permissions($1,ARRAY['view']::text[])",[membership.id]),/Super Admin access required/);
+  });
+});
+
+
+test("System Settings RPCs enforce view/manage permissions and audit changes",async()=>{
+  const membership=await ensureSubMembership();
+
+  await sub(()=>rejects(
+    ()=>db.query("SELECT public.admin_read_system_settings()"),
+    /Settings: View permission required/
+  ));
+
+  await admin(()=>db.query(
+    "SELECT public.admin_set_subadmin_settings_permissions($1,ARRAY['view']::text[])",[membership.id]
+  ));
+  await sub(async()=>{
+    const [settings]=await q("SELECT public.admin_read_system_settings() AS value");
+    assert.equal(settings.value.can_manage,false);
+    await rejects(
+      ()=>db.query("SELECT public.admin_update_visualization_limits(30,12)"),
+      /Settings: Manage permission required/
+    );
+  });
+
+  await admin(()=>db.query(
+    "SELECT public.admin_set_subadmin_settings_permissions($1,ARRAY['manage']::text[])",[membership.id]
+  ));
+  await sub(async()=>{
+    const [updated]=await q("SELECT public.admin_update_visualization_limits(30,12) AS value");
+    assert.deepEqual(updated.value,{max_file_mb:30,max_files:12});
+  });
+  const [audit]=await q(
+    "SELECT admin_user_id,setting_group,new_values FROM public.admin_system_settings_audit ORDER BY created_at DESC LIMIT 1"
+  );
+  assert.equal(audit.admin_user_id,SUB);
+  assert.equal(audit.setting_group,"visualization_upload_limits");
+  assert.deepEqual(audit.new_values,{max_file_mb:30,max_files:12});
+});
+
+test("System Settings audit table is inaccessible to anon/authenticated clients",async()=>{
+  for(const privilege of ["SELECT","INSERT","UPDATE","DELETE"]){
+    const [{anon_allowed,authenticated_allowed}]=await q(
+      "SELECT has_table_privilege('anon','public.admin_system_settings_audit',$1) AS anon_allowed, has_table_privilege('authenticated','public.admin_system_settings_audit',$1) AS authenticated_allowed",
+      [privilege]
+    );
+    assert.equal(anon_allowed,false);
+    assert.equal(authenticated_allowed,false);
+  }
+  const [{service_select,service_insert}]=await q(
+    "SELECT has_table_privilege('service_role','public.admin_system_settings_audit','SELECT') AS service_select, has_table_privilege('service_role','public.admin_system_settings_audit','INSERT') AS service_insert"
+  );
+  assert.equal(service_select,true);
+  assert.equal(service_insert,true);
 });
