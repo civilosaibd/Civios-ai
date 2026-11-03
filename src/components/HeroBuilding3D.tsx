@@ -268,7 +268,7 @@ export default function HeroBuilding3D() {
     <div
       className="relative isolate h-[310px] w-full overflow-hidden rounded-[28px] sm:h-[390px] lg:h-[500px]"
       role="img"
-      aria-label="A photorealistic modern four-storey architectural residence with glass curtain walls, stone and timber facade, cantilevered balconies, rooftop pergola and landscaped grounds, rotating slowly in interactive 3D."
+      aria-label="Interactive 3D architectural model selected by CivilOS AI administrators. Drag to explore the building."
       style={{
         background: "radial-gradient(ellipse at 50% 42%, rgba(108, 151, 164, .28), transparent 58%), linear-gradient(145deg, #0b1a25, #1b3037)",
       }}
@@ -290,8 +290,8 @@ export default function HeroBuilding3D() {
       </div>
       <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3 sm:bottom-6 sm:left-6 sm:right-6">
         <div className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2.5 text-white/90 shadow-lg backdrop-blur-md">
-          <p className="text-[9px] font-semibold tracking-[0.18em] text-cyan-100/80">CONTEMPORARY RESIDENCE</p>
-          <p className="mt-1 text-xs font-medium text-white/90">4 floors · glass facade · roof terrace</p>
+          <p className="text-[9px] font-semibold tracking-[0.18em] text-cyan-100/80">FEATURED ARCHITECTURE</p>
+          <p className="mt-1 text-xs font-medium text-white/90">Admin-selected 3D building model</p>
         </div>
         <div className="rounded-xl border border-cyan-100/20 bg-slate-950/60 px-3 py-2.5 text-right text-white/90 shadow-lg backdrop-blur-md">
           <p className="text-sm font-bold tracking-wide text-amber-200">360°</p>
