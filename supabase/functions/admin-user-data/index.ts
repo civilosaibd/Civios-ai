@@ -124,6 +124,15 @@ Deno.serve(async (req) => {
     const subMap = new Map((subs || []).map((s) => [s.user_id, s]));
     const roleMap = new Map((roles || []).map((r) => [r.user_id, r.role]));
     const membershipMap = new Map((memberships || []).map((m) => [m.user_id, m]));
+    const { error: directoryAuditError } = await admin.from("admin_action_audit").insert({
+      admin_user_id: authData.user.id,
+      action: "view_user_directory",
+      target_type: "user_directory",
+      details: { page, returned_user_count: data.users.length },
+    });
+    if (directoryAuditError) {
+      return json({ error: "Unable to record privileged directory access; user records were not returned" }, 500, origin);
+    }
     return json({
       users: data.users.map((u) => ({
         id: u.id, email: u.email, phone: u.phone,
