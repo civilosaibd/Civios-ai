@@ -134,3 +134,31 @@ GRANT EXECUTE ON FUNCTION public.viz_can_read(uuid, uuid) TO authenticated, serv
 
 REVOKE ALL ON FUNCTION public.viz_can_write(uuid, uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.viz_can_write(uuid, uuid) TO authenticated, service_role;
+
+
+-- All other exposed SECURITY DEFINER RPCs are intentionally callable by
+-- authenticated users, but their bodies enforce the caller's own identity or
+-- a server-side admin / invitation-token check. Keep those authorization
+-- checks intact while pinning their name-resolution path as defense in depth.
+ALTER FUNCTION public.accept_project_invitation(text)
+  SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION public.approve_payment(uuid)
+  SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION public.cancel_my_subscription()
+  SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION public.cancel_viz_job(uuid)
+  SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION public.claim_referral(text)
+  SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION public.decline_project_invitation(text)
+  SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION public.generate_my_deadline_notifications()
+  SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION public.my_affiliate_stats()
+  SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION public.reject_payment(uuid, text)
+  SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION public.request_withdrawal(numeric, text, text)
+  SET search_path = pg_catalog, public, pg_temp;
+ALTER FUNCTION public.review_commission(uuid, boolean, text)
+  SET search_path = pg_catalog, public, pg_temp;
