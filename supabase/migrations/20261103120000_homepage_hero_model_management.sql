@@ -40,10 +40,8 @@ ON CONFLICT (id) DO UPDATE SET
   file_size_limit = 52428800,
   allowed_mime_types = ARRAY['model/gltf-binary','application/octet-stream'];
 
-DROP POLICY IF EXISTS "Public read homepage hero GLB" ON storage.objects;
-CREATE POLICY "Public read homepage hero GLB"
-  ON storage.objects FOR SELECT TO anon, authenticated
-  USING (bucket_id = 'homepage-hero-models');
+-- Public buckets serve object downloads without a storage.objects SELECT policy.
+-- Do not add a SELECT policy here: that would also expose object listing.
 
 DROP POLICY IF EXISTS "Admins upload homepage hero GLB" ON storage.objects;
 CREATE POLICY "Admins upload homepage hero GLB"
