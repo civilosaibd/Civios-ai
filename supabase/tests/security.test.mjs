@@ -780,3 +780,86 @@ test("RBAC audit rows are visible to Super Admin only, not ordinary authenticate
   ));
   assert.equal(superAdminCount.count, 1);
 });
+
+
+test("SECURITY DEFINER identity helpers cannot reveal another user's admin, project or visualization role", async () => {
+  const [{ id: projectId }] = await q(
+    "INSERT INTO public.projects(user_id,name) VALUES ($1,'Security Identity Probe Project') RETURNING id",
+    [BOB]
+  );
+  const [{ id: visualizationId }] = await q(
+    "INSERT INTO public.construction_visualizations(user_id,name) VALUES ($1,'Security Identity Probe Visualization') RETURNING id",
+    [BOB]
+  );
+
+  await alice(async () => {
+    const [probe] = await q(
+      `SELECT
+        public.has_role($1,'admin') AS other_admin,
+        public.get_project_role($2,$3)::text AS other_project_role,
+        public.is_project_member($2,$3) AS other_project_member,
+        public.viz_role($4,$3) AS other_visualization_role,
+        public.viz_can_read($4,$3) AS other_visualization_read,
+        public.viz_can_write($4,$3) AS other_visualization_write`,
+      [ADMIN, projectId, BOB, visualizationId]
+    );
+    assert.deepEqual(probe, {
+      other_admin: false,
+      other_project_role: null,
+      other_project_member: false,
+      other_visualization_role: null,
+      other_visualization_read: false,
+      other_visualization_write: false,
+    });
+  });
+
+  // The same helpers must continue to work for the authenticated caller's own identity.
+  await bob(async () => {
+    const [own] = await q(
+      `SELECT
+        public.get_project_role($1,$2)::text AS project_role,
+        public.is_project_member($1,$2) AS project_member,
+        public.viz_role($3,$2) AS visualization_role,
+        public.viz_can_read($3,$2) AS visualization_read,
+        public.viz_can_write($3,$2) AS visualization_write`,
+      [projectId, BOB, visualizationId]
+    );
+    assert.deepEqual(own, {
+      project_role: "admin",
+      project_member: true,
+      visualization_role: "owner",
+      visualization_read: true,
+      visualization_write: true,
+    });
+  });
+});
+
+
+test("all intended authenticated SECURITY DEFINER RPCs use a pinned safe search_path", async () => {
+  // Filter to the reviewed externally callable RPC set. PGlite's permissive
+  // default grants can make has_function_privilege() include unrelated
+  // functions inherited through PUBLIC, so enumerate the intended API surface.
+  const rows = await q(`
+    SELECT p.proname, p.proconfig
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.prosecdef
+      AND p.proname = ANY (ARRAY[
+        'accept_project_invitation', 'approve_payment', 'cancel_my_subscription',
+        'cancel_viz_job', 'claim_referral', 'decline_project_invitation',
+        'generate_my_deadline_notifications', 'get_project_role', 'has_role',
+        'is_project_member', 'my_affiliate_stats', 'reject_payment',
+        'request_withdrawal', 'review_commission', 'viz_can_read',
+        'viz_can_write', 'viz_role'
+      ])
+    ORDER BY p.proname
+  `);
+  assert.equal(rows.length, 17, "expected all 17 reviewed SECURITY DEFINER RPCs to be present");
+  for (const row of rows) {
+    assert.ok(
+      row.proconfig?.includes("search_path=pg_catalog, public, pg_temp"),
+      `${row.proname} must pin pg_catalog first and pg_temp last; got ${JSON.stringify(row.proconfig)}`
+    );
+  }
+});
