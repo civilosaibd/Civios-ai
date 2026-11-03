@@ -7,7 +7,7 @@ import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import ThemeToggle from "@/components/ThemeToggle";
 import LiveUsers from "@/components/LiveUsers";
-import AnimatedLogo from "@/components/AnimatedLogo";
+import CivilOSLogo from "@/components/CivilOSLogo";
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
@@ -33,7 +33,7 @@ const Navbar = () => {
     <nav className="sticky top-0 z-50 glass border-b">
       <div className="container flex h-16 items-center justify-between">
         <Link to="/" aria-label="CivilOS AI home" className="flex items-center">
-          <AnimatedLogo size={48} mode="loop" /><span className="hidden sm:inline-flex flex-col leading-none"><span className="font-heading text-lg font-extrabold tracking-tight text-foreground">CivilOS <span className="text-gradient-primary">AI</span></span></span>
+          <CivilOSLogo variant="full" size="md" />
         </Link>
         <div className="hidden lg:flex"><LiveUsers compact /></div>
 
