@@ -32,6 +32,8 @@ const ProjectsPage = lazy(() => import("./pages/ProjectsPage.tsx"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage.tsx"));
 const SponsorPage = lazy(() => import("./pages/SponsorPage.tsx"));
 const AdminPage = lazy(() => import("./pages/AdminPage.tsx"));
+const AdminAIUsagePage = lazy(() => import("./pages/AdminAIUsagePage.tsx"));
+const AdminProjectManagementPage = lazy(() => import("./pages/AdminProjectManagementPage.tsx"));
 const AdminTeamPage = lazy(() => import("./pages/AdminTeamPage.tsx"));
 const AdminUsersPage = lazy(() => import("./pages/AdminUsersPage.tsx"));
 const AdminAcceptInvitePage = lazy(() => import("./pages/AdminAcceptInvitePage.tsx"));
@@ -268,7 +270,9 @@ const App = () => (
                       />
                       <Route path="/admin/team" element={<AdminTeamPage />} />
                       <Route path="/admin/users" element={<AdminUsersPage />} />
+                      <Route path="/admin/projects" element={<AdminProjectManagementPage />} />
                       <Route path="/admin/settings" element={<AdminSystemSettingsPage />} />
+                      <Route path="/admin/ai-usage" element={<AdminAIUsagePage />} />
 
                       <Route
                         path="/share/:token"
