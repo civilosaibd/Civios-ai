@@ -627,8 +627,8 @@ test("user_workspace: authenticated users can CRUD only their own workspace rows
   ));
 
   await bob(() => db.query(
-    "UPDATE public.user_workspace SET value='{\\\"owner\\\":\\\"bob\\\"}'::jsonb WHERE user_id=$1 AND key='civilos.test'",
-    [ALICE]
+    "UPDATE public.user_workspace SET value=$1::jsonb WHERE user_id=$2 AND key='civilos.test'",
+    [JSON.stringify({ owner: "bob" }), ALICE]
   ));
   const [stillAlice] = await q(
     "SELECT value FROM public.user_workspace WHERE user_id=$1 AND key='civilos.test'",
@@ -646,8 +646,8 @@ test("user_workspace: authenticated users can CRUD only their own workspace rows
   ))[0].n, 1);
 
   await alice(() => db.query(
-    "UPDATE public.user_workspace SET value='{\\\"owner\\\":\\\"alice-updated\\\"}'::jsonb WHERE user_id=$1 AND key='civilos.test'",
-    [ALICE]
+    "UPDATE public.user_workspace SET value=$1::jsonb WHERE user_id=$2 AND key='civilos.test'",
+    [JSON.stringify({ owner: "alice-updated" }), ALICE]
   ));
   const [updated] = await q(
     "SELECT value FROM public.user_workspace WHERE user_id=$1 AND key='civilos.test'",
