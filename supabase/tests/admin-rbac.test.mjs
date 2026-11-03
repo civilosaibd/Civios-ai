@@ -223,6 +223,13 @@ test("Super Admin can grant Settings view/manage permissions with manage implyin
     assert.equal((await db.query("SELECT public.has_admin_permission('settings','view') AS allowed")).rows[0].allowed,true);
     assert.equal((await db.query("SELECT public.has_admin_permission('settings','manage') AS allowed")).rows[0].allowed,true);
   });
+  await admin(async()=>{ await db.query("SELECT public.admin_set_subadmin_settings_permissions($1,ARRAY['view']::text[])",[membership.id]); });
+  await sub(async()=>{
+    assert.equal((await db.query("SELECT public.has_admin_permission('settings','view') AS allowed")).rows[0].allowed,true);
+    assert.equal((await db.query("SELECT public.has_admin_permission('settings','manage') AS allowed")).rows[0].allowed,false);
+  });
+  await admin(async()=>{ await db.query("SELECT public.admin_set_subadmin_settings_permissions($1,ARRAY[]::text[])",[membership.id]); });
+  await sub(async()=>assert.equal((await db.query("SELECT public.has_admin_permission('settings','view') AS allowed")).rows[0].allowed,false));
 });
 
 test("Sub-admin cannot grant Reports, Audit or Settings permissions",async()=>{
