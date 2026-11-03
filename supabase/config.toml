@@ -24,3 +24,10 @@ verify_jwt = false
 [functions.ai-floorplan]
 # Authenticated IndoCAD prompt-to-CAD geometry generation.
 verify_jwt = true
+
+[functions.admin-affiliate-data]
+verify_jwt = true
+
+[functions.track-referral-event]
+# Anonymous link clicks are accepted; authenticated share actions are validated by the handler.
+verify_jwt = false
