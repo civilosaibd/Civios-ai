@@ -833,3 +833,23 @@ test("SECURITY DEFINER identity helpers cannot reveal another user's admin, proj
     });
   });
 });
+
+
+test("authenticated SECURITY DEFINER RPCs use a pinned safe search_path", async () => {
+  const rows = await q(`
+    SELECT p.proname, p.proconfig
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.prosecdef
+      AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+    ORDER BY p.proname
+  `);
+  assert.equal(rows.length, 17, "expected all 17 authenticated SECURITY DEFINER RPCs to be present");
+  for (const row of rows) {
+    assert.ok(
+      row.proconfig?.includes("search_path=pg_catalog, public, pg_temp"),
+      `${row.proname} must pin pg_catalog first and pg_temp last; got ${JSON.stringify(row.proconfig)}`
+    );
+  }
+});
