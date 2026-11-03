@@ -40,41 +40,90 @@ Deno.serve(async (req) => {
   const admin = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data: allowed, error: roleError } = await admin.rpc("has_role", {
-    _user_id: authData.user.id,
-    _role: "admin",
-  });
-  if (roleError || allowed !== true) return json({ error: "Admin access required" }, 403, origin);
+  const [{ data: legacyAdmin }, { data: superAdmin }, { data: canViewUsers }, { data: canManageUsers }] = await Promise.all([
+    callerClient.rpc("has_role", { _user_id: authData.user.id, _role: "admin" }),
+    callerClient.rpc("is_super_admin"),
+    callerClient.rpc("has_admin_permission", { _feature_key: "users", _action: "view" }),
+    callerClient.rpc("has_admin_permission", { _feature_key: "users", _action: "manage" }),
+  ]);
 
-  let body: { action?: string; userId?: string; page?: number };
+  let body: { action?: string; userId?: string; page?: number; status?: string; reason?: string; limit?: number };
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON body" }, 400, origin); }
+  const mayViewUsers = legacyAdmin === true || superAdmin === true || canViewUsers === true;
+  const mayManageUsers = legacyAdmin === true || superAdmin === true || canManageUsers === true;
+  if (body.action === "audit-list") {
+    if (legacyAdmin !== true && superAdmin !== true) return json({ error: "Super Admin access required" }, 403, origin);
+  } else if (body.action === "account-status") {
+    if (!mayManageUsers) return json({ error: "Users: Manage permission required" }, 403, origin);
+  } else if (!mayViewUsers) {
+    return json({ error: "Users: View permission required" }, 403, origin);
+  }
+
+  if (body.action === "account-status") {
+    const userId = body.userId || "";
+    const status = body.status || "";
+    const reason = String(body.reason || "").trim().slice(0,500);
+    if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) {
+      return json({error:"A valid user ID is required"},400,origin);
+    }
+    if (!["suspended","active"].includes(status)) return json({error:"Unsupported account status"},400,origin);
+    if (userId === authData.user.id) return json({error:"You cannot suspend or reactivate your own account"},403,origin);
+    if (status === "suspended" && reason.length < 8) return json({error:"A suspension reason of at least 8 characters is required"},400,origin);
+    const [{data: targetRole,error: roleError},{data: membership,error: membershipError}] = await Promise.all([
+      admin.from("user_roles").select("role").eq("user_id",userId).maybeSingle(),
+      admin.from("admin_memberships").select("role").eq("user_id",userId).maybeSingle(),
+    ]);
+    if (roleError || membershipError) return json({error:"Unable to verify target account privileges"},500,origin);
+    if (targetRole?.role === "admin" || membership) return json({error:"Administrator and sub-admin accounts must be managed through the Super Admin team workspace"},403,origin);
+    const action = status === "suspended" ? "suspend_account" : "reactivate_account";
+    const {data:audit,error:auditError} = await admin.from("admin_account_status_audit").insert({
+      admin_user_id:authData.user.id,target_user_id:userId,action,result:"requested",reason:reason || null,
+    }).select("id").single();
+    if (auditError || !audit) return json({error:"Could not create required account-action audit record"},500,origin);
+    const {data:changed,error:changeError} = await admin.auth.admin.updateUserById(userId,{
+      ban_duration:status === "suspended" ? "876000h" : "none",
+    });
+    if (changeError || !changed.user) {
+      await admin.from("admin_account_status_audit").update({result:"failed"}).eq("id",audit.id);
+      return json({error:"Account status could not be changed"},409,origin);
+    }
+    const {error:finalAuditError} = await admin.from("admin_account_status_audit").update({result:"succeeded"}).eq("id",audit.id);
+    if (finalAuditError) return json({error:"Account changed, but audit finalization failed; investigate this event"},500,origin);
+    const suspended = !!changed.user.banned_until && new Date(changed.user.banned_until).getTime() > Date.now();
+    return json({success:true,status:suspended ? "suspended" : "active",user:{id:changed.user.id,banned_until:changed.user.banned_until || null}},200,origin);
+  }
 
   if (body.action === "list") {
     const page = Math.max(1, Math.min(1000, Number(body.page) || 1));
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 100 });
     if (error) return json({ error: "Unable to load users" }, 500, origin);
     const ids = data.users.map((u) => u.id);
-    const [{ data: profiles, error: profileError }, { data: subs, error: subError }, { data: roles, error: roleListError }] = await Promise.all([
+    const [{ data: profiles, error: profileError }, { data: subs, error: subError }, { data: roles, error: roleListError }, { data: memberships, error: membershipError }] = await Promise.all([
       admin.from("profiles").select("id,display_name,avatar_url,created_at,referral_code").in("id", ids),
       admin.from("subscriptions").select("user_id,plan_id,status,billing_cycle,start_date,renewal_date").in("user_id", ids),
       admin.from("user_roles").select("user_id,role").in("user_id", ids),
+      admin.from("admin_memberships").select("user_id,role,status").in("user_id", ids),
     ]);
-    if (profileError || subError || roleListError) {
+    if (profileError || subError || roleListError || membershipError) {
       return json({ error: "Unable to load complete account directory" }, 500, origin);
     }
     const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
     const subMap = new Map((subs || []).map((s) => [s.user_id, s]));
     const roleMap = new Map((roles || []).map((r) => [r.user_id, r.role]));
+    const membershipMap = new Map((memberships || []).map((m) => [m.user_id, m]));
     return json({
       users: data.users.map((u) => ({
         id: u.id, email: u.email, phone: u.phone,
         email_confirmed_at: u.email_confirmed_at, phone_confirmed_at: u.phone_confirmed_at,
         created_at: u.created_at, last_sign_in_at: u.last_sign_in_at,
+        banned_until: u.banned_until || null,
+        is_suspended: !!u.banned_until && new Date(u.banned_until).getTime() > Date.now(),
         providers: u.app_metadata?.providers || [],
         display_name: profileMap.get(u.id)?.display_name || u.user_metadata?.full_name || u.user_metadata?.name || null,
         avatar_url: profileMap.get(u.id)?.avatar_url || null,
         subscription: subMap.get(u.id) || null,
-        role: roleMap.get(u.id) || "user",
+        role: membershipMap.get(u.id)?.role || roleMap.get(u.id) || "user",
+        admin_membership_status: membershipMap.get(u.id)?.status || null,
       })),
       page, has_more: data.users.length === 100,
     }, 200, origin);
@@ -146,6 +195,8 @@ Deno.serve(async (req) => {
         id: u.id, email: u.email, phone: u.phone,
         email_confirmed_at: u.email_confirmed_at, phone_confirmed_at: u.phone_confirmed_at,
         created_at: u.created_at, updated_at: u.updated_at, last_sign_in_at: u.last_sign_in_at,
+        banned_until: u.banned_until || null,
+        is_suspended: !!u.banned_until && new Date(u.banned_until).getTime() > Date.now(),
         providers: u.app_metadata?.providers || [],
         metadata: {
           full_name: metadata.full_name || null,
@@ -168,18 +219,25 @@ Deno.serve(async (req) => {
       .limit(limit);
     if (auditListError) return json({ error: "Unable to load access audit history" }, 500, origin);
 
-    const ids = [...new Set((events || []).flatMap((event) => [event.admin_user_id, event.target_user_id]))];
+    const { data: statusEvents, error: statusAuditError } = await admin.from("admin_account_status_audit")
+      .select("id,admin_user_id,target_user_id,action,result,reason,created_at")
+      .order("created_at", { ascending: false }).limit(limit);
+    if (statusAuditError) return json({ error: "Unable to load account status audit history" }, 500, origin);
+    const ids = [...new Set([...(events || []).flatMap((event) => [event.admin_user_id, event.target_user_id]), ...(statusEvents || []).flatMap((event) => [event.admin_user_id, event.target_user_id])])];
     const emailById = new Map<string, string | null>();
     await Promise.all(ids.map(async (id) => {
       const { data, error } = await admin.auth.admin.getUserById(id);
       emailById.set(id, error ? null : data.user?.email || null);
     }));
     return json({
-      events: (events || []).map((event) => ({
+      events: [
+        ...(events || []).map((event) => ({ ...event, event_type: "privileged_data_access", occurred_at: event.accessed_at })),
+        ...(statusEvents || []).map((event) => ({ ...event, event_type: "account_status_change", occurred_at: event.created_at })),
+      ].map((event) => ({
         ...event,
         admin_email: emailById.get(event.admin_user_id) || null,
         target_email: emailById.get(event.target_user_id) || null,
-      })),
+      })).sort((a,b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()).slice(0,limit),
     }, 200, origin);
   }
 

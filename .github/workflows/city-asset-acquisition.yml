@@ -1,0 +1,52 @@
+name: City Asset Acquisition (review batch)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/city-assets/acquire-threews-props.mjs"
+      - ".github/workflows/city-asset-acquisition.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: city-asset-acquisition-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acquire-review-batch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Acquire CC0 street props into review-only folder
+        run: node scripts/city-assets/acquire-threews-props.mjs
+      - name: Validate downloaded GLB files
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(public/assets/city/incoming/three-ws/*.glb)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No GLB files were acquired." >&2
+            exit 1
+          fi
+          npm install --no-save --no-package-lock @gltf-transform/cli
+          for file in "${files[@]}"; do
+            echo "Validating: $file"
+            npx --no-install gltf-transform validate "$file"
+            npx --no-install gltf-transform inspect "$file" > "${file%.glb}.inspect.txt"
+          done
+      - name: Upload review-only asset batch
+        uses: actions/upload-artifact@v4
+        with:
+          name: city-cc0-asset-review-batch
+          path: public/assets/city/incoming/three-ws/
+          if-no-files-found: error
+          retention-days: 14
