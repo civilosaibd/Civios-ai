@@ -34,7 +34,7 @@ GEOMETRY RULES:
 - The footprint is the BUILDABLE footprint, not the full plot. If plot size and road side are provided, infer reasonable conceptual setbacks, but explicitly list assumptions; never claim code compliance.
 - Door coordinates are the CENTER of the opening on the specified boundary of the named room. Doors MUST connect rooms to adjacent rooms or circulation; place internal doors on shared room boundaries as well as entry doors on the exterior footprint. For north/south walls x is along the wall and y is the boundary coordinate. For east/west walls y is along the wall and x is the boundary coordinate. Use 2.5–3.0 ft doors, bathroom doors 2.3–2.5 ft.
 - Window coordinates use the same convention and MUST lie on an exterior footprint wall of the named room; use 3–5 ft widths. Never place windows on internal/shared walls.
-- Ensure each room has a sensible access route; do not place a door in the middle of a wall unless it is a valid opening. Avoid door/window collisions and keep adequate wall piers at opening ends.
+- Ensure every room is reachable from an exterior entrance through a continuous chain of internal doors. Every internal door must sit on a shared boundary between the named room and exactly one adjacent room; exterior doors must be on the footprint perimeter. Do not invent doors on walls without an adjacent room. Avoid door/window collisions and keep adequate wall piers at opening ends.
 - Return 1 to 16 rooms, 1 to 24 doors, and 0 to 24 windows. Use only finite positive dimensions. Do not output structural column positions or structural sizing.
 - Do not output Markdown. Do not include explanations outside JSON.
 - If requirements cannot fit, return the best honest conceptual arrangement and put the constraints in warnings. This is not a permit-ready design.`;
@@ -64,6 +64,10 @@ function validatePlan(value: any) {
     }
     return { name: room.name.trim().slice(0, 48), x: room.x, y: room.y, width: room.width, depth: room.depth };
   });
+  const roomNames = rooms.map((room: any) => room.name.toLowerCase());
+  if (new Set(roomNames).size !== roomNames.length) {
+    throw new Error("AI returned duplicate room names; each room must have a unique name.");
+  }
   for (let i = 0; i < rooms.length; i++) for (let j = i + 1; j < rooms.length; j++) {
     const a = rooms[i], b = rooms[j];
     const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
@@ -117,6 +121,74 @@ function validatePlan(value: any) {
   };
   const doors = openings(value.doors ?? [], "door", 24);
   const windows = openings(value.windows ?? [], "window", 24);
+
+  // A door must either open to the exterior or sit on a genuinely shared wall
+  // with another room. Merely being somewhere on a room boundary is not enough.
+  const roomByName = new Map(rooms.map((room: any) => [room.name, room]));
+  const connected = new Map<string, Set<string>>();
+  for (const room of rooms) connected.set(room.name, new Set<string>());
+  const exteriorRooms = new Set<string>();
+
+  for (const door of doors) {
+    const source = roomByName.get(door.room) as any;
+    const along = door.wall === "north" || door.wall === "south" ? door.x : door.y;
+    const fixed = door.wall === "north" || door.wall === "south" ? door.y : door.x;
+    const low = along - door.width / 2;
+    const high = along + door.width / 2;
+    const sourceWall = roomWalls.find((edge) => edge.room === source.name
+      && edge.side === door.wall && Math.abs(edge.fixed - fixed) < 0.08);
+    if (!sourceWall) throw new Error("AI returned a door that is not on its assigned room wall.");
+
+    if (sourceWall.exterior) {
+      exteriorRooms.add(source.name);
+      continue;
+    }
+
+    const oppositeSide: Record<string, string> = {
+      north: "south", south: "north", east: "west", west: "east",
+    };
+    const adjacent = roomWalls.find((edge) => edge.room !== source.name
+      && edge.side === oppositeSide[door.wall]
+      && Math.abs(edge.fixed - fixed) < 0.08
+      && Math.min(edge.high, high) - Math.max(edge.low, low) >= door.width - 0.1);
+    if (!adjacent) {
+      throw new Error("AI returned an internal door that does not connect two adjacent rooms.");
+    }
+    connected.get(source.name)?.add(adjacent.room);
+    connected.get(adjacent.room)?.add(source.name);
+  }
+
+  // Every room must be reachable from at least one exterior entrance through
+  // internal door connections; this catches isolated/unreachable room layouts.
+  const reached = new Set<string>();
+  const queue = [...exteriorRooms];
+  while (queue.length) {
+    const current = queue.shift()!;
+    if (reached.has(current)) continue;
+    reached.add(current);
+    for (const next of connected.get(current) ?? []) {
+      if (!reached.has(next)) queue.push(next);
+    }
+  }
+  if (reached.size !== rooms.length) {
+    const isolated = rooms.filter((room: any) => !reached.has(room.name)).map((room: any) => room.name);
+    throw new Error(`AI returned rooms without a valid door route from an exterior entrance: ${isolated.join(", ")}.`);
+  }
+
+  // Doors and windows share the same wall space: reject cross-type collisions too.
+  for (const door of doors) for (const window of windows) {
+    const sameWall = door.wall === window.wall && Math.abs(
+      (door.wall === "north" || door.wall === "south" ? door.y : door.x) -
+      (window.wall === "north" || window.wall === "south" ? window.y : window.x)
+    ) < 0.08;
+    const doorAlong = door.wall === "north" || door.wall === "south" ? door.x : door.y;
+    const windowAlong = window.wall === "north" || window.wall === "south" ? window.x : window.y;
+    const overlap = Math.min(doorAlong + door.width / 2, windowAlong + window.width / 2)
+      - Math.max(doorAlong - door.width / 2, windowAlong - window.width / 2);
+    if (sameWall && overlap > 0.05) {
+      throw new Error("AI returned overlapping door and window openings on the same wall.");
+    }
+  }
   const floors = isFiniteNumber(value.floors) ? Math.max(1, Math.min(20, Math.round(value.floors))) : 1;
   return {
     units: "ft",
@@ -148,19 +220,19 @@ Deno.serve(async (req: Request) => {
     if (!body || typeof body.prompt !== "string" || body.prompt.trim().length < 8 || body.prompt.length > 4000) {
       return json({ error: "Describe the building in 8–4000 characters." }, 400);
     }
-    const rateLimit = await checkAiEndpointRateLimit(user.id, "ai-floorplan");
-    if (rateLimit) return json({ error: rateLimit.message }, rateLimit.status);
-    const quota = await consumeAiCredit(user.id);
-    if (quota) return json({ error: quota.message }, quota.status);
-
-    // Match CivilOS AI's existing server-side OpenAI configuration used by ai-chat.
-    // Never accept provider or API key overrides from the browser.
+    // Validate provider configuration before reserving a billable AI credit.
+    // Provider selection and credentials remain server-side only.
     const openAiKey = Deno.env.get("OPENAI_API_KEY");
     const openAiModel = Deno.env.get("OPENAI_MODEL") || "gpt-5.5";
     if (!openAiKey) {
       console.error("OPENAI_API_KEY is not configured for IndoCAD");
       return json({ error: "OpenAI is not configured on the server. Please contact the administrator." }, 503);
     }
+
+    const rateLimit = await checkAiEndpointRateLimit(user.id, "ai-floorplan");
+    if (rateLimit) return json({ error: rateLimit.message }, rateLimit.status);
+    const quota = await consumeAiCredit(user.id);
+    if (quota) return json({ error: quota.message }, quota.status);
 
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
