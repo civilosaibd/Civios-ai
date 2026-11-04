@@ -16,7 +16,7 @@ describe("analyzePolygon", () => {
     const points: PlotVertex[] = [{x:0,y:0},{x:8,y:0},{x:8,y:3},{x:4,y:3},{x:4,y:7},{x:0,y:7}];
     const result = analyzePolygon(points);
     expect(result.valid).toBe(true);
-    expect(result.area).toBe(44);
+    expect(result.area).toBe(40);
   });
 
   it("rejects self-intersecting boundaries", () => {
