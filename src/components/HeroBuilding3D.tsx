@@ -208,6 +208,8 @@ function ModernResidence({ motionEnabled }: { motionEnabled: boolean }) {
   );
 }
 
+type HeroSlide = { id: string; name: string; file_path: string };
+
 function UploadedHeroModel({ url }: { url: string }) {
   const { scene } = useGLTF(url);
   return (
@@ -233,11 +235,12 @@ function Scene({ motionEnabled, modelUrl }: { motionEnabled: boolean; modelUrl: 
       />
       <directionalLight position={[-7, 6, -5]} intensity={1.1} color="#a8d6e6" />
       <pointLight position={[0, 3.8, 3.1]} intensity={18} distance={10} color="#ffd39a" />
-      {modelUrl ? <UploadedHeroModel url={modelUrl} /> : <ModernResidence motionEnabled={motionEnabled} />}
+      {modelUrl ? <UploadedHeroModel key={modelUrl} url={modelUrl} /> : <ModernResidence motionEnabled={motionEnabled} />}
       <ContactShadows position={[0, 0.22, 0]} opacity={0.34} scale={11} blur={2.8} far={5} />
       <OrbitControls
         target={[0, 3.2, 0]} enableDamping dampingFactor={0.055}
         enablePan={false} enableZoom={false}
+        autoRotate={motionEnabled} autoRotateSpeed={0.7}
         minPolarAngle={Math.PI / 3.35} maxPolarAngle={Math.PI / 2.12}
       />
     </>
@@ -245,20 +248,52 @@ function Scene({ motionEnabled, modelUrl }: { motionEnabled: boolean; modelUrl: 
 }
 
 export default function HeroBuilding3D() {
-  const [modelUrl, setModelUrl] = useState<string | null>(null);
+  const [slides, setSlides] = useState<HeroSlide[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [transitioning, setTransitioning] = useState(false);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       const { data, error } = await (supabase.from("homepage_hero_models" as any) as any)
-        .select("file_path").eq("is_active", true).limit(1).maybeSingle();
-      if (!alive || error || !data?.file_path) return;
-      const { data: publicAsset } = supabase.storage
-        .from("homepage-hero-models").getPublicUrl(data.file_path);
-      if (alive && publicAsset?.publicUrl) setModelUrl(publicAsset.publicUrl);
+        .select("id,name,file_path")
+        .eq("is_active", true)
+        .order("display_order", { ascending: true })
+        .order("created_at", { ascending: false });
+      if (!alive) return;
+      if (!error && data) setSlides(data as HeroSlide[]);
+      setLoading(false);
     })();
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    if (paused || slides.length < 2) return;
+    const timer = window.setInterval(() => {
+      setTransitioning(true);
+      window.setTimeout(() => {
+        setCurrentIndex((index) => (index + 1) % slides.length);
+        setTransitioning(false);
+      }, 260);
+    }, 8000);
+    return () => window.clearInterval(timer);
+  }, [paused, slides.length]);
+
+  const goToSlide = (index: number) => {
+    if (!slides.length) return;
+    setTransitioning(true);
+    window.setTimeout(() => {
+      setCurrentIndex((index + slides.length) % slides.length);
+      setTransitioning(false);
+    }, 220);
+  };
+
+  const currentSlide = slides[currentIndex];
+  const modelUrl = currentSlide
+    ? supabase.storage.from("homepage-hero-models").getPublicUrl(currentSlide.file_path).data.publicUrl
+    : null;
 
   const motionEnabled = typeof window === "undefined"
     ? true
@@ -267,37 +302,66 @@ export default function HeroBuilding3D() {
   return (
     <div
       className="relative isolate h-[310px] w-full overflow-hidden rounded-[28px] sm:h-[390px] lg:h-[500px]"
-      role="img"
-      aria-label="Interactive 3D architectural model selected by CivilOS AI administrators. Drag to explore the building."
+      role="region"
+      aria-label="Interactive 3D architectural building slideshow"
       style={{
         background: "radial-gradient(ellipse at 50% 42%, rgba(108, 151, 164, .28), transparent 58%), linear-gradient(145deg, #0b1a25, #1b3037)",
       }}
     >
       <div className="pointer-events-none absolute inset-0 rounded-[28px] border border-white/10" />
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-[76%] w-[86%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/10 [transform:translate(-50%,-50%)_rotateX(68deg)]" />
-      <Canvas
-        shadows dpr={[1, 1.5]}
-        camera={{ position: [9.6, 7.1, 10.6], fov: 33, near: 0.1, far: 100 }}
-        gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
-        fallback={<div className="flex h-full items-center justify-center text-sm text-white/70">3D preview is not available in this browser.</div>}
-      >
-        <Scene motionEnabled={motionEnabled} modelUrl={modelUrl} />
-      </Canvas>
+      <div className={`absolute inset-0 transition-opacity duration-300 ${transitioning ? "opacity-20" : "opacity-100"}`}>
+        <Canvas
+          shadows dpr={[1, 1.5]}
+          camera={{ position: [9.6, 7.1, 10.6], fov: 33, near: 0.1, far: 100 }}
+          gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
+          fallback={<div className="flex h-full items-center justify-center text-sm text-white/70">3D preview is not available in this browser.</div>}
+        >
+          <Scene motionEnabled={motionEnabled} modelUrl={modelUrl} />
+        </Canvas>
+      </div>
 
       <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-2 rounded-full border border-white/15 bg-slate-950/55 px-3 py-2 text-[9px] font-bold tracking-[0.2em] text-cyan-100 shadow-lg backdrop-blur-md sm:left-6 sm:top-6 sm:text-[10px]">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,.8)]" />
-        LIVE ARCHITECTURAL 3D
+        {slides.length > 1 ? "ARCHITECTURE SHOWCASE" : "LIVE ARCHITECTURAL 3D"}
       </div>
-      <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3 sm:bottom-6 sm:left-6 sm:right-6">
-        <div className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2.5 text-white/90 shadow-lg backdrop-blur-md">
-          <p className="text-[9px] font-semibold tracking-[0.18em] text-cyan-100/80">FEATURED ARCHITECTURE</p>
-          <p className="mt-1 text-xs font-medium text-white/90">Admin-selected 3D building model</p>
+
+      {slides.length > 0 && (
+        <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3 sm:bottom-6 sm:left-6 sm:right-6">
+          <div className="min-w-0 rounded-xl border border-white/10 bg-slate-950/65 px-3 py-2.5 text-white/90 shadow-lg backdrop-blur-md">
+            <p className="text-[9px] font-semibold tracking-[0.18em] text-cyan-100/80">FEATURED ARCHITECTURE</p>
+            <p className="mt-1 max-w-[48vw] truncate text-xs font-medium text-white/90">{currentSlide?.name || "Architectural model"}</p>
+            {slides.length > 1 && <p className="mt-1 text-[9px] text-white/55">{currentIndex + 1} / {slides.length} · Auto slideshow</p>}
+          </div>
+          <div className="rounded-xl border border-cyan-100/20 bg-slate-950/60 px-3 py-2.5 text-right text-white/90 shadow-lg backdrop-blur-md">
+            <p className="text-sm font-bold tracking-wide text-amber-200">360°</p>
+            <p className="text-[9px] tracking-wide text-white/65">DRAG TO EXPLORE</p>
+          </div>
         </div>
-        <div className="rounded-xl border border-cyan-100/20 bg-slate-950/60 px-3 py-2.5 text-right text-white/90 shadow-lg backdrop-blur-md">
-          <p className="text-sm font-bold tracking-wide text-amber-200">360°</p>
-          <p className="text-[9px] tracking-wide text-white/65">DRAG TO EXPLORE</p>
+      )}
+
+      {slides.length > 1 && (
+        <div className="absolute right-4 top-4 z-10 flex items-center gap-2 sm:right-6 sm:top-6">
+          <button type="button" aria-label="Previous building" onClick={() => goToSlide(currentIndex - 1)}
+            className="grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-slate-950/65 text-white backdrop-blur hover:bg-slate-800">‹</button>
+          <button type="button" aria-label={paused ? "Play slideshow" : "Pause slideshow"} onClick={() => setPaused((value) => !value)}
+            className="grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-slate-950/65 text-xs text-white backdrop-blur hover:bg-slate-800">{paused ? "▶" : "Ⅱ"}</button>
+          <button type="button" aria-label="Next building" onClick={() => goToSlide(currentIndex + 1)}
+            className="grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-slate-950/65 text-white backdrop-blur hover:bg-slate-800">›</button>
         </div>
-      </div>
+      )}
+
+      {slides.length > 1 && (
+        <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 sm:bottom-3">
+          {slides.map((slide, index) => (
+            <button key={slide.id} type="button" aria-label={`Show ${slide.name}`}
+              aria-current={index === currentIndex ? "true" : undefined}
+              onClick={() => goToSlide(index)}
+              className={`h-1.5 rounded-full transition-all ${index === currentIndex ? "w-6 bg-cyan-200" : "w-1.5 bg-white/45 hover:bg-white/80"}`} />
+          ))}
+        </div>
+      )}
+      {loading && <div className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-white/10"><div className="h-full w-1/3 animate-pulse bg-cyan-200" /></div>}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-[#071727]/35 to-transparent" />
     </div>
   );
