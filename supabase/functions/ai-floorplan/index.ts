@@ -117,6 +117,20 @@ function validatePlan(value: any) {
   };
   const doors = openings(value.doors ?? [], "door", 24);
   const windows = openings(value.windows ?? [], "window", 24);
+  // Doors and windows share the same wall space: reject cross-type collisions too.
+  for (const door of doors) for (const window of windows) {
+    const sameWall = door.wall === window.wall && Math.abs(
+      (door.wall === "north" || door.wall === "south" ? door.y : door.x) -
+      (window.wall === "north" || window.wall === "south" ? window.y : window.x)
+    ) < 0.08;
+    const doorAlong = door.wall === "north" || door.wall === "south" ? door.x : door.y;
+    const windowAlong = window.wall === "north" || window.wall === "south" ? window.x : window.y;
+    const overlap = Math.min(doorAlong + door.width / 2, windowAlong + window.width / 2)
+      - Math.max(doorAlong - door.width / 2, windowAlong - window.width / 2);
+    if (sameWall && overlap > 0.05) {
+      throw new Error("AI returned overlapping door and window openings on the same wall.");
+    }
+  }
   const floors = isFiniteNumber(value.floors) ? Math.max(1, Math.min(20, Math.round(value.floors))) : 1;
   return {
     units: "ft",
@@ -148,19 +162,19 @@ Deno.serve(async (req: Request) => {
     if (!body || typeof body.prompt !== "string" || body.prompt.trim().length < 8 || body.prompt.length > 4000) {
       return json({ error: "Describe the building in 8–4000 characters." }, 400);
     }
-    const rateLimit = await checkAiEndpointRateLimit(user.id, "ai-floorplan");
-    if (rateLimit) return json({ error: rateLimit.message }, rateLimit.status);
-    const quota = await consumeAiCredit(user.id);
-    if (quota) return json({ error: quota.message }, quota.status);
-
-    // Match CivilOS AI's existing server-side OpenAI configuration used by ai-chat.
-    // Never accept provider or API key overrides from the browser.
+    // Validate provider configuration before reserving a billable AI credit.
+    // Provider selection and credentials remain server-side only.
     const openAiKey = Deno.env.get("OPENAI_API_KEY");
     const openAiModel = Deno.env.get("OPENAI_MODEL") || "gpt-5.5";
     if (!openAiKey) {
       console.error("OPENAI_API_KEY is not configured for IndoCAD");
       return json({ error: "OpenAI is not configured on the server. Please contact the administrator." }, 503);
     }
+
+    const rateLimit = await checkAiEndpointRateLimit(user.id, "ai-floorplan");
+    if (rateLimit) return json({ error: rateLimit.message }, rateLimit.status);
+    const quota = await consumeAiCredit(user.id);
+    if (quota) return json({ error: quota.message }, quota.status);
 
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
