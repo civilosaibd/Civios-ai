@@ -80,7 +80,7 @@ export function findBuildingPlacement(input:BuildingPlacementInput):BuildingPlac
     if(checked++>=max) return {valid:!!best,reason:best?undefined:"Search limit reached before a valid placement was found.",placement:best,candidatesChecked:checked};
     const center={x,y},corners=makeCorners(center,width,depth,angle);
     if(!fits(corners,plot,setback))continue;
-    const minBoundaryClearance=Math.min(...corners.map(p=>clearance(p,plot)));
+    const minBoundaryClearance=Math.min(...corners.map((p,i)=>{const q=corners[(i+1)%4];return Math.min(...plot.map((edge,j)=>segmentDistance(p,q,edge,plot[(j+1)%plot.length])));}));
     const candidate={corners,center,angleDegrees:angle,area:width*depth,minBoundaryClearance};
     if(!best||candidate.minBoundaryClearance>best.minBoundaryClearance)best=candidate;
    }
