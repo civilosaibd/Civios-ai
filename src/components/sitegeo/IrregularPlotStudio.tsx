@@ -53,7 +53,7 @@ export default function IrregularPlotStudio({T}:Props){
   return <Card className="p-4 space-y-4">
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div><h3 className="font-semibold">{T("Irregular Plot Drawing Studio","অনিয়মিত জমির ড্রয়িং স্টুডিও")}</h3><p className="text-xs text-muted-foreground">{T("Draw any simple polygon using ordered survey coordinates or by clicking the canvas.","সার্ভে স্থানাঙ্ক দিয়ে অথবা ক্যানভাসে ক্লিক করে যেকোনো সাধারণ বহুভুজ আঁকুন।")}</p></div>
-      <select aria-label={T("Coordinate unit","স্থানাঙ্কের একক")} className="h-9 rounded-md border bg-background px-2 text-sm" value={unit} onChange={e=>{const next=e.target.value as "m"|"ft";if(next!==unit){const scale=unit==="m"?1/0.3048:0.3048;setVertices(v=>v.map(p=>({x:Number((p.x*scale).toFixed(3)),y:Number((p.y*scale).toFixed(3))})));setUnit(next);}}}><option value="m">Metres (m)</option><option value="ft">Feet (ft)</option></select>
+      <select aria-label={T("Coordinate unit","স্থানাঙ্কের একক")} className="h-9 rounded-md border bg-background px-2 text-sm" value={unit} onChange={e=>{const next=e.target.value as "m"|"ft";if(next!==unit){const scale=unit==="m"?1/0.3048:0.3048;setVertices(v=>v.map(p=>({x:Number((p.x*scale).toFixed(3)),y:Number((p.y*scale).toFixed(3))})));setBuilding(v=>({width:String(Number((Number(v.width)*scale).toFixed(3))),depth:String(Number((Number(v.depth)*scale).toFixed(3))),setback:String(Number((Number(v.setback)*scale).toFixed(3)))}));setPlacement(null);setUnit(next);}}}><option value="m">Metres (m)</option><option value="ft">Feet (ft)</option></select>
     </div>
     <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
       <div className="min-w-0 space-y-2">
