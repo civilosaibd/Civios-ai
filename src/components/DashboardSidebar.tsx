@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, useLocation, useSearchParams } from "react-router-dom";
-import { ChevronRight, Lock, Wrench, Sparkles, CreditCard, FolderKanban } from "lucide-react";
+import { Activity, BadgeDollarSign, ClipboardList, ChevronRight, CreditCard, FolderKanban, Lock, Settings, ShieldCheck, Users, UsersRound, Wrench, Sparkles, type LucideIcon } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -18,6 +18,7 @@ import {
 } from "@/lib/navigation";
 import CivilOSLogo from "@/components/CivilOSLogo";
 import InstallCivilOS from "@/components/InstallCivilOS";
+import { getAdminWorkspaceLinks, type AdminWorkspaceLink } from "@/lib/adminWorkspaceNavigation";
 
 const isRouteActive = (pathname: string, url: string) =>
   pathname === url || (url !== "/" && pathname.startsWith(`${url}/`));
@@ -66,6 +67,18 @@ function CategoryGroup({
 
 
 type WorkspaceProject = { id: string; name: string; created_at?: string };
+
+const ADMIN_WORKSPACE_ICONS: Record<string, LucideIcon> = {
+  "/admin": ShieldCheck,
+  "/admin/team": UsersRound,
+  "/admin/users": Users,
+  "/admin/projects": FolderKanban,
+  "/admin/affiliate": BadgeDollarSign,
+  "/admin/billing": CreditCard,
+  "/admin/ai-usage": Activity,
+  "/admin/settings": Settings,
+  "/admin/audit": ClipboardList,
+};
 
 export function ProjectWorkspaceSelector({ collapsed = false }: { collapsed?: boolean }) {
   const { user } = useAuth();
@@ -138,11 +151,56 @@ export function DashboardSidebar() {
   const { user } = useAuth();
   const { plan, hasFeature } = useSubscription();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminWorkspaceLinks, setAdminWorkspaceLinks] = useState<AdminWorkspaceLink[]>([]);
 
   useEffect(() => {
     if (!user) { setIsAdmin(false); return; }
     supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle()
       .then(({ data }) => setIsAdmin(!!data));
+  }, [user]);
+
+  // Build the administration menu only from trusted database authorization results.
+  // The destination pages and Edge Functions still enforce permissions independently.
+  useEffect(() => {
+    if (!user) { setAdminWorkspaceLinks([]); return; }
+    let active = true;
+
+    void (async () => {
+      const checks = await Promise.all([
+        supabase.rpc("is_super_admin"),
+        supabase.rpc("has_role", { _user_id: user.id, _role: "admin" }),
+        supabase.rpc("has_admin_permission", { _feature_key: "users", _action: "view" }),
+        supabase.rpc("has_admin_permission", { _feature_key: "projects", _action: "view" }),
+        supabase.rpc("has_admin_permission", { _feature_key: "affiliate", _action: "view" }),
+        supabase.rpc("has_admin_permission", { _feature_key: "billing", _action: "view" }),
+        supabase.rpc("has_admin_permission", { _feature_key: "ai_usage", _action: "view" }),
+        supabase.rpc("has_admin_permission", { _feature_key: "audit", _action: "view" }),
+        supabase.rpc("has_admin_permission", { _feature_key: "settings", _action: "view" }),
+      ]);
+
+      if (!active) return;
+      const failedCheck = checks.find(({ error }) => !!error);
+      if (failedCheck?.error) {
+        console.error("Unable to resolve scoped admin navigation", failedCheck.error);
+        setAdminWorkspaceLinks([]);
+        return;
+      }
+
+      const values = checks.map(({ data }) => data === true);
+      const [isSuperAdmin, isLegacyAdmin, users, projects, affiliate, billing, ai_usage, audit, settings] = values;
+      setAdminWorkspaceLinks(getAdminWorkspaceLinks({
+        isSuperAdmin,
+        isLegacyAdmin,
+        permissions: { users, projects, affiliate, billing, ai_usage, audit, settings },
+      }));
+    })().catch((error) => {
+      if (active) {
+        console.error("Unable to resolve scoped admin navigation", error);
+        setAdminWorkspaceLinks([]);
+      }
+    });
+
+    return () => { active = false; };
   }, [user]);
 
   // Features the user turned off (e.g. via the AI Agent) are hidden from the menu.
@@ -202,6 +260,31 @@ export function DashboardSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {adminWorkspaceLinks.length > 0 && (
+          <SidebarGroup>
+            {!collapsed && (
+              <SidebarGroupLabel className="text-[10px] uppercase tracking-wider">Administration</SidebarGroupLabel>
+            )}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminWorkspaceLinks.map((item) => {
+                  const Icon = ADMIN_WORKSPACE_ICONS[item.url] || ShieldCheck;
+                  return (
+                    <SidebarMenuItem key={item.url}>
+                      <SidebarMenuButton asChild isActive={isRouteActive(pathname, item.url)} tooltip={item.title}>
+                        <NavLink to={item.url} className="flex items-center gap-2">
+                          <Icon className="h-4 w-4 shrink-0" />
+                          {!collapsed && <span className="truncate">{item.title}</span>}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         <SidebarGroup>
           {!collapsed && (
