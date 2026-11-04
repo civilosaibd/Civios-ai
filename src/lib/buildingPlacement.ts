@@ -1,4 +1,4 @@
-import { type PlotVertex } from "./landGeometry";
+import { analyzePolygon, type PlotVertex } from "./landGeometry";
 
 export type BuildingPlacementInput = {
   plot: PlotVertex[];
@@ -66,7 +66,7 @@ function fits(corners:PlotVertex[],plot:PlotVertex[],setback:number){
 /** Grid-searches a rectangular footprint wholly inside the surveyed polygon and at least setback from its boundary. */
 export function findBuildingPlacement(input:BuildingPlacementInput):BuildingPlacementResult{
  const {plot,width,depth,setback}=input;
- if(plot.length<3||plot.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)))return {valid:false,reason:"A valid surveyed plot boundary is required.",placement:null,candidatesChecked:0};
+ if(!analyzePolygon(plot).valid)return {valid:false,reason:"A valid, non-self-intersecting surveyed plot boundary is required.",placement:null,candidatesChecked:0};
  if(!Number.isFinite(width)||!Number.isFinite(depth)||!Number.isFinite(setback)||width<=0||depth<=0||setback<0)return {valid:false,reason:"Enter positive building dimensions and a non-negative setback.",placement:null,candidatesChecked:0};
  const minX=Math.min(...plot.map(p=>p.x)),maxX=Math.max(...plot.map(p=>p.x));
  const minY=Math.min(...plot.map(p=>p.y)),maxY=Math.max(...plot.map(p=>p.y));
