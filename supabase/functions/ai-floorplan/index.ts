@@ -64,6 +64,10 @@ function validatePlan(value: any) {
     }
     return { name: room.name.trim().slice(0, 48), x: room.x, y: room.y, width: room.width, depth: room.depth };
   });
+  const roomNames = rooms.map((room: any) => room.name.toLowerCase());
+  if (new Set(roomNames).size !== roomNames.length) {
+    throw new Error("AI returned duplicate room names; each room must have a unique name.");
+  }
   for (let i = 0; i < rooms.length; i++) for (let j = i + 1; j < rooms.length; j++) {
     const a = rooms[i], b = rooms[j];
     const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
