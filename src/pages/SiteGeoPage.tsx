@@ -3,6 +3,7 @@ import { useActiveProjectId } from "@/lib/projectSelection";
 import { listProjectArtifacts } from "@/lib/projectArtifacts";
 import { useProjectArtifactAutosave } from "@/hooks/useProjectArtifactAutosave";
 import AdvancedSurveyTools from "@/components/sitegeo/AdvancedSurveyTools";
+import IrregularPlotStudio from "@/components/sitegeo/IrregularPlotStudio";
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -381,6 +382,7 @@ export default function SiteGeoPage() {
                 <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{T("Active tool", "সক্রিয় টুল")}</p><p className="mt-1 text-xl font-semibold">{mode === "area" ? T("Area", "ক্ষেত্রফল") : T("Distance", "দূরত্ব")}</p></div>
               </div>
             </section>
+            <IrregularPlotStudio T={T} />
             <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-5 items-start">
             <div className="space-y-3 min-w-0">
               <div className="flex flex-wrap gap-2">
