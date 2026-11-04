@@ -382,6 +382,7 @@ export default function SiteGeoPage() {
                 <div className="rounded-lg bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{T("Active tool", "সক্রিয় টুল")}</p><p className="mt-1 text-xl font-semibold">{mode === "area" ? T("Area", "ক্ষেত্রফল") : T("Distance", "দূরত্ব")}</p></div>
               </div>
             </section>
+            <IrregularPlotStudio T={T} />
             <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-5 items-start">
             <div className="space-y-3 min-w-0">
               <div className="flex flex-wrap gap-2">
@@ -463,7 +464,6 @@ export default function SiteGeoPage() {
                 </div>
                 {pts.length >= 2 && <div className="rounded-md bg-muted/50 p-2 text-xs space-y-1"><p>{T("Total traverse length", "মোট ট্রাভার্স দৈর্ঘ্য")}: <b>{fmt(pathLength(pts), 2)} m</b></p><p>{T("First-to-last bearing", "প্রথম থেকে শেষ বেয়ারিং")}: <b>{fmt((((bearing(pts[0], pts[pts.length - 1]) % 360) + 360) % 360), 1)}°</b></p></div>}
               </Card>
-              <IrregularPlotStudio T={T} />
               <AdvancedSurveyTools T={T} />
               <SurveyCalculator T={T} fmt={fmt} />
             </div>
