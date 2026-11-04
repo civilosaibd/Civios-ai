@@ -40,19 +40,28 @@ Deno.serve(async (req) => {
   const admin = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const [{ data: legacyAdmin }, { data: superAdmin }, { data: canViewUsers }, { data: canManageUsers }] = await Promise.all([
+  const permissionChecks = await Promise.all([
     callerClient.rpc("has_role", { _user_id: authData.user.id, _role: "admin" }),
     callerClient.rpc("is_super_admin"),
     callerClient.rpc("has_admin_permission", { _feature_key: "users", _action: "view" }),
     callerClient.rpc("has_admin_permission", { _feature_key: "users", _action: "manage" }),
+    callerClient.rpc("has_admin_permission", { _feature_key: "audit", _action: "view" }),
   ]);
+  // Never continue with privileged service-role reads if authorization RPCs fail.
+  if (permissionChecks.some(({ error }) => error)) {
+    return json({ error: "Unable to verify administrator permissions" }, 503, origin);
+  }
+  const [
+    { data: legacyAdmin }, { data: superAdmin }, { data: canViewUsers },
+    { data: canManageUsers }, { data: canViewAudit },
+  ] = permissionChecks;
 
   let body: { action?: string; userId?: string; page?: number; status?: string; reason?: string; limit?: number };
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON body" }, 400, origin); }
   const mayViewUsers = legacyAdmin === true || superAdmin === true || canViewUsers === true;
   const mayManageUsers = legacyAdmin === true || superAdmin === true || canManageUsers === true;
   if (body.action === "audit-list") {
-    if (legacyAdmin !== true && superAdmin !== true) return json({ error: "Super Admin access required" }, 403, origin);
+    if (legacyAdmin !== true && superAdmin !== true && canViewAudit !== true) return json({ error: "Audit: View permission required" }, 403, origin);
   } else if (body.action === "account-status") {
     if (!mayManageUsers) return json({ error: "Users: Manage permission required" }, 403, origin);
   } else if (!mayViewUsers) {
@@ -84,7 +93,11 @@ Deno.serve(async (req) => {
       ban_duration:status === "suspended" ? "876000h" : "none",
     });
     if (changeError || !changed.user) {
-      await admin.from("admin_account_status_audit").update({result:"failed"}).eq("id",audit.id);
+      const { error: failureAuditError } = await admin.from("admin_account_status_audit")
+        .update({result:"failed"}).eq("id",audit.id);
+      if (failureAuditError) {
+        return json({error:"Account status change failed and its audit record could not be finalized; investigate immediately"},500,origin);
+      }
       return json({error:"Account status could not be changed"},409,origin);
     }
     const {error:finalAuditError} = await admin.from("admin_account_status_audit").update({result:"succeeded"}).eq("id",audit.id);
@@ -111,6 +124,15 @@ Deno.serve(async (req) => {
     const subMap = new Map((subs || []).map((s) => [s.user_id, s]));
     const roleMap = new Map((roles || []).map((r) => [r.user_id, r.role]));
     const membershipMap = new Map((memberships || []).map((m) => [m.user_id, m]));
+    const { error: directoryAuditError } = await admin.from("admin_action_audit").insert({
+      admin_user_id: authData.user.id,
+      action: "view_user_directory",
+      target_type: "user_directory",
+      details: { page, returned_user_count: data.users.length },
+    });
+    if (directoryAuditError) {
+      return json({ error: "Unable to record privileged directory access; user records were not returned" }, 500, origin);
+    }
     return json({
       users: data.users.map((u) => ({
         id: u.id, email: u.email, phone: u.phone,
@@ -211,6 +233,15 @@ Deno.serve(async (req) => {
   }
 
   if (body.action === "audit-list") {
+    const { error: auditViewLogError } = await admin.from("admin_action_audit").insert({
+      admin_user_id: authData.user.id,
+      action: "view_user_access_audit",
+      target_type: "user_access_audit",
+      details: { requested_limit: Number(body.limit) || 50 },
+    });
+    if (auditViewLogError) {
+      return json({ error: "Unable to record privileged audit-history access" }, 500, origin);
+    }
     const requestedLimit = Number((body as { limit?: number }).limit) || 50;
     const limit = Math.max(1, Math.min(100, requestedLimit));
     const { data: events, error: auditListError } = await admin.from("admin_user_access_audit")

@@ -103,6 +103,109 @@ test("Super Admin can grant billing permissions and billing manage implies view"
   });
 });
 
+test("affiliate withdrawal review and audit are atomic when audit insertion fails",async()=>{
+  const [withdrawal]=await q(
+    "INSERT INTO public.withdrawals(user_id,amount,method,account_number,status) VALUES ($1,500,'bKash','01700000000','pending') RETURNING id",
+    [SUB]
+  );
+  await db.exec(`
+    CREATE OR REPLACE FUNCTION public.test_fail_admin_action_audit() RETURNS trigger
+    LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'simulated audit outage'; END; $$;
+    CREATE TRIGGER test_fail_admin_action_audit BEFORE INSERT ON public.admin_action_audit
+    FOR EACH ROW EXECUTE FUNCTION public.test_fail_admin_action_audit();
+  `);
+  await admin(()=>rejects(
+    ()=>db.query("SELECT public.admin_update_affiliate_withdrawal($1,'approved',NULL,NULL)",[withdrawal.id]),
+    /simulated audit outage/
+  ));
+  assert.equal((await q("SELECT status FROM public.withdrawals WHERE id=$1",[withdrawal.id]))[0].status,"pending");
+  await db.exec("DROP TRIGGER test_fail_admin_action_audit ON public.admin_action_audit; DROP FUNCTION public.test_fail_admin_action_audit();");
+  await admin(async()=>{
+    const result=await db.query("SELECT public.admin_update_affiliate_withdrawal($1,'approved','checked',NULL) AS value",[withdrawal.id]);
+    assert.equal(result.rows[0].value.status,"approved");
+  });
+  const [updated]=await q("SELECT status,admin_note FROM public.withdrawals WHERE id=$1",[withdrawal.id]);
+  assert.deepEqual(updated,{status:"approved",admin_note:"checked"});
+  const [audit]=await q("SELECT action,details->>'previous_status' AS previous_status,details->>'new_status' AS new_status FROM public.admin_action_audit WHERE target_id=$1",[withdrawal.id]);
+  assert.deepEqual(audit,{action:"affiliate_withdrawal_approved",previous_status:"pending",new_status:"approved"});
+});
+
+test("project status RPC enforces view-only versus manage permissions and rejects invalid status",async()=>{
+  const [membership]=await q(
+    "INSERT INTO public.admin_memberships(user_id,role,status,assigned_by) VALUES ($1,'sub_admin','active',$2) ON CONFLICT (user_id) DO UPDATE SET status='active' RETURNING id",
+    [SUB,ADMIN]
+  );
+  const [project]=await q(
+    "INSERT INTO public.projects(user_id,name) VALUES ($1,'Project Permission Regression') RETURNING id",
+    [SUB]
+  );
+  await admin(()=>db.query(
+    "SELECT public.admin_set_subadmin_project_permissions($1,ARRAY['view']::text[])",
+    [membership.id]
+  ));
+  await sub(async()=>{
+    assert.equal((await db.query("SELECT public.has_admin_permission('projects','view') AS allowed")).rows[0].allowed,true);
+    assert.equal((await db.query("SELECT public.has_admin_permission('projects','manage') AS allowed")).rows[0].allowed,false);
+    await rejects(
+      ()=>db.query("SELECT public.admin_update_project_status($1,'completed')",[project.id]),
+      /Projects: Manage permission required/
+    );
+  });
+  assert.equal((await q("SELECT status FROM public.projects WHERE id=$1",[project.id]))[0].status,"planning");
+  await admin(()=>db.query(
+    "SELECT public.admin_set_subadmin_project_permissions($1,ARRAY['manage']::text[])",
+    [membership.id]
+  ));
+  await sub(async()=>{
+    await rejects(
+      ()=>db.query("SELECT public.admin_update_project_status($1,'unknown')",[project.id]),
+      /Unsupported project status/
+    );
+    const result=await db.query(
+      "SELECT public.admin_update_project_status($1,'in_progress') AS value",
+      [project.id]
+    );
+    assert.equal(result.rows[0].value.status,"in_progress");
+  });
+  const [audit]=await q(
+    "SELECT action,details->>'previous_status' AS previous_status,details->>'new_status' AS new_status FROM public.admin_project_access_audit WHERE project_id=$1",
+    [project.id]
+  );
+  assert.deepEqual(audit,{action:"update_project_status",previous_status:"planning",new_status:"in_progress"});
+});
+
+test("project status update and access audit are atomic when audit insertion fails",async()=>{
+  const [project]=await q(
+    "INSERT INTO public.projects(user_id,name) VALUES ($1,'Audit Integrity Project') RETURNING id",
+    [SUB]
+  );
+  await db.exec(`
+    CREATE OR REPLACE FUNCTION public.test_fail_project_access_audit() RETURNS trigger
+    LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'simulated project audit outage'; END; $$;
+    CREATE TRIGGER test_fail_project_access_audit BEFORE INSERT ON public.admin_project_access_audit
+    FOR EACH ROW EXECUTE FUNCTION public.test_fail_project_access_audit();
+  `);
+  await admin(()=>rejects(
+    ()=>db.query("SELECT public.admin_update_project_status($1,'completed')",[project.id]),
+    /simulated project audit outage/
+  ));
+  assert.equal((await q("SELECT status FROM public.projects WHERE id=$1",[project.id]))[0].status,"planning");
+  await db.exec("DROP TRIGGER test_fail_project_access_audit ON public.admin_project_access_audit; DROP FUNCTION public.test_fail_project_access_audit();");
+  await other(()=>rejects(
+    ()=>db.query("SELECT public.admin_update_project_status($1,'completed')",[project.id]),
+    /Projects: Manage permission required/
+  ));
+  await admin(async()=>{
+    const result=await db.query("SELECT public.admin_update_project_status($1,'completed') AS value",[project.id]);
+    assert.equal(result.rows[0].value.status,"completed");
+  });
+  const [audit]=await q(
+    "SELECT action,details->>'previous_status' AS previous_status,details->>'new_status' AS new_status FROM public.admin_project_access_audit WHERE project_id=$1",
+    [project.id]
+  );
+  assert.deepEqual(audit,{action:"update_project_status",previous_status:"planning",new_status:"completed"});
+});
+
 test("Super Admin can grant affiliate permissions and commission review honors affiliate.manage",async()=>{
   const [membership]=await q("SELECT id FROM public.admin_memberships WHERE user_id=$1",[SUB]);
   await admin(async()=>{ await db.query("SELECT public.admin_set_subadmin_affiliate_permissions($1,ARRAY['manage']::text[])",[membership.id]); });
@@ -189,4 +292,84 @@ test("Invitation replacement and revocation are audited and replay-safe",async()
     await rejects(()=>db.query("SELECT public.admin_revoke_invitation($1)",[pending.id]),/Pending invitation not found/);
   });
   assert.equal((await q("SELECT status FROM public.admin_invitations WHERE id=$1",[pending.id]))[0].status,"revoked");
+});
+
+test("affiliate withdrawal RPC enforces view/manage permissions, valid transitions, and paid reference",async()=>{
+  // Keep this test self-contained instead of relying on another test to create SUB membership.
+  const [membership]=await q(
+    "INSERT INTO public.admin_memberships(user_id,role,status,assigned_by) VALUES ($1,'sub_admin','active',$2) ON CONFLICT (user_id) DO UPDATE SET status='active' RETURNING id",
+    [SUB,ADMIN]
+  );
+  const [withdrawal]=await q(
+    "INSERT INTO public.withdrawals(user_id,amount,method,account_number,status) VALUES ($1,750,'bKash','01800000000','pending') RETURNING id",
+    [SUB]
+  );
+  await admin(()=>db.query("SELECT public.admin_set_subadmin_affiliate_permissions($1,ARRAY['view']::text[])",[membership.id]));
+  await sub(async()=>{
+    assert.equal((await db.query("SELECT public.has_admin_permission('affiliate','view') AS allowed")).rows[0].allowed,true);
+    assert.equal((await db.query("SELECT public.has_admin_permission('affiliate','manage') AS allowed")).rows[0].allowed,false);
+    await rejects(
+      ()=>db.query("SELECT public.admin_update_affiliate_withdrawal($1,'approved',NULL,NULL)",[withdrawal.id]),
+      /Affiliate: Manage permission required/
+    );
+  });
+  assert.equal((await q("SELECT status FROM public.withdrawals WHERE id=$1",[withdrawal.id]))[0].status,"pending");
+  await admin(()=>db.query("SELECT public.admin_set_subadmin_affiliate_permissions($1,ARRAY['manage']::text[])",[membership.id]));
+  await sub(async()=>{
+    const approved=await db.query("SELECT public.admin_update_affiliate_withdrawal($1,'approved',NULL,NULL) AS value",[withdrawal.id]);
+    assert.equal(approved.rows[0].value.status,"approved");
+    await rejects(
+      ()=>db.query("SELECT public.admin_update_affiliate_withdrawal($1,'paid',NULL,NULL)",[withdrawal.id]),
+      /transaction reference is required/
+    );
+    const paid=await db.query("SELECT public.admin_update_affiliate_withdrawal($1,'paid',NULL,'TXN-SECURE-001') AS value",[withdrawal.id]);
+    assert.equal(paid.rows[0].value.status,"paid");
+    assert.equal(paid.rows[0].value.transaction_reference,"TXN-SECURE-001");
+    await rejects(
+      ()=>db.query("SELECT public.admin_update_affiliate_withdrawal($1,'rejected',NULL,NULL)",[withdrawal.id]),
+      /Invalid withdrawal transition/
+    );
+  });
+  const audit=await q(
+    "SELECT action,details->>'previous_status' AS previous_status,details->>'new_status' AS new_status,details->>'transaction_reference' AS transaction_reference FROM public.admin_action_audit WHERE target_id=$1 ORDER BY created_at",
+    [withdrawal.id]
+  );
+  assert.deepEqual(audit,[
+    {action:"affiliate_withdrawal_approved",previous_status:"pending",new_status:"approved",transaction_reference:null},
+    {action:"affiliate_withdrawal_paid",previous_status:"approved",new_status:"paid",transaction_reference:"TXN-SECURE-001"}
+  ]);
+});
+
+test("privileged status RPCs are executable only by authenticated callers",async()=>{
+  const checks=await q(`
+    SELECT
+      has_function_privilege('anon','public.admin_update_affiliate_withdrawal(uuid,text,text,text)','EXECUTE') AS anon_affiliate,
+      has_function_privilege('authenticated','public.admin_update_affiliate_withdrawal(uuid,text,text,text)','EXECUTE') AS authenticated_affiliate,
+      has_function_privilege('anon','public.admin_update_project_status(uuid,text)','EXECUTE') AS anon_project,
+      has_function_privilege('authenticated','public.admin_update_project_status(uuid,text)','EXECUTE') AS authenticated_project
+  `);
+  assert.deepEqual(checks[0],{
+    anon_affiliate:false,
+    authenticated_affiliate:true,
+    anon_project:false,
+    authenticated_project:true
+  });
+});
+
+
+test("admin user-data Edge Function fails closed and audits privileged directory and audit-history reads",()=>{
+  const endpoint=readFileSync(join(here,"..","functions","admin-user-data","index.ts"),"utf8");
+  assert.match(endpoint,/auth\.getUser\(\)/);
+  assert.match(endpoint,/permissionChecks\.some\(\(\{ error \}\) => error\)/);
+  assert.match(endpoint,/legacyAdmin === true \|\| superAdmin === true \|\| canViewUsers === true/);
+  assert.match(endpoint,/body\.action === "account-status"[\s\S]*?if \(!mayManageUsers\)/);
+  assert.match(endpoint,/action: "view_user_directory"/);
+  assert.match(endpoint,/action: "view_user_access_audit"/);
+  assert.match(endpoint,/Unable to record privileged directory access; user records were not returned/);
+  assert.match(endpoint,/Unable to record privileged audit-history access/);
+  assert.match(endpoint,/action: "view_user_details"/);
+  assert.match(endpoint,/userId === authData\.user\.id/);
+  assert.match(endpoint,/targetRole\?\.role === "admin" \|\| membership/);
+  assert.match(endpoint,/columns: "id,user_id,agent_type,key,created_at,updated_at"/);
+  assert.doesNotMatch(endpoint,/serviceKey\s*\)\s*;[\s\S]{0,500}req\.headers\.get\("Authorization"\)/);
 });

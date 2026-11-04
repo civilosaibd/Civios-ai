@@ -740,3 +740,43 @@ test("admin_ai_usage_summary: only admins can read monthly aggregate counters", 
 test("admin AI usage access audit is not readable by authenticated users", async () => {
   assert.equal((await q("SELECT has_table_privilege('authenticated','public.admin_ai_usage_audit','SELECT') AS allowed"))[0].allowed, false);
 });
+
+test("privileged admin audit tables deny direct client access and retain service-role access", async () => {
+  const protectedTables = [
+    "admin_user_access_audit",
+    "admin_project_access_audit",
+    "admin_billing_audit",
+    "admin_ai_usage_audit",
+  ];
+  for (const table of protectedTables) {
+    for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
+      const [{ anon_allowed, authenticated_allowed }] = await q(
+        "SELECT has_table_privilege('anon',$1,$2) AS anon_allowed, has_table_privilege('authenticated',$1,$2) AS authenticated_allowed",
+        [`public.${table}`, privilege]
+      );
+      assert.equal(anon_allowed, false, `anon must not have ${privilege} on ${table}`);
+      assert.equal(authenticated_allowed, false, `authenticated must not have ${privilege} on ${table}`);
+    }
+    const [{ service_select, service_insert }] = await q(
+      "SELECT has_table_privilege('service_role',$1,'SELECT') AS service_select, has_table_privilege('service_role',$1,'INSERT') AS service_insert",
+      [`public.${table}`]
+    );
+    assert.equal(service_select, true, `service_role should read ${table}`);
+    assert.equal(service_insert, true, `service_role should write ${table}`);
+  }
+});
+
+test("RBAC audit rows are visible to Super Admin only, not ordinary authenticated users", async () => {
+  await db.query(
+    "INSERT INTO public.admin_rbac_audit(actor_user_id,action,metadata) VALUES ($1,'permission_granted','{\"security_test_marker\":\"audit_visibility\"}'::jsonb)",
+    [ADMIN]
+  );
+  const [ordinaryCount] = await alice(() => q(
+    "SELECT count(*)::int AS count FROM public.admin_rbac_audit WHERE metadata->>'security_test_marker'='audit_visibility'"
+  ));
+  assert.equal(ordinaryCount.count, 0);
+  const [superAdminCount] = await admin(() => q(
+    "SELECT count(*)::int AS count FROM public.admin_rbac_audit WHERE metadata->>'security_test_marker'='audit_visibility'"
+  ));
+  assert.equal(superAdminCount.count, 1);
+});
