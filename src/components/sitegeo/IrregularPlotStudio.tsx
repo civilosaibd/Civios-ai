@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Download, Plus, Trash2, RotateCcw, MousePointer2 } from "lucide-react";
 import { toast } from "sonner";
 import { analyzePolygon, polygonToDxf, type PlotVertex } from "@/lib/landGeometry";
+import { findBuildingPlacement, type BuildingPlacementResult } from "@/lib/buildingPlacement";
 
 type Props={T:(en:string,bn:string)=>string};
 const initial:PlotVertex[]=[{x:0,y:0},{x:18,y:0},{x:15,y:12},{x:7,y:16},{x:0,y:10}];
@@ -14,6 +15,8 @@ export default function IrregularPlotStudio({T}:Props){
   const [vertices,setVertices]=useState<PlotVertex[]>(initial);
   const [unit,setUnit]=useState<"m"|"ft">("m");
   const [draft,setDraft]=useState({x:"",y:""});
+  const [building,setBuilding]=useState({width:"8",depth:"10",setback:"1.5"});
+  const [placement,setPlacement]=useState<BuildingPlacementResult|null>(null);
   const svgRef=useRef<SVGSVGElement>(null);
   const analysis=useMemo(()=>analyzePolygon(vertices),[vertices]);
   const bounds=useMemo(()=>{
@@ -26,6 +29,7 @@ export default function IrregularPlotStudio({T}:Props){
   const px=(x:number)=>40+(x-bounds.minX)/width*520;
   const py=(y:number)=>360-(y-bounds.minY)/height*320;
   const points=vertices.map(p=>`${px(p.x)},${py(p.y)}`).join(" ");
+  const placementPoints=placement?.placement?.corners.map(p=>`${px(p.x)},${py(p.y)}`).join(" ");
   const add=()=>{
     const x=Number(draft.x),y=Number(draft.y);
     if(!draft.x.trim()||!draft.y.trim()||!Number.isFinite(x)||!Number.isFinite(y))return toast.error(T("Enter valid X and Y coordinates.","সঠিক X ও Y স্থানাঙ্ক দিন।"));
@@ -38,7 +42,7 @@ export default function IrregularPlotStudio({T}:Props){
     const x=bounds.minX+(sx-40)/520*width,y=bounds.minY+(360-sy)/320*height;
     setVertices(v=>[...v,{x:Number(x.toFixed(3)),y:Number(y.toFixed(3))}]);
   };
-  const exportDxf=()=>{
+  const calculatePlacement=()=>{\n    if(!analysis.valid)return toast.error(T("Create a valid plot boundary first.","আগে সঠিক জমির সীমানা তৈরি করুন।"));\n    const result=findBuildingPlacement({plot:vertices,width:Number(building.width),depth:Number(building.depth),setback:Number(building.setback),gridStep:Math.max(Number(building.width),Number(building.depth))/16,angleStepDegrees:15,maxCandidates:100000});\n    setPlacement(result);\n    if(!result.valid)toast.error(T(result.reason||"No suitable building placement found.","উপযুক্ত ভবনের অবস্থান পাওয়া যায়নি।"));\n  };\n  const exportDxf=()=>{
     if(!analysis.valid)return toast.error(T("Fix the boundary errors before exporting.","এক্সপোর্টের আগে সীমানার ভুল ঠিক করুন।"));
     const blob=new Blob([polygonToDxf(vertices)],{type:"application/dxf"});
     const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="civilos-irregular-plot.dxf";a.click();URL.revokeObjectURL(url);
@@ -59,7 +63,7 @@ export default function IrregularPlotStudio({T}:Props){
             <defs><pattern id="plot-grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="currentColor" strokeOpacity=".12" strokeWidth="1"/></pattern></defs>
             <rect x="0" y="0" width="600" height="400" fill="url(#plot-grid)"/>
             {vertices.length>=2&&<polyline points={points+(vertices.length>=3?` ${px(vertices[0].x)},${py(vertices[0].y)}`:"")} fill={vertices.length>=3?"rgba(37,99,235,.12)":"none"} stroke="#2563eb" strokeWidth="2.5" strokeLinejoin="round"/>}
-            {vertices.map((p,i)=><g key={i} pointerEvents="none"><circle cx={px(p.x)} cy={py(p.y)} r="5" fill="#f97316" stroke="white" strokeWidth="1.5"/><text x={px(p.x)+7} y={py(p.y)-8} fontSize="11" fill="currentColor">{String.fromCharCode(65+(i%26))}</text></g>)}
+            {placementPoints&&<polygon points={placementPoints} fill="rgba(249,115,22,.22)" stroke="#f97316" strokeWidth="2.5" strokeDasharray="7 4" pointerEvents="none"/>}\n            {vertices.map((p,i)=><g key={i} pointerEvents="none"><circle cx={px(p.x)} cy={py(p.y)} r="5" fill="#f97316" stroke="white" strokeWidth="1.5"/><text x={px(p.x)+7} y={py(p.y)-8} fontSize="11" fill="currentColor">{String.fromCharCode(65+(i%26))}</text></g>)}
           </svg>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -79,6 +83,18 @@ export default function IrregularPlotStudio({T}:Props){
         <div className="flex gap-2"><Button size="sm" onClick={add} className="flex-1"><Plus className="h-4 w-4 mr-1"/>{T("Add vertex","কোণ যোগ")}</Button><Button size="sm" variant="outline" onClick={()=>setVertices([])}><RotateCcw className="h-4 w-4"/></Button></div>
         <div className="max-h-64 overflow-auto space-y-2">
           {vertices.map((p,i)=><div key={i} className="grid grid-cols-[24px_1fr_1fr_28px] gap-1 items-center"><span className="text-xs font-semibold">{String.fromCharCode(65+(i%26))}</span><Input aria-label={`Vertex ${i+1} X`} type="number" step="0.001" value={p.x} onChange={e=>{const x=Number(e.target.value);setVertices(v=>v.map((q,j)=>j===i?{...q,x}:q));}}/><Input aria-label={`Vertex ${i+1} Y`} type="number" step="0.001" value={p.y} onChange={e=>{const y=Number(e.target.value);setVertices(v=>v.map((q,j)=>j===i?{...q,y}:q));}}/><Button size="icon" variant="ghost" aria-label={T("Remove vertex","কোণ মুছুন")} onClick={()=>setVertices(v=>v.filter((_,j)=>j!==i))}><Trash2 className="h-4 w-4 text-destructive"/></Button></div>)}
+        </div>
+        <div className="border-t pt-3 space-y-2">
+          <div><h4 className="text-sm font-semibold">{T("Building Placement & Setback","ভবন স্থাপন ও সেটব্যাক")}</h4><p className="text-[11px] text-muted-foreground">{T("Find a rectangular footprint that fits inside the plot boundary.","জমির সীমানার ভেতরে মানানসই আয়তাকার ভবনের অবস্থান খুঁজুন।")}</p></div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-1"><Label className="text-[11px]">{T("Width","প্রস্থ")} ({unit})</Label><Input aria-label={T("Building width","ভবনের প্রস্থ")} type="number" min="0.1" step="0.1" value={building.width} onChange={e=>{setBuilding(v=>({...v,width:e.target.value}));setPlacement(null);}}/></div>
+            <div className="space-y-1"><Label className="text-[11px]">{T("Depth","দৈর্ঘ্য")} ({unit})</Label><Input aria-label={T("Building depth","ভবনের দৈর্ঘ্য")} type="number" min="0.1" step="0.1" value={building.depth} onChange={e=>{setBuilding(v=>({...v,depth:e.target.value}));setPlacement(null);}}/></div>
+            <div className="space-y-1"><Label className="text-[11px]">{T("Setback","সেটব্যাক")} ({unit})</Label><Input aria-label={T("Required setback","প্রয়োজনীয় সেটব্যাক")} type="number" min="0" step="0.1" value={building.setback} onChange={e=>{setBuilding(v=>({...v,setback:e.target.value}));setPlacement(null);}}/></div>
+          </div>
+          <Button className="w-full" onClick={calculatePlacement} disabled={!analysis.valid}>{T("Find suitable placement","ভবনের উপযুক্ত অবস্থান খুঁজুন")}</Button>
+          {placement?.placement&&<div role="status" className="rounded-md bg-muted/60 p-2 text-xs space-y-1"><p className="font-semibold text-green-700">{T("Suitable footprint found","উপযুক্ত ভবনের অবস্থান পাওয়া গেছে")}</p><p>{T("Footprint area","ভবনের ক্ষেত্রফল")}: {fmt(placement.placement.area)} {unit==="m"?"m²":"ft²"}</p><p>{T("Rotation","ঘূর্ণন")}: {placement.placement.angleDegrees}°</p><p>{T("Center","কেন্দ্র")}: X {fmt(placement.placement.center.x)}, Y {fmt(placement.placement.center.y)}</p><p>{T("Checked positions","পরীক্ষিত অবস্থান")}: {placement.candidatesChecked.toLocaleString()}</p></div>}
+          {placement&&!placement.placement&&<p role="alert" className="text-xs text-destructive">{T(placement.reason||"No suitable placement found.","উপযুক্ত অবস্থান পাওয়া যায়নি।")}</p>}
+          <p className="text-[10px] text-muted-foreground">{T("Preliminary geometric fit only. Confirm statutory setbacks, road access, easements, orientation, soil conditions and local building rules before design approval.","এটি প্রাথমিক জ্যামিতিক যাচাই। অনুমোদনের আগে বিধিবদ্ধ সেটব্যাক, রাস্তা, ইজমেন্ট, দিক, মাটির অবস্থা ও স্থানীয় বিল্ডিং বিধিমালা যাচাই করুন।")}</p>
         </div>
         <Button className="w-full" variant="outline" onClick={exportDxf} disabled={!analysis.valid}><Download className="h-4 w-4 mr-1"/>{T("Export boundary DXF","সীমানা DXF এক্সপোর্ট")}</Button>
         <p className="text-[11px] text-muted-foreground">{T("Coordinates must be in boundary order and use one consistent local coordinate system. This is a 2D plot boundary tool, not a cadastral/legal survey certification.","স্থানাঙ্কগুলো সীমানার ধারাবাহিক ক্রমে এবং একই স্থানীয় কো-অর্ডিনেট সিস্টেমে দিতে হবে। এটি 2D জমির সীমানা টুল, আইনি/ক্যাডাস্ট্রাল জরিপের সনদ নয়।")}</p>
