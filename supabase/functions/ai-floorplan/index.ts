@@ -117,6 +117,60 @@ function validatePlan(value: any) {
   };
   const doors = openings(value.doors ?? [], "door", 24);
   const windows = openings(value.windows ?? [], "window", 24);
+
+  // A door must either open to the exterior or sit on a genuinely shared wall
+  // with another room. Merely being somewhere on a room boundary is not enough.
+  const roomByName = new Map(rooms.map((room: any) => [room.name, room]));
+  const connected = new Map<string, Set<string>>();
+  for (const room of rooms) connected.set(room.name, new Set<string>());
+  const exteriorRooms = new Set<string>();
+
+  for (const door of doors) {
+    const source = roomByName.get(door.room) as any;
+    const along = door.wall === "north" || door.wall === "south" ? door.x : door.y;
+    const fixed = door.wall === "north" || door.wall === "south" ? door.y : door.x;
+    const low = along - door.width / 2;
+    const high = along + door.width / 2;
+    const sourceWall = roomWalls.find((edge) => edge.room === source.name
+      && edge.side === door.wall && Math.abs(edge.fixed - fixed) < 0.08);
+    if (!sourceWall) throw new Error("AI returned a door that is not on its assigned room wall.");
+
+    if (sourceWall.exterior) {
+      exteriorRooms.add(source.name);
+      continue;
+    }
+
+    const oppositeSide: Record<string, string> = {
+      north: "south", south: "north", east: "west", west: "east",
+    };
+    const adjacent = roomWalls.find((edge) => edge.room !== source.name
+      && edge.side === oppositeSide[door.wall]
+      && Math.abs(edge.fixed - fixed) < 0.08
+      && Math.min(edge.high, high) - Math.max(edge.low, low) >= door.width - 0.1);
+    if (!adjacent) {
+      throw new Error("AI returned an internal door that does not connect two adjacent rooms.");
+    }
+    connected.get(source.name)?.add(adjacent.room);
+    connected.get(adjacent.room)?.add(source.name);
+  }
+
+  // Every room must be reachable from at least one exterior entrance through
+  // internal door connections; this catches isolated/unreachable room layouts.
+  const reached = new Set<string>();
+  const queue = [...exteriorRooms];
+  while (queue.length) {
+    const current = queue.shift()!;
+    if (reached.has(current)) continue;
+    reached.add(current);
+    for (const next of connected.get(current) ?? []) {
+      if (!reached.has(next)) queue.push(next);
+    }
+  }
+  if (reached.size !== rooms.length) {
+    const isolated = rooms.filter((room: any) => !reached.has(room.name)).map((room: any) => room.name);
+    throw new Error(`AI returned rooms without a valid door route from an exterior entrance: ${isolated.join(", ")}.`);
+  }
+
   // Doors and windows share the same wall space: reject cross-type collisions too.
   for (const door of doors) for (const window of windows) {
     const sameWall = door.wall === window.wall && Math.abs(
