@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type MouseEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,7 @@ export default function IrregularPlotStudio({T}:Props){
     if(!draft.x.trim()||!draft.y.trim()||!Number.isFinite(x)||!Number.isFinite(y))return toast.error(T("Enter valid X and Y coordinates.","সঠিক X ও Y স্থানাঙ্ক দিন।"));
     setVertices(v=>[...v,{x,y}]);setDraft({x:"",y:""});
   };
-  const addByCanvas=(event:React.MouseEvent<SVGSVGElement>)=>{
+  const addByCanvas=(event:MouseEvent<SVGSVGElement>)=>{
     const rect=event.currentTarget.getBoundingClientRect();
     const sx=(event.clientX-rect.left)/rect.width*600,sy=(event.clientY-rect.top)/rect.height*400;
     if(sx<40||sx>560||sy<40||sy>360)return;
