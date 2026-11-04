@@ -25,7 +25,7 @@ describe("findBuildingPlacement",()=>{
   expect(result.placement).not.toBeNull();
   expect(analyzePolygon(concave).valid).toBe(true);
  });
- it("validates dimensions and setback",()=>{
+ it("rejects a self-intersecting plot boundary",()=>{\n  const bowTie:PlotVertex[]=[{x:0,y:0},{x:10,y:10},{x:0,y:10},{x:10,y:0}];\n  const result=findBuildingPlacement({plot:bowTie,width:2,depth:2,setback:0});\n  expect(result.valid).toBe(false);\n  expect(result.reason).toMatch(/non-self-intersecting/);\n });\n it("validates dimensions and setback",()=>{
   const result=findBuildingPlacement({plot:rectangle,width:0,depth:5,setback:-1});
   expect(result.valid).toBe(false);
   expect(result.reason).toMatch(/positive building dimensions/);
