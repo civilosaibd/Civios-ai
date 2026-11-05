@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  Download, Lightbulb, Building, Layers, Hammer, Paintbrush, Zap, Droplets,
+  Download, Lightbulb, Building, Layers, Hammer, Paintbrush, Zap, Droplets, Calculator,
   DollarSign, Activity, Construction, FileText, Calendar, Box, ShieldCheck, Save, Share2,
   Sparkles, ArrowRight, CheckCircle2, LockKeyhole, TrendingUp
 } from "lucide-react";
@@ -44,6 +44,7 @@ import MaterialAnalysisDashboard from "@/components/estimate/MaterialAnalysisDas
 import BOQReconciliation from "@/components/estimate/BOQReconciliation";
 import RateAnalysisDashboard from "@/components/estimate/RateAnalysisDashboard";
 import EstimateAccuracyReview from "@/components/estimate/EstimateAccuracyReview";
+import ConstructionTradeTakeoff from "@/components/estimate/ConstructionTradeTakeoff";
 
 const COLORS = ["#1a3a6b", "#2a5298", "#e67e22", "#27ae60", "#8e44ad", "#e74c3c", "#3498db", "#f39c12", "#1abc9c"];
 
@@ -697,11 +698,16 @@ const EstimatePage = () => {
                 <TabsTrigger value="structural"><Activity className="h-4 w-4 mr-1" /> Structural</TabsTrigger>
                 <TabsTrigger value="rebar"><Construction className="h-4 w-4 mr-1" /> Rebar</TabsTrigger>
                 <TabsTrigger value="boq"><FileText className="h-4 w-4 mr-1" /> BOQ</TabsTrigger>
+                <TabsTrigger value="trade-takeoff"><Calculator className="h-4 w-4 mr-1" /> Trade Takeoff</TabsTrigger>
                 <TabsTrigger value="3d"><Box className="h-4 w-4 mr-1" /> 3D View</TabsTrigger>
                 <TabsTrigger value="timeline"><Calendar className="h-4 w-4 mr-1" /> Timeline</TabsTrigger>
                 <TabsTrigger value="quotation"><ShieldCheck className="h-4 w-4 mr-1" /> Quotation</TabsTrigger>
               </TabsList>
             </div>
+
+            <TabsContent value="trade-takeoff" className="space-y-6">
+              <ConstructionTradeTakeoff />
+            </TabsContent>
 
             {/* ESTIMATE TAB */}
             <TabsContent value="estimate" className="space-y-6">
