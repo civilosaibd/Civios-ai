@@ -45,11 +45,11 @@ const rateFields: Array<{ key: keyof TakeoffInputs["rates"]; label: string }> = 
 
 export default function ConstructionTradeTakeoff() {
   const [values, setValues] = useState<TakeoffInputs>(initial);
-  const [error, setError] = useState("");
-  const result = useMemo(() => {
-    try { setError(""); return calculateConstructionTakeoff(values); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "Invalid inputs"); return null; }
+  const calculation = useMemo(() => {
+    try { return { result: calculateConstructionTakeoff(values), error: "" }; }
+    catch (cause) { return { result: null, error: cause instanceof Error ? cause.message : "Invalid inputs" }; }
   }, [values]);
+  const { result, error } = calculation;
 
   const updateDimension = (key: keyof Omit<TakeoffInputs, "rates">, raw: string) => {
     const value = raw === "" ? 0 : Number(raw);
