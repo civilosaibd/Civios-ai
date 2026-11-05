@@ -45,6 +45,11 @@ function distanceToSegment(p:PlotVertex,a:PlotVertex,b:PlotVertex){
  const t=len?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/len)):0;
  return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));
 }
+
+function segmentDistance(a:PlotVertex,b:PlotVertex,c:PlotVertex,d:PlotVertex){
+ if(intersects(a,b,c,d))return 0;
+ return Math.min(distanceToSegment(a,c,d),distanceToSegment(b,c,d),distanceToSegment(c,a,b),distanceToSegment(d,a,b));
+}
 function clearance(p:PlotVertex,poly:PlotVertex[]){
  let d=Infinity;
  for(let i=0;i<poly.length;i++)d=Math.min(d,distanceToSegment(p,poly[i],poly[(i+1)%poly.length]));
