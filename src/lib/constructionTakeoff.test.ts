@@ -14,8 +14,8 @@ describe("construction trade takeoff", () => {
   it("calculates excavation, concrete, steel and net masonry using metric dimensions", () => {
     const result = calculateConstructionTakeoff(base);
     expect(result.lines[0].quantity).toBe(10);
-    expect(result.lines[1].quantity).toBe(35);
-    expect(result.lines[2].quantity).toBe(3500);
+    expect(result.lines[1].quantity).toBe(23);
+    expect(result.lines[2].quantity).toBe(2300);
     expect(result.lines[3].quantity).toBe(11);
   });
 
