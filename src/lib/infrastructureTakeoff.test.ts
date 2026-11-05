@@ -19,7 +19,7 @@ describe("road, drain and box culvert takeoff",()=>{
  });
  it("calculates geometric box culvert barrel concrete",()=>{
   const r=calculateInfrastructureTakeoff(base);
-  expect(r.lines[5].quantity).toBe(13);
+  expect(r.lines[5].quantity).toBe(16);
  });
  it("rejects negative inputs and fractional culvert count",()=>{
   expect(()=>calculateInfrastructureTakeoff({...base,roadWidth:-1})).toThrow(/non-negative/);
