@@ -1,5 +1,19 @@
 // Server-authoritative monthly AI credit accounting.
 // A request reserves one credit before it is sent to the AI provider.
+//
+// Credit policy (issue #338):
+// - Callers must validate authentication, rate limits, and the selected
+//   provider's configuration BEFORE calling consumeAiCredit, so a
+//   misconfigured deployment never consumes a credit. The regression
+//   tests in src/lib/aiEndpointHardening.test.ts guard this ordering
+//   for every endpoint that reserves credits.
+// - If the provider call itself then fails (429 / 402 / 5xx), the
+//   reserved credit is not automatically refunded: an attempted request
+//   is billable. There is deliberately no refund path here, because a
+//   safe refund must be atomic and idempotent and must not be callable
+//   by clients; adding one requires a dedicated, protected database
+//   RPC, which is tracked as follow-up work rather than improvised in
+//   this helper.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 export type AiCreditResult = { status: 402 | 503; message: string } | null;
