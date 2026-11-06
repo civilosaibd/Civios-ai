@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  Download, Lightbulb, Building, Layers, Hammer, Paintbrush, Zap, Droplets, Calculator, Route, Construction,
+  Download, Lightbulb, Building, Layers, Hammer, Paintbrush, Zap, Droplets, Calculator, Route,
   DollarSign, Activity, Construction, FileText, Calendar, Box, ShieldCheck, Save, Share2,
   Sparkles, ArrowRight, CheckCircle2, LockKeyhole, TrendingUp
 } from "lucide-react";
