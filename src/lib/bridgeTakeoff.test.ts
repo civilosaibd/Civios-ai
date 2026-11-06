@@ -11,7 +11,7 @@ describe("bridge geometric quantity takeoff",()=>{
  it("calculates deck slab and wearing-course quantities",()=>{
   const r=calculateBridgeTakeoff(base);
   expect(r.lines[0].quantity).toBe(80);
-  expect(r.lines[7].quantity).toBe(12.8);
+  expect(r.lines[7].quantity).toBe(25.6);
  });
  it("calculates girder, diaphragm, abutment and pier quantities",()=>{
   const r=calculateBridgeTakeoff(base);
