@@ -47,6 +47,7 @@ import EstimateAccuracyReview from "@/components/estimate/EstimateAccuracyReview
 import ConstructionTradeTakeoff from "@/components/estimate/ConstructionTradeTakeoff";
 import InfrastructureTakeoff from "@/components/estimate/InfrastructureTakeoff";
 import BridgeTakeoff from "@/components/estimate/BridgeTakeoff";
+import PlumbingTakeoff from "@/components/estimate/PlumbingTakeoff";
 
 const COLORS = ["#1a3a6b", "#2a5298", "#e67e22", "#27ae60", "#8e44ad", "#e74c3c", "#3498db", "#f39c12", "#1abc9c"];
 
@@ -703,6 +704,7 @@ const EstimatePage = () => {
                 <TabsTrigger value="trade-takeoff"><Calculator className="h-4 w-4 mr-1" /> Trade Takeoff</TabsTrigger>
                 <TabsTrigger value="infrastructure"><Route className="h-4 w-4 mr-1" /> Road & Drainage</TabsTrigger>
                 <TabsTrigger value="bridge"><Construction className="h-4 w-4 mr-1" /> Bridge BOQ</TabsTrigger>
+                <TabsTrigger value="plumbing"><Droplets className="h-4 w-4 mr-1" /> Plumbing BOQ</TabsTrigger>
                 <TabsTrigger value="3d"><Box className="h-4 w-4 mr-1" /> 3D View</TabsTrigger>
                 <TabsTrigger value="timeline"><Calendar className="h-4 w-4 mr-1" /> Timeline</TabsTrigger>
                 <TabsTrigger value="quotation"><ShieldCheck className="h-4 w-4 mr-1" /> Quotation</TabsTrigger>
@@ -715,6 +717,10 @@ const EstimatePage = () => {
 
             <TabsContent value="bridge" className="space-y-6">
               <BridgeTakeoff />
+            </TabsContent>
+
+            <TabsContent value="plumbing" className="space-y-6">
+              <PlumbingTakeoff />
             </TabsContent>
 
             <TabsContent value="trade-takeoff" className="space-y-6">
