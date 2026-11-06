@@ -42,7 +42,13 @@ export default function IrregularPlotStudio({T}:Props){
     const x=bounds.minX+(sx-40)/520*width,y=bounds.minY+(360-sy)/320*height;
     setVertices(v=>[...v,{x:Number(x.toFixed(3)),y:Number(y.toFixed(3))}]);
   };
-  const calculatePlacement=()=>{\n    if(!analysis.valid)return toast.error(T("Create a valid plot boundary first.","আগে সঠিক জমির সীমানা তৈরি করুন।"));\n    const result=findBuildingPlacement({plot:vertices,width:Number(building.width),depth:Number(building.depth),setback:Number(building.setback),gridStep:Math.max(Number(building.width),Number(building.depth))/16,angleStepDegrees:15,maxCandidates:100000});\n    setPlacement(result);\n    if(!result.valid)toast.error(T(result.reason||"No suitable building placement found.","উপযুক্ত ভবনের অবস্থান পাওয়া যায়নি।"));\n  };\n  const exportDxf=()=>{
+  const calculatePlacement=()=>{
+    if(!analysis.valid)return toast.error(T("Create a valid plot boundary first.","আগে সঠিক জমির সীমানা তৈরি করুন।"));
+    const result=findBuildingPlacement({plot:vertices,width:Number(building.width),depth:Number(building.depth),setback:Number(building.setback),gridStep:Math.max(Number(building.width),Number(building.depth))/16,angleStepDegrees:15,maxCandidates:100000});
+    setPlacement(result);
+    if(!result.valid)toast.error(T(result.reason||"No suitable building placement found.","উপযুক্ত ভবনের অবস্থান পাওয়া যায়নি।"));
+  };
+  const exportDxf=()=>{
     if(!analysis.valid)return toast.error(T("Fix the boundary errors before exporting.","এক্সপোর্টের আগে সীমানার ভুল ঠিক করুন।"));
     const blob=new Blob([polygonToDxf(vertices)],{type:"application/dxf"});
     const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="civilos-irregular-plot.dxf";a.click();URL.revokeObjectURL(url);
@@ -63,7 +69,8 @@ export default function IrregularPlotStudio({T}:Props){
             <defs><pattern id="plot-grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="currentColor" strokeOpacity=".12" strokeWidth="1"/></pattern></defs>
             <rect x="0" y="0" width="600" height="400" fill="url(#plot-grid)"/>
             {vertices.length>=2&&<polyline points={points+(vertices.length>=3?` ${px(vertices[0].x)},${py(vertices[0].y)}`:"")} fill={vertices.length>=3?"rgba(37,99,235,.12)":"none"} stroke="#2563eb" strokeWidth="2.5" strokeLinejoin="round"/>}
-            {placementPoints&&<polygon points={placementPoints} fill="rgba(249,115,22,.22)" stroke="#f97316" strokeWidth="2.5" strokeDasharray="7 4" pointerEvents="none"/>}\n            {vertices.map((p,i)=><g key={i} pointerEvents="none"><circle cx={px(p.x)} cy={py(p.y)} r="5" fill="#f97316" stroke="white" strokeWidth="1.5"/><text x={px(p.x)+7} y={py(p.y)-8} fontSize="11" fill="currentColor">{String.fromCharCode(65+(i%26))}</text></g>)}
+            {placementPoints&&<polygon points={placementPoints} fill="rgba(249,115,22,.22)" stroke="#f97316" strokeWidth="2.5" strokeDasharray="7 4" pointerEvents="none"/>}
+            {vertices.map((p,i)=><g key={i} pointerEvents="none"><circle cx={px(p.x)} cy={py(p.y)} r="5" fill="#f97316" stroke="white" strokeWidth="1.5"/><text x={px(p.x)+7} y={py(p.y)-8} fontSize="11" fill="currentColor">{String.fromCharCode(65+(i%26))}</text></g>)}
           </svg>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">

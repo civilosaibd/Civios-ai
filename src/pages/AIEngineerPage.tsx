@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { LEGACY_CHAT_STORAGE_KEY, importLegacyChatHistory } from "@/lib/legacyChatImport";
 import {
   Loader2, Send, Bot, User as UserIcon, Trash2, Copy, RefreshCw, Plus,
   MessageSquare, Sparkles, BookOpen, Calculator, Ruler, ClipboardList,
@@ -54,7 +55,17 @@ export default function AIEngineerPage() {
 
   const [conversations, setConversations] = useState<Conversation[]>(() => {
     if (typeof window === "undefined") return [];
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); } catch { return []; }
+    try {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      // One-time import of the retired AI Assistant page's thread
+      // (localStorage "civilos-ai-chat"), if one is still on this device.
+      const result = importLegacyChatHistory(stored, localStorage.getItem(LEGACY_CHAT_STORAGE_KEY), {
+        id: newId(),
+        now: Date.now(),
+      });
+      if (result.imported) localStorage.removeItem(LEGACY_CHAT_STORAGE_KEY);
+      return result.conversations;
+    } catch { return []; }
   });
   const [activeId, setActiveId] = useState<string>(() => {
     if (typeof window === "undefined") return "";
