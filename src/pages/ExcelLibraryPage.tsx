@@ -118,7 +118,8 @@ const ExcelLibraryPage = () => {
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<UploadCandidate[]>([]);
-  const [extracting, setExtracting] = useState(false);\n  const [isDragging, setIsDragging] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [archiveReport, setArchiveReport] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0, failed: 0 });
