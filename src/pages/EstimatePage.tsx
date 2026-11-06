@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  Download, Lightbulb, Building, Layers, Hammer, Paintbrush, Zap, Droplets, Calculator, Route, Bridge,
+  Download, Lightbulb, Building, Layers, Hammer, Paintbrush, Zap, Droplets, Calculator, Route, Construction,
   DollarSign, Activity, Construction, FileText, Calendar, Box, ShieldCheck, Save, Share2,
   Sparkles, ArrowRight, CheckCircle2, LockKeyhole, TrendingUp
 } from "lucide-react";
@@ -702,7 +702,7 @@ const EstimatePage = () => {
                 <TabsTrigger value="boq"><FileText className="h-4 w-4 mr-1" /> BOQ</TabsTrigger>
                 <TabsTrigger value="trade-takeoff"><Calculator className="h-4 w-4 mr-1" /> Trade Takeoff</TabsTrigger>
                 <TabsTrigger value="infrastructure"><Route className="h-4 w-4 mr-1" /> Road & Drainage</TabsTrigger>
-                <TabsTrigger value="bridge"><Bridge className="h-4 w-4 mr-1" /> Bridge BOQ</TabsTrigger>
+                <TabsTrigger value="bridge"><Construction className="h-4 w-4 mr-1" /> Bridge BOQ</TabsTrigger>
                 <TabsTrigger value="3d"><Box className="h-4 w-4 mr-1" /> 3D View</TabsTrigger>
                 <TabsTrigger value="timeline"><Calendar className="h-4 w-4 mr-1" /> Timeline</TabsTrigger>
                 <TabsTrigger value="quotation"><ShieldCheck className="h-4 w-4 mr-1" /> Quotation</TabsTrigger>
