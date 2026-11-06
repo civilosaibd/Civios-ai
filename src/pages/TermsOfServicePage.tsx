@@ -168,8 +168,8 @@ const TermsOfServicePage = () => (
           <section className="rounded-2xl border border-border bg-muted/40 p-5 md:p-7">
             <h2 className="font-heading text-xl font-semibold">12. Contact</h2>
             <p className="mt-2 leading-7 text-muted-foreground">Questions about these terms? Contact the CivilOS AI team.</p>
-            <a href="mailto:zobaerhasan431@gmail.com" className="mt-4 inline-flex items-center gap-2 font-medium text-primary hover:underline">
-              <Mail className="h-4 w-4" /> zobaerhasan431@gmail.com
+            <a href="mailto:civilosaibd@gmail.com" className="mt-4 inline-flex items-center gap-2 font-medium text-primary hover:underline">
+              <Mail className="h-4 w-4" /> civilosaibd@gmail.com
             </a>
             <div className="mt-4">
               <Link to="/contact" className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline">
